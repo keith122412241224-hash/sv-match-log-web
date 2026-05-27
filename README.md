@@ -1,17 +1,20 @@
 # SV Match Log Web
 
-Shadowverse: Worlds Beyond向けの戦績管理WebアプリMVPです。ブラウザから試合結果を入力し、勝率、先攻/後攻勝率、デッキ別勝率、対面勝率表を自動集計します。
+Shadowverse: Worlds Beyond 向けの戦績管理Webアプリです。  
+戦績を入力すると、勝率、先攻/後攻勝率、デッキ別勝率、対面勝率、相性表に自動で反映されます。
 
 ## 技術構成
 
 - Next.js App Router
 - TypeScript
 - Tailwind CSS
-- Supabase Auth / PostgreSQL / RLS
-- Vercelデプロイ前提
-- `html-to-image` による相性表の画像保存
+- Supabase Auth
+- Supabase PostgreSQL
+- Supabase RLS
+- Vercel デプロイ前提
+- `html-to-image` による相性表PNG保存
 
-## ローカル起動手順
+## ローカル起動
 
 ```bash
 npm install
@@ -19,93 +22,139 @@ cp .env.example .env.local
 npm run dev
 ```
 
-`.env.local` にはSupabaseプロジェクトの値を設定してください。
+Windowsで `npm` が見つからない場合:
 
-```bash
+```powershell
+$env:Path = "C:\Program Files\nodejs;" + $env:Path
+& "C:\Program Files\nodejs\npm.cmd" run dev
+```
+
+`.env.local` には Supabase の値を設定します。
+
+```env
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
 ```
 
-## Supabase設定手順
+`service_role` key はクライアント側・Vercel環境変数に入れないでください。
 
-1. Supabaseで新規プロジェクトを作成します。
-2. SQL Editorで `supabase/schema.sql` を実行します。
-3. 管理画面と標準デッキ管理を使う場合は、続けて `supabase/admin_archetypes_migration.sql` を実行します。
-4. Authentication > Providers > Email を有効にします。
-5. Authentication > URL Configuration を設定します。
-   - Site URL: `http://localhost:3000`
-   - Redirect URLs: `http://localhost:3000/**`
-6. Project Settings > API から `Project URL` と `anon public key` を `.env.local` に設定します。
+## Supabase 新規構築
 
-本番ではURLをVercelのドメインに置き換えてください。
+新しいSupabaseプロジェクトを作る場合は、以下の順でSQL Editorから実行します。
 
-## Vercelデプロイ手順
+1. `supabase/schema_production.sql`
+2. `supabase/seeds/admin_user.example.sql`
+3. `supabase/seeds/environments.sql`
+4. `supabase/seeds/deck_archetypes.sql`
 
-1. GitHubなどにリポジトリをpushします。
-2. VercelでNext.jsプロジェクトとしてImportします。
-3. Environment Variablesに以下を設定します。
+注意:
+
+- `admin_user.example.sql` と `environments.sql` の `ADMIN_AUTH_USER_ID` は、実際の `auth.users.id` に置き換えてください。
+- 管理者ユーザーは先にSupabase Authで新規登録しておく必要があります。
+- 標準デッキは管理画面 `/admin` から追加しても構いません。
+- `schema_production.sql` は新規構築用です。既存DBには直接流さないでください。
+
+## Supabase 既存DB更新
+
+既に運用中または検証中のDBを更新する場合は、新規構築用SQLではなく `supabase/migrations/` を使います。
+
+実行順:
+
+1. `supabase/migrations/001_admin_archetypes.sql`
+2. `supabase/migrations/002_admin_environments.sql`
+3. `supabase/migrations/003_guest_public_read.sql`
+4. `supabase/seeds/admin_user.example.sql`
+5. `supabase/seeds/environments.sql`
+6. `supabase/seeds/deck_archetypes.sql`
+7. `supabase/migrations/004_backfill_match_archetype_ids.sql`
+
+注意:
+
+- `DROP TABLE`, `TRUNCATE`, ユーザーデータ削除は含めていません。
+- `drop policy if exists` はRLSポリシー差し替え目的だけで使用しています。
+- `004_backfill_match_archetype_ids.sql` は標準デッキ登録後に実行してください。
+- 既存の `matches` は削除されません。標準デッキIDが未設定の戦績だけ補完します。
+
+## Supabase Auth設定
+
+Authentication > Providers:
+
+- Email provider を有効化
+- メールアドレス + パスワードログインを利用
+- Magic LinkログインはアプリUIでは使用しません
+
+Authentication > URL Configuration:
+
+ローカル:
+
+- Site URL: `http://localhost:3000`
+- Redirect URLs: `http://localhost:3000/**`
+
+本番:
+
+- Site URL: `https://your-app.vercel.app`
+- Redirect URLs: `https://your-app.vercel.app/**`
+
+メールテンプレートを日本語化する場合は、Authentication > Emails から以下を編集します。
+
+- Confirm signup
+- Reset password
+- Change email address
+
+テンプレート内の `{{ .ConfirmationURL }}` などの変数は削除しないでください。
+
+## Vercel デプロイ
+
+1. GitHubなどへリポジトリをpush
+2. VercelでNext.jsプロジェクトとしてImport
+3. Environment Variablesに以下を設定
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - `NEXT_PUBLIC_SITE_URL`
-4. Supabase AuthenticationのRedirect URLsにVercelのURLを追加します。
-   - 例: `https://your-app.vercel.app/**`
-5. VercelでDeployします。
+4. Supabase AuthenticationのSite URL / Redirect URLsにVercel URLを設定
+5. Deploy
 
-## 画面
+## 主要画面
 
-- ホーム: 総試合数、勝利数、勝率、先攻勝率、後攻勝率、最近10戦
-- 戦績入力: 使用デッキ、相手デッキ、先攻/後攻、勝敗、対戦日時、メモ
-- デッキ管理: 一覧にないデッキの候補申請、管理者向けカスタムデッキ追加・編集
-- 分析: 使用デッキ別、相手デッキ別、先攻/後攻別、対面別勝率
-- 相性表: 対面勝率表、色分け、参考値、環境指数、画像保存
+- `/login`: ログイン、新規登録、パスワード再設定
+- `/guest`: 未ログイン体験。入力データはリロードで消えます
+- `/`: ホーム
+- `/matches`: 戦績入力
+- `/decks`: 標準デッキ一覧、デッキ候補申請
+- `/analysis`: 分析
+- `/matrix`: 相性表
+- `/admin`: 管理画面
 
-## 相性表の色分け
+## DBテーブル
 
-- 60%以上: 有利
-- 50〜59%: 微有利
-- 45〜49%: 五分
-- 40〜44%: 微不利
-- 39%以下: 不利
+- `profiles`: ユーザープロフィール
+- `admin_users`: 管理者判定
+- `environments`: 管理者が作る公開環境マスター
+- `deck_archetypes`: 管理者が作る公開標準デッキマスター
+- `deck_aliases`: 互換用。現在UIでは未使用
+- `user_decks`: 将来のマイデッキ拡張用
+- `deck_suggestions`: ユーザーからのデッキ候補申請
+- `decks`: 既存互換用のユーザー別デッキ
+- `matches`: ユーザー別戦績
 
-4戦以下は参考値として表示します。環境指数は `勝率 - 50` に試合数補正をかけた簡易指標です。
+## RLS方針
 
-## データベース
+- `matches`, `decks`, `user_decks`, `profiles`: 本人のみアクセス
+- `deck_suggestions`: 本人と管理者のみ参照、本人が申請、管理者が更新
+- `deck_archetypes`, `environments`: ゲスト含め公開読み取り可能
+- `deck_archetypes`, `environments`: 作成・更新・削除は管理者のみ
+- `admin_users`: 本人または管理者のみ参照
 
-SQLは `supabase/schema.sql` にあります。主なテーブルは以下です。
+## 本番公開前チェック
 
-- `profiles`
-- `environments`
-- `decks`
-- `matches`
-- `admin_users`
-- `deck_archetypes`
-- `deck_aliases`
-- `user_decks`
-- `deck_suggestions`
-
-全テーブルでRLSを有効化し、ログインユーザー自身のデータだけが見えるようにしています。
-
-既存DBを「使用デッキ/相手デッキを分けない」形式へ更新する場合は、Supabase SQL Editorで `supabase/unify_decks_migration.sql` も実行してください。
-
-## 管理画面
-
-`/admin` は `admin_users` に登録されたユーザーだけがアクセスできます。最初の管理者はSupabase SQL Editorで追加してください。
-
-```sql
-insert into public.admin_users (user_id)
-values ('あなたの auth.users.id');
-```
-
-管理画面では以下を操作できます。
-
-- 標準デッキの追加・編集・無効化
-- クラス、環境、有効/無効、表示順、メモの管理
-- aliasの追加・削除
-- ユーザーのデッキ候補申請の確認・採用・却下
-
-標準デッキ管理用のSQLは `supabase/admin_archetypes_migration.sql` です。既存 `decks` と `matches` は残したまま、`matches.my_archetype_id` / `matches.opponent_archetype_id` を追加して、全体統計を標準デッキIDで集計できるようにします。
-
-## 開発メモ
-
-集計ロジックは `src/lib/analytics.ts` に分離しています。UIやページから独立しているため、今後グラフ表示、期間フィルタ、環境別分析を追加しやすい構成です。
+- Supabase SQLを順番通り実行したか
+- 管理者ユーザーを `admin_users` に登録したか
+- 環境が1件以上あるか
+- 標準デッキが登録されているか
+- 戦績入力で環境が必須になっているか
+- 入力した戦績が分析・相性表に反映されるか
+- ゲストモードで実デッキ/環境が表示されるか
+- RLSで他ユーザーの `matches` が見えないか
+- Authメールテンプレートが日本語化されているか
+- Vercel環境変数とSupabase Redirect URLsが本番URLになっているか
