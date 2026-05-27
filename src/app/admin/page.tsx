@@ -14,6 +14,8 @@ const noticeMessages: Record<string, string> = {
   batch_updated: "標準デッキを一括更新しました。",
   environment_created: "環境を追加しました。",
   environments_updated: "環境を一括更新しました。",
+  environment_deleted: "環境を削除しました。",
+  environment_delete_failed: "この環境は戦績で使用されているため削除できません。",
   deactivated: "標準デッキを無効化しました。",
   suggestion_updated: "候補の状態を更新しました。",
   suggestion_approved: "候補を標準デッキとして採用しました。"

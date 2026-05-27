@@ -65,6 +65,20 @@ export async function updateEnvironmentsBatch(formData: FormData) {
   redirect("/admin?notice=environments_updated");
 }
 
+export async function deleteEnvironment(id: string) {
+  const supabase = await requireAdminClient();
+  const environmentId = String(id ?? "");
+
+  if (!environmentId) {
+    return;
+  }
+
+  const { error } = await supabase.from("environments").delete().eq("id", environmentId);
+
+  revalidateAdminPaths();
+  redirect(`/admin?notice=${error ? "environment_delete_failed" : "environment_deleted"}`);
+}
+
 export async function updateArchetype(formData: FormData) {
   const supabase = await requireAdminClient();
   const id = String(formData.get("id") ?? "");
