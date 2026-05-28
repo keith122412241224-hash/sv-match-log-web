@@ -116,6 +116,17 @@ create index matches_my_deck_id_idx on public.matches(my_deck_id);
 create index matches_opponent_deck_id_idx on public.matches(opponent_deck_id);
 create index matches_archetype_idx on public.matches(user_id, my_archetype_id, opponent_archetype_id);
 
+grant usage on schema public to anon, authenticated;
+grant select on public.environments to anon, authenticated;
+grant select on public.deck_archetypes to anon, authenticated;
+grant select on public.deck_aliases to anon, authenticated;
+grant select on public.admin_users to authenticated;
+grant select, insert, update on public.profiles to authenticated;
+grant select, insert, update, delete on public.decks to authenticated;
+grant select, insert, update, delete on public.matches to authenticated;
+grant select, insert, update, delete on public.user_decks to authenticated;
+grant select, insert, update on public.deck_suggestions to authenticated;
+
 create or replace function public.is_admin()
 returns boolean
 language sql
