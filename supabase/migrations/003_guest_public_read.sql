@@ -1,6 +1,11 @@
 -- Existing DB migration: allow guest mode to read public master data.
 -- Safe to run multiple times. Does not expose user match data.
 
+grant usage on schema public to anon, authenticated;
+grant select on public.environments to anon, authenticated;
+grant select on public.deck_archetypes to anon, authenticated;
+grant select on public.deck_aliases to anon, authenticated;
+
 drop policy if exists "environments_select_shared" on public.environments;
 drop policy if exists "environments_select_public" on public.environments;
 create policy "environments_select_public" on public.environments
