@@ -4,6 +4,7 @@ import { AppShell } from "@/components/AppShell";
 import { BrandMark } from "@/components/BrandMark";
 import { DeckWithClassIcon } from "@/components/ClassIcon";
 import { EnvironmentFilter } from "@/components/EnvironmentFilter";
+import { GuestImportPrompt } from "@/components/guest/GuestImportPrompt";
 import { OnboardingPanel } from "@/components/onboarding/OnboardingPanel";
 import { StatCard } from "@/components/StatCard";
 import { RESULT_LABELS, TURN_ORDER_LABELS } from "@/lib/constants";
@@ -15,7 +16,7 @@ import { formatPercent } from "@/lib/utils";
 export default async function HomePage({
   searchParams
 }: {
-  searchParams: Promise<{ environment?: string }>;
+  searchParams: Promise<{ environment?: string; guest_imported?: string }>;
 }) {
   const supabase = await createSupabaseServerClient();
   const {
@@ -44,6 +45,8 @@ export default async function HomePage({
         </section>
 
         <EnvironmentFilter basePath="/" environments={environments} selectedEnvironmentId={selectedEnvironmentId} />
+
+        <GuestImportPrompt imported={Boolean(params.guest_imported)} />
 
         {matches.length === 0 ? <OnboardingPanel /> : null}
 

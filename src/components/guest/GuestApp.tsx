@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { DeckAnalysisCards } from "@/components/analysis/DeckAnalysisCards";
 import { EmptyState } from "@/components/EmptyState";
 import { MatchupMatrix } from "@/components/MatchupMatrix";
@@ -9,6 +9,7 @@ import { QuickMatchForm } from "@/components/matches/QuickMatchForm";
 import type { GuestMatchDraft } from "@/components/matches/QuickMatchForm";
 import { StatCard } from "@/components/StatCard";
 import { buildDeckAnalysisSummaries, buildWinRateMatrix, summarizeMatches } from "@/lib/analytics";
+import { GUEST_MATCHES_STORAGE_KEY, type StoredGuestMatch } from "@/lib/guest-storage";
 import { formatPercent } from "@/lib/utils";
 import type { Deck, DeckArchetype, Environment, Match } from "@/types/database";
 
@@ -24,6 +25,22 @@ export function GuestApp({
   const [tab, setTab] = useState<Tab>("home");
   const [matches, setMatches] = useState<Match[]>([]);
   const [savedCount, setSavedCount] = useState(0);
+
+  useEffect(() => {
+    const raw = window.localStorage.getItem(GUEST_MATCHES_STORAGE_KEY);
+    if (!raw) {
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        setMatches(parsed.map(toGuestMatch));
+      }
+    } catch {
+      window.localStorage.removeItem(GUEST_MATCHES_STORAGE_KEY);
+    }
+  }, []);
 
   const guestDecks = useMemo<Deck[]>(
     () =>
@@ -46,8 +63,8 @@ export function GuestApp({
 
   function addGuestMatch(draft: GuestMatchDraft) {
     const createdAt = new Date().toISOString();
-    setMatches((current) => [
-      {
+    setMatches((current) => {
+      const nextMatch = {
         id: `guest-match-${createdAt}-${current.length}`,
         user_id: "guest-user",
         environment_id: draft.environment_id,
@@ -61,9 +78,11 @@ export function GuestApp({
         played_at: draft.played_at,
         memo: draft.memo,
         created_at: createdAt
-      },
-      ...current
-    ]);
+      };
+      const next = [nextMatch, ...current];
+      window.localStorage.setItem(GUEST_MATCHES_STORAGE_KEY, JSON.stringify(next.map(toStoredGuestMatch)));
+      return next;
+    });
     setSavedCount((count) => count + 1);
   }
 
@@ -73,7 +92,7 @@ export function GuestApp({
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-4">
           <div>
             <h1 className="font-bold text-ink">ゲストモード</h1>
-            <p className="text-xs text-muted">実際の標準デッキと環境で、入力から分析まで試せます。入力データはリロードすると消えます。</p>
+            <p className="text-xs text-muted">実際の標準デッキと環境で、入力から分析まで試せます。ログインすると正式データへ取り込めます。</p>
           </div>
           <Link className="rounded-md bg-ink px-4 py-2 text-sm font-semibold text-white" href="/login">ログイン</Link>
         </div>
@@ -92,7 +111,7 @@ export function GuestApp({
       </header>
       <main className="mx-auto grid max-w-7xl gap-6 px-4 py-6">
         <p className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-950">
-          ゲスト入力は一時データです。正式に残すにはログインしてください。
+          ゲスト入力はこの端末に一時保存されます。正式に残すにはログイン後に取り込んでください。
         </p>
 
         {tab === "home" ? (
@@ -158,4 +177,37 @@ export function GuestApp({
       </main>
     </div>
   );
+}
+
+function toStoredGuestMatch(match: Match): StoredGuestMatch {
+  return {
+    environment_id: match.environment_id,
+    my_deck_id: match.my_deck_id,
+    opponent_deck_id: match.opponent_deck_id,
+    my_archetype_id: match.my_archetype_id,
+    opponent_archetype_id: match.opponent_archetype_id,
+    turn_order: match.turn_order,
+    result: match.result,
+    played_at: match.played_at,
+    memo: match.memo
+  };
+}
+
+function toGuestMatch(match: StoredGuestMatch, index: number): Match {
+  const createdAt = new Date().toISOString();
+  return {
+    id: `guest-match-restored-${index}`,
+    user_id: "guest-user",
+    environment_id: match.environment_id,
+    my_deck_id: match.my_deck_id,
+    opponent_deck_id: match.opponent_deck_id,
+    my_user_deck_id: null,
+    my_archetype_id: match.my_archetype_id,
+    opponent_archetype_id: match.opponent_archetype_id,
+    turn_order: match.turn_order,
+    result: match.result,
+    played_at: match.played_at,
+    memo: match.memo,
+    created_at: createdAt
+  };
 }

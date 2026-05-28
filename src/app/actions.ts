@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import type { StoredGuestMatch } from "@/lib/guest-storage";
 import type { MatchResult, TurnOrder } from "@/types/database";
 
 export async function signInWithPassword(formData: FormData) {
@@ -202,6 +203,61 @@ export async function createMatch(formData: FormData) {
   redirect(nextAction === "continue" ? "/matches?saved=1" : "/");
 }
 
+export async function importGuestMatches(formData: FormData) {
+  const supabase = await createSupabaseServerClient();
+  const user = await requireUser();
+  const raw = String(formData.get("guest_matches_json") ?? "");
+  const drafts = parseGuestMatches(raw).slice(0, 200);
+
+  if (drafts.length === 0) {
+    redirect("/");
+  }
+
+  const rows = [];
+
+  for (const draft of drafts) {
+    let myDeckId = draft.my_deck_id;
+    let opponentDeckId = draft.opponent_deck_id;
+    const myArchetypeId = draft.my_archetype_id ?? "";
+    const opponentArchetypeId = draft.opponent_archetype_id ?? "";
+
+    if (myArchetypeId) {
+      myDeckId = await ensureCompatDeckForArchetype(supabase, user.id, myArchetypeId);
+    }
+
+    if (opponentArchetypeId) {
+      opponentDeckId = await ensureCompatDeckForArchetype(supabase, user.id, opponentArchetypeId);
+    }
+
+    if (!myDeckId || !opponentDeckId || !draft.environment_id) {
+      continue;
+    }
+
+    rows.push({
+      user_id: user.id,
+      environment_id: draft.environment_id,
+      my_deck_id: myDeckId,
+      opponent_deck_id: opponentDeckId,
+      my_archetype_id: myArchetypeId || null,
+      opponent_archetype_id: opponentArchetypeId || null,
+      turn_order: draft.turn_order,
+      result: draft.result,
+      played_at: draft.played_at ? new Date(draft.played_at).toISOString() : new Date().toISOString(),
+      memo: draft.memo || null
+    });
+  }
+
+  if (rows.length > 0) {
+    await supabase.from("matches").insert(rows);
+  }
+
+  revalidatePath("/");
+  revalidatePath("/matches");
+  revalidatePath("/analysis");
+  revalidatePath("/matrix");
+  redirect(`/?guest_imported=${rows.length}`);
+}
+
 export async function createDeckSuggestion(formData: FormData) {
   const supabase = await createSupabaseServerClient();
   const user = await requireUser();
@@ -222,6 +278,30 @@ export async function createDeckSuggestion(formData: FormData) {
   });
 
   revalidatePath("/decks");
+}
+
+function parseGuestMatches(raw: string): StoredGuestMatch[] {
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed.filter((item): item is StoredGuestMatch => {
+      return (
+        item &&
+        typeof item === "object" &&
+        typeof item.environment_id === "string" &&
+        typeof item.my_deck_id === "string" &&
+        typeof item.opponent_deck_id === "string" &&
+        ["first", "second"].includes(String(item.turn_order)) &&
+        ["win", "lose"].includes(String(item.result)) &&
+        typeof item.played_at === "string"
+      );
+    });
+  } catch {
+    return [];
+  }
 }
 
 async function requireUser() {
