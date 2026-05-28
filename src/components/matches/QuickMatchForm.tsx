@@ -1,7 +1,8 @@
 "use client";
 
-import { Save } from "lucide-react";
+import { Loader2, Save } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { useFormStatus } from "react-dom";
 import type { FormEvent } from "react";
 import { createMatch } from "@/app/actions";
 import { Button } from "@/components/Button";
@@ -297,14 +298,37 @@ export function QuickMatchForm({
       </details>
 
       <div className="grid gap-2 sm:grid-cols-2">
-        <Button name="next_action" type="submit" value="continue">
-          <Save size={17} aria-hidden="true" />
-          {guest ? "入力を試す" : "保存して続ける"}
-        </Button>
-        <Button className={guest ? "hidden" : undefined} name="next_action" type="submit" value="home" variant="secondary">
-          保存してホームへ
-        </Button>
+        <MatchSubmitButtons guest={guest} />
       </div>
     </form>
+  );
+}
+
+function MatchSubmitButtons({ guest }: { guest: boolean }) {
+  const { pending } = useFormStatus();
+
+  return (
+    <>
+      <Button aria-disabled={pending} disabled={pending} name="next_action" type="submit" value="continue">
+        {pending ? <Loader2 className="animate-spin" size={17} aria-hidden="true" /> : <Save size={17} aria-hidden="true" />}
+        {pending ? "保存中..." : guest ? "入力を試す" : "保存して続ける"}
+      </Button>
+      <Button
+        aria-disabled={pending}
+        className={guest ? "hidden" : undefined}
+        disabled={pending}
+        name="next_action"
+        type="submit"
+        value="home"
+        variant="secondary"
+      >
+        {pending ? "保存中..." : "保存してホームへ"}
+      </Button>
+      {pending ? (
+        <p aria-live="polite" className="sm:col-span-2 rounded-md bg-slate-50 px-3 py-2 text-sm font-semibold text-muted">
+          戦績を保存しています。完了するまでこのままお待ちください。
+        </p>
+      ) : null}
+    </>
   );
 }
