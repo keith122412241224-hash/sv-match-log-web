@@ -4,7 +4,13 @@ import { useEffect, useMemo, useState } from "react";
 import { importGuestMatches } from "@/app/actions";
 import { GUEST_MATCHES_STORAGE_KEY, type StoredGuestMatch } from "@/lib/guest-storage";
 
-export function GuestImportPrompt({ importCount }: { importCount?: number | null }) {
+export function GuestImportPrompt({
+  importCount,
+  importError
+}: {
+  importCount?: number | null;
+  importError?: string;
+}) {
   const [matches, setMatches] = useState<StoredGuestMatch[]>([]);
 
   useEffect(() => {
@@ -43,7 +49,7 @@ export function GuestImportPrompt({ importCount }: { importCount?: number | null
     <section className="grid gap-3 rounded-md border border-amber-200 bg-amber-50 p-4">
       {importCount === 0 ? (
         <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-800">
-          ゲスト戦績を取り込めませんでした。時間をおいて再度お試しください。
+          ゲスト戦績を取り込めませんでした。{formatImportError(importError)}
         </p>
       ) : null}
       <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
@@ -74,4 +80,20 @@ export function GuestImportPrompt({ importCount }: { importCount?: number | null
       </div>
     </section>
   );
+}
+
+function formatImportError(error?: string) {
+  if (!error) {
+    return "時間をおいて再度お試しください。";
+  }
+
+  if (error === "deck_prepare_failed") {
+    return "デッキ情報の準備に失敗しました。";
+  }
+
+  if (error === "empty") {
+    return "取り込める戦績がありませんでした。";
+  }
+
+  return `原因: ${error}`;
 }
