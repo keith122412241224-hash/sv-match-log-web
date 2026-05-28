@@ -4,11 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import { importGuestMatches } from "@/app/actions";
 import { GUEST_MATCHES_STORAGE_KEY, type StoredGuestMatch } from "@/lib/guest-storage";
 
-export function GuestImportPrompt({ imported }: { imported?: boolean }) {
+export function GuestImportPrompt({ importCount }: { importCount?: number | null }) {
   const [matches, setMatches] = useState<StoredGuestMatch[]>([]);
 
   useEffect(() => {
-    if (imported) {
+    if (typeof importCount === "number" && importCount > 0) {
       window.localStorage.removeItem(GUEST_MATCHES_STORAGE_KEY);
       setMatches([]);
       return;
@@ -27,20 +27,25 @@ export function GuestImportPrompt({ imported }: { imported?: boolean }) {
     } catch {
       window.localStorage.removeItem(GUEST_MATCHES_STORAGE_KEY);
     }
-  }, [imported]);
+  }, [importCount]);
 
   const payload = useMemo(() => JSON.stringify(matches), [matches]);
 
   if (matches.length === 0) {
-    return imported ? (
+    return typeof importCount === "number" && importCount > 0 ? (
       <p className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-900">
-        ゲスト戦績を正式データとして保存しました。
+        ゲスト戦績 {importCount} 件を正式データとして保存しました。
       </p>
     ) : null;
   }
 
   return (
-    <section className="rounded-md border border-amber-200 bg-amber-50 p-4">
+    <section className="grid gap-3 rounded-md border border-amber-200 bg-amber-50 p-4">
+      {importCount === 0 ? (
+        <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-800">
+          ゲスト戦績を取り込めませんでした。時間をおいて再度お試しください。
+        </p>
+      ) : null}
       <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
         <div>
           <h2 className="font-bold text-amber-950">ゲスト入力した戦績があります</h2>

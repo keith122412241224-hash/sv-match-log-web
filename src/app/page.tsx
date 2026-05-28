@@ -46,7 +46,7 @@ export default async function HomePage({
 
         <EnvironmentFilter basePath="/" environments={environments} selectedEnvironmentId={selectedEnvironmentId} />
 
-        <GuestImportPrompt imported={Boolean(params.guest_imported)} />
+        <GuestImportPrompt importCount={params.guest_imported ? Number(params.guest_imported) : null} />
 
         {matches.length === 0 ? <OnboardingPanel /> : null}
 
