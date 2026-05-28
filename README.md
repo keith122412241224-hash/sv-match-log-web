@@ -112,8 +112,54 @@ Authentication > URL Configuration:
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - `NEXT_PUBLIC_SITE_URL`
+   - `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION`（Google Search Console登録時のみ）
 4. Supabase AuthenticationのSite URL / Redirect URLsにVercel URLを設定
 5. Deploy
+
+## Google Search Console登録
+
+Google検索に登録する場合は、Search ConsoleでURLプレフィックスを使います。
+
+1. Google Search Consoleを開く
+2. プロパティタイプで「URLプレフィックス」を選ぶ
+3. URLに本番URLを入力
+
+```text
+https://sv-match-log-web.vercel.app/
+```
+
+4. 所有権の確認方法で「HTMLタグ」を選ぶ
+5. 表示されたmetaタグから `content` の値だけをコピーする
+
+例:
+
+```html
+<meta name="google-site-verification" content="abc123..." />
+```
+
+この場合、コピーする値は `abc123...` です。
+
+6. VercelのEnvironment Variablesに追加
+
+```env
+NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION=abc123...
+```
+
+7. Vercelで再デプロイ
+8. Search Consoleで「確認」を押す
+9. Search Consoleの「サイトマップ」に以下を送信
+
+```text
+sitemap.xml
+```
+
+10. 「URL検査」でトップページを検査し、「インデックス登録をリクエスト」を押す
+
+補足:
+
+- `/robots.txt` は公開ページを許可し、`/admin`, `/matches`, `/profile`, `/settings`, `/api` などはクロール対象外にしています。
+- `/sitemap.xml` には公開ページだけを入れています。
+- ログイン後の個人データページはsitemapに入れません。
 
 ## 主要画面
 
