@@ -214,6 +214,7 @@ export async function importGuestMatches(formData: FormData) {
   }
 
   const rows = [];
+  let skippedCount = 0;
 
   for (const draft of drafts) {
     let myDeckId = draft.my_deck_id;
@@ -230,6 +231,7 @@ export async function importGuestMatches(formData: FormData) {
     }
 
     if (!myDeckId || !opponentDeckId || !draft.environment_id) {
+      skippedCount += 1;
       continue;
     }
 
@@ -247,8 +249,14 @@ export async function importGuestMatches(formData: FormData) {
     });
   }
 
-  if (rows.length > 0) {
-    await supabase.from("matches").insert(rows);
+  if (rows.length === 0) {
+    redirect(`/?guest_imported=0&guest_error=${skippedCount > 0 ? "deck_prepare_failed" : "empty"}`);
+  }
+
+  const { error } = await supabase.from("matches").insert(rows);
+
+  if (error) {
+    redirect(`/?guest_imported=0&guest_error=${encodeURIComponent(error.message)}`);
   }
 
   revalidatePath("/");

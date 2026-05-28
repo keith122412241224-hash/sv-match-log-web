@@ -16,7 +16,7 @@ import { formatPercent } from "@/lib/utils";
 export default async function HomePage({
   searchParams
 }: {
-  searchParams: Promise<{ environment?: string; guest_imported?: string }>;
+  searchParams: Promise<{ environment?: string; guest_imported?: string; guest_error?: string }>;
 }) {
   const supabase = await createSupabaseServerClient();
   const {
@@ -46,7 +46,10 @@ export default async function HomePage({
 
         <EnvironmentFilter basePath="/" environments={environments} selectedEnvironmentId={selectedEnvironmentId} />
 
-        <GuestImportPrompt importCount={params.guest_imported ? Number(params.guest_imported) : null} />
+        <GuestImportPrompt
+          importCount={params.guest_imported ? Number(params.guest_imported) : null}
+          importError={params.guest_error}
+        />
 
         {matches.length === 0 ? <OnboardingPanel /> : null}
 
