@@ -117,7 +117,7 @@ export function buildDeckAnalysisSummaries(matches: Match[], decks: Deck[]): Dec
       deckMatches,
       (match) => match.opponent_deck_id,
       (id) => decks.find((item) => item.id === id)?.name ?? "不明"
-    ).filter((row) => row.total > 0);
+    ).filter((row) => row.total >= 5);
 
     return {
       deck,

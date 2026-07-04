@@ -1,8 +1,30 @@
+import { cache } from "react";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import type { DeckArchetype, Environment } from "@/types/database";
+import { calculateWinRate } from "@/lib/analytics";
+import type { DeckArchetype, Environment, Match } from "@/types/database";
 import type { ArchetypeWithAliases, Deck, MatchWithRelations } from "@/types/view-models";
 
-export async function getDecks() {
+const MATCH_ANALYTICS_COLUMNS =
+  "id,user_id,environment_id,my_deck_id,opponent_deck_id,my_user_deck_id,my_archetype_id,opponent_archetype_id,turn_order,result,played_at,created_at";
+
+export type MatchSummaryStats = {
+  total: number;
+  wins: number;
+  winRate: number | null;
+  firstWinRate: number | null;
+  secondWinRate: number | null;
+};
+
+export const getCurrentUser = cache(async () => {
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+
+  return user;
+});
+
+export const getDecks = cache(async () => {
   const supabase = await createSupabaseServerClient();
   const { data } = await supabase
     .from("decks")
@@ -10,40 +32,109 @@ export async function getDecks() {
     .order("sort_order", { ascending: true })
     .order("created_at", { ascending: true });
   return (data ?? []) as Deck[];
-}
+});
 
-export async function getMatches(environmentId?: string) {
+export type MatchFilters = {
+  myDeckId?: string;
+  opponentDeckId?: string;
+  turnOrder?: Match["turn_order"];
+  result?: Match["result"];
+  deckIdField?: "archetype" | "deck";
+};
+
+export async function getMatches(environmentId?: string, filters: MatchFilters = {}) {
   const supabase = await createSupabaseServerClient();
   let query = supabase
     .from("matches")
-    .select("*, environment:environments(*), my_deck:decks!matches_my_deck_id_fkey(*), opponent_deck:decks!matches_opponent_deck_id_fkey(*), my_archetype:deck_archetypes!matches_my_archetype_id_fkey(*), opponent_archetype:deck_archetypes!matches_opponent_archetype_id_fkey(*)")
+    .select(MATCH_ANALYTICS_COLUMNS)
     .order("played_at", { ascending: false });
 
   if (environmentId) {
     query = query.eq("environment_id", environmentId);
   }
 
-  const { data, error } = await query;
-
-  if (error) {
-    let fallbackQuery = supabase
-      .from("matches")
-      .select("*, my_deck:decks!matches_my_deck_id_fkey(*), opponent_deck:decks!matches_opponent_deck_id_fkey(*)")
-      .order("played_at", { ascending: false });
-
-    if (environmentId) {
-      fallbackQuery = fallbackQuery.eq("environment_id", environmentId);
-    }
-
-    const fallback = await fallbackQuery;
-
-    return (fallback.data ?? []) as unknown as MatchWithRelations[];
+  if (filters.myDeckId) {
+    query = query.eq(filters.deckIdField === "archetype" ? "my_archetype_id" : "my_deck_id", filters.myDeckId);
   }
+
+  if (filters.opponentDeckId) {
+    query = query.eq(
+      filters.deckIdField === "archetype" ? "opponent_archetype_id" : "opponent_deck_id",
+      filters.opponentDeckId
+    );
+  }
+
+  if (filters.turnOrder) {
+    query = query.eq("turn_order", filters.turnOrder);
+  }
+
+  if (filters.result) {
+    query = query.eq("result", filters.result);
+  }
+
+  const { data } = await query;
+
+  return (data ?? []) as Match[];
+}
+
+export async function getRecentMatchesWithRelations(environmentId?: string, limit = 10) {
+  const supabase = await createSupabaseServerClient();
+  let query = supabase
+    .from("matches")
+    .select("*, environment:environments(*), my_deck:decks!matches_my_deck_id_fkey(*), opponent_deck:decks!matches_opponent_deck_id_fkey(*)")
+    .order("played_at", { ascending: false })
+    .limit(limit);
+
+  if (environmentId) {
+    query = query.eq("environment_id", environmentId);
+  }
+
+  const { data } = await query;
 
   return (data ?? []) as unknown as MatchWithRelations[];
 }
 
-export async function getEnvironments() {
+export async function getMatchSummaryStats(environmentId?: string): Promise<MatchSummaryStats> {
+  const supabase = await createSupabaseServerClient();
+
+  async function countMatches(filters: { result?: Match["result"]; turnOrder?: Match["turn_order"] }) {
+    let query = supabase.from("matches").select("id", { count: "exact", head: true });
+
+    if (environmentId) {
+      query = query.eq("environment_id", environmentId);
+    }
+
+    if (filters.result) {
+      query = query.eq("result", filters.result);
+    }
+
+    if (filters.turnOrder) {
+      query = query.eq("turn_order", filters.turnOrder);
+    }
+
+    const { count, error } = await query;
+    return error ? 0 : count ?? 0;
+  }
+
+  const [total, wins, firstTotal, firstWins, secondTotal, secondWins] = await Promise.all([
+    countMatches({}),
+    countMatches({ result: "win" }),
+    countMatches({ turnOrder: "first" }),
+    countMatches({ result: "win", turnOrder: "first" }),
+    countMatches({ turnOrder: "second" }),
+    countMatches({ result: "win", turnOrder: "second" })
+  ]);
+
+  return {
+    total,
+    wins,
+    winRate: calculateWinRate(wins, total),
+    firstWinRate: calculateWinRate(firstWins, firstTotal),
+    secondWinRate: calculateWinRate(secondWins, secondTotal)
+  };
+}
+
+export const getEnvironments = cache(async () => {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
     .from("environments")
@@ -56,9 +147,9 @@ export async function getEnvironments() {
   }
 
   return (data ?? []) as Environment[];
-}
+});
 
-export async function getActiveArchetypes() {
+export const getActiveArchetypes = cache(async () => {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
     .from("deck_archetypes")
@@ -73,7 +164,7 @@ export async function getActiveArchetypes() {
   }
 
   return (data ?? []) as DeckArchetype[];
-}
+});
 
 export async function getAdminArchetypes() {
   const supabase = await createSupabaseServerClient();
@@ -105,11 +196,9 @@ export async function getDeckSuggestionsForAdmin() {
   return data ?? [];
 }
 
-export async function getIsAdmin() {
+export const getIsAdmin = cache(async () => {
   const supabase = await createSupabaseServerClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
 
   if (!user) {
     return false;
@@ -122,4 +211,4 @@ export async function getIsAdmin() {
     .maybeSingle();
 
   return !error && Boolean(data);
-}
+});

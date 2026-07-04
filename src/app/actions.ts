@@ -156,7 +156,6 @@ export async function createMatch(formData: FormData) {
   const turnOrder = String(formData.get("turn_order") ?? "") as TurnOrder;
   const result = String(formData.get("result") ?? "") as MatchResult;
   const playedAt = String(formData.get("played_at") ?? "");
-  const memo = String(formData.get("memo") ?? "").trim();
   const nextAction = String(formData.get("next_action") ?? "home");
 
   if (!environmentId || !["first", "second"].includes(turnOrder) || !["win", "lose"].includes(result)) {
@@ -192,15 +191,15 @@ export async function createMatch(formData: FormData) {
     opponent_archetype_id: opponentArchetypeId || null,
     turn_order: turnOrder,
     result,
-    played_at: playedAt ? new Date(playedAt).toISOString() : new Date().toISOString(),
-    memo: memo || null
+    played_at: playedAt ? new Date(playedAt).toISOString() : new Date().toISOString()
   });
 
+  if (nextAction === "continue") {
+    redirect("/matches?saved=1");
+  }
+
   revalidatePath("/");
-  revalidatePath("/matches");
-  revalidatePath("/analysis");
-  revalidatePath("/matrix");
-  redirect(nextAction === "continue" ? "/matches?saved=1" : "/");
+  redirect("/");
 }
 
 export async function importGuestMatches(formData: FormData) {
@@ -244,8 +243,7 @@ export async function importGuestMatches(formData: FormData) {
       opponent_archetype_id: opponentArchetypeId || null,
       turn_order: draft.turn_order,
       result: draft.result,
-      played_at: draft.played_at ? new Date(draft.played_at).toISOString() : new Date().toISOString(),
-      memo: draft.memo || null
+      played_at: draft.played_at ? new Date(draft.played_at).toISOString() : new Date().toISOString()
     });
   }
 
@@ -260,9 +258,6 @@ export async function importGuestMatches(formData: FormData) {
   }
 
   revalidatePath("/");
-  revalidatePath("/matches");
-  revalidatePath("/analysis");
-  revalidatePath("/matrix");
   redirect(`/?guest_imported=${rows.length}`);
 }
 

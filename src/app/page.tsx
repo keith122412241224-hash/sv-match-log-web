@@ -8,31 +8,29 @@ import { GuestImportPrompt } from "@/components/guest/GuestImportPrompt";
 import { OnboardingPanel } from "@/components/onboarding/OnboardingPanel";
 import { StatCard } from "@/components/StatCard";
 import { RESULT_LABELS, TURN_ORDER_LABELS } from "@/lib/constants";
-import { getEnvironments, getMatches } from "@/lib/data";
-import { summarizeMatches } from "@/lib/analytics";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { formatPercent } from "@/lib/utils";
+import { getCurrentUser, getEnvironments, getMatchSummaryStats, getRecentMatchesWithRelations } from "@/lib/data";
+import { formatPercent, getMostRecentlyCreatedId } from "@/lib/utils";
 
 export default async function HomePage({
   searchParams
 }: {
   searchParams: Promise<{ environment?: string; guest_imported?: string; guest_error?: string }>;
 }) {
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
 
   if (!user) {
     return <LandingPage />;
   }
 
-  const params = await searchParams;
-  const selectedEnvironmentId = params.environment ?? "";
-  const [environments, matches] = await Promise.all([getEnvironments(), getMatches(selectedEnvironmentId)]);
+  const [params, environments] = await Promise.all([searchParams, getEnvironments()]);
+  const selectedEnvironmentId = environments.some((environment) => environment.id === params.environment)
+    ? params.environment ?? ""
+    : getMostRecentlyCreatedId(environments);
+  const [summary, recent] = await Promise.all([
+    getMatchSummaryStats(selectedEnvironmentId),
+    getRecentMatchesWithRelations(selectedEnvironmentId)
+  ]);
   const selectedEnvironmentName = environments.find((environment) => environment.id === selectedEnvironmentId)?.name;
-  const summary = summarizeMatches(matches);
-  const recent = matches.slice(0, 10);
 
   return (
     <AppShell>
@@ -40,7 +38,7 @@ export default async function HomePage({
         <section>
           <h1 className="text-2xl font-bold text-ink">ホーム</h1>
           <p className="mt-1 text-sm text-muted">
-            {selectedEnvironmentName ? `${selectedEnvironmentName} の戦績を表示しています。` : "全環境の戦績を表示しています。"}
+            {selectedEnvironmentName ? `${selectedEnvironmentName} の戦績を表示しています。` : "環境を作成すると戦績を表示できます。"}
           </p>
         </section>
 
@@ -51,7 +49,7 @@ export default async function HomePage({
           importError={params.guest_error}
         />
 
-        {matches.length === 0 ? <OnboardingPanel /> : null}
+        {summary.total === 0 ? <OnboardingPanel /> : null}
 
         <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <StatCard label="総試合数" value={`${summary.total}`} />
@@ -81,7 +79,6 @@ export default async function HomePage({
                     <th className="px-4 py-3">相手デッキ</th>
                     <th className="px-4 py-3">先後</th>
                     <th className="px-4 py-3">結果</th>
-                    <th className="px-4 py-3">メモ</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -101,7 +98,6 @@ export default async function HomePage({
                           {RESULT_LABELS[match.result]}
                         </span>
                       </td>
-                      <td className="max-w-[220px] truncate px-4 py-3 text-muted">{match.memo ?? ""}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -119,7 +115,7 @@ function LandingPage() {
     {
       icon: ListPlus,
       title: "戦績入力",
-      description: "使用デッキ、相手デッキ、先攻/後攻、勝敗、対戦日時、メモをスマホから素早く記録できます。"
+      description: "使用デッキ、相手デッキ、先攻/後攻、勝敗、対戦日時をスマホから素早く記録できます。"
     },
     {
       icon: BarChart3,

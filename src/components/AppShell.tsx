@@ -4,7 +4,7 @@ import { BarChart3, Grid3X3, Home, ListPlus, LockKeyhole, LogOut, Swords } from 
 import type { ReactNode } from "react";
 import { signOut } from "@/app/actions";
 import { BrandMark } from "@/components/BrandMark";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { getCurrentUser, getIsAdmin } from "@/lib/data";
 
 const navItems = [
   { href: "/", label: "ホーム", icon: Home },
@@ -15,21 +15,14 @@ const navItems = [
 ];
 
 export async function AppShell({ children }: { children: ReactNode }) {
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
+  const user = await getCurrentUser();
 
   if (!user) {
     redirect("/login");
   }
 
-  const { data: adminUser } = await supabase
-    .from("admin_users")
-    .select("id")
-    .eq("user_id", user.id)
-    .maybeSingle();
-  const items = adminUser ? [...navItems, { href: "/admin", label: "管理", icon: LockKeyhole }] : navItems;
+  const isAdmin = await getIsAdmin();
+  const items = isAdmin ? [...navItems, { href: "/admin", label: "管理", icon: LockKeyhole }] : navItems;
 
   return (
     <div className="min-h-screen bg-surface">

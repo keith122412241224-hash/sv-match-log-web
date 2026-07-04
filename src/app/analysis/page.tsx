@@ -1,34 +1,51 @@
 import { DeckAnalysisCards } from "@/components/analysis/DeckAnalysisCards";
+import { AnalysisFilters, isMatchResult, isTurnOrder } from "@/components/analysis/AnalysisFilters";
 import { AppShell } from "@/components/AppShell";
 import { DeckWithClassIcon } from "@/components/ClassIcon";
-import { EnvironmentFilter } from "@/components/EnvironmentFilter";
 import { SummaryTable } from "@/components/SummaryTable";
 import { buildDeckAnalysisSummaries, buildWinRateMatrix, groupWinRates, turnOrderWinRates } from "@/lib/analytics";
 import { getActiveArchetypes, getDecks, getEnvironments, getMatches } from "@/lib/data";
-import { formatPercent } from "@/lib/utils";
+import { formatPercent, getMostRecentlyCreatedId } from "@/lib/utils";
+
+type AnalysisSearchParams = {
+  environment?: string;
+  myDeck?: string;
+  opponentDeck?: string;
+  turnOrder?: string;
+  result?: string;
+};
 
 export default async function AnalysisPage({
   searchParams
 }: {
-  searchParams: Promise<{ environment?: string }>;
+  searchParams: Promise<AnalysisSearchParams>;
 }) {
-  const params = await searchParams;
-  const selectedEnvironmentId = params.environment ?? "";
-  const [decks, archetypes, environments, matches] = await Promise.all([
-    getDecks(),
-    getActiveArchetypes(),
-    getEnvironments(),
-    getMatches(selectedEnvironmentId)
-  ]);
+  const [params, environments] = await Promise.all([searchParams, getEnvironments()]);
+  const selectedEnvironmentId = environments.some((environment) => environment.id === params.environment)
+    ? params.environment ?? ""
+    : getMostRecentlyCreatedId(environments);
+  const [decks, archetypes] = await Promise.all([getDecks(), getActiveArchetypes()]);
   const selectedEnvironmentName = environments.find((environment) => environment.id === selectedEnvironmentId)?.name;
   const matrixDecks = archetypes.length > 0 ? archetypes : decks;
   const deckName = new Map([...decks, ...archetypes].map((deck) => [deck.id, deck.name]));
+  const filterDeckIds = new Set(matrixDecks.map((deck) => deck.id));
+  const selectedMyDeckId = params.myDeck && filterDeckIds.has(params.myDeck) ? params.myDeck : "";
+  const selectedOpponentDeckId = params.opponentDeck && filterDeckIds.has(params.opponentDeck) ? params.opponentDeck : "";
+  const selectedTurnOrder = params.turnOrder && isTurnOrder(params.turnOrder) ? params.turnOrder : "";
+  const selectedResult = params.result && isMatchResult(params.result) ? params.result : "";
+  const filteredMatches = await getMatches(selectedEnvironmentId, {
+    myDeckId: selectedMyDeckId,
+    opponentDeckId: selectedOpponentDeckId,
+    turnOrder: selectedTurnOrder || undefined,
+    result: selectedResult || undefined,
+    deckIdField: archetypes.length > 0 ? "archetype" : "deck"
+  });
 
-  const byMyDeck = groupWinRates(matches, (match) => match.my_archetype_id ?? match.my_deck_id, (id) => deckName.get(id) ?? "不明");
-  const byOpponentDeck = groupWinRates(matches, (match) => match.opponent_archetype_id ?? match.opponent_deck_id, (id) => deckName.get(id) ?? "不明");
-  const byTurn = turnOrderWinRates(matches);
-  const matrix = buildWinRateMatrix(matches, matrixDecks, matrixDecks);
-  const summaries = buildDeckAnalysisSummaries(matches, decks);
+  const byMyDeck = groupWinRates(filteredMatches, (match) => match.my_archetype_id ?? match.my_deck_id, (id) => deckName.get(id) ?? "不明");
+  const byOpponentDeck = groupWinRates(filteredMatches, (match) => match.opponent_archetype_id ?? match.opponent_deck_id, (id) => deckName.get(id) ?? "不明");
+  const byTurn = turnOrderWinRates(filteredMatches);
+  const matrix = buildWinRateMatrix(filteredMatches, matrixDecks, matrixDecks);
+  const summaries = buildDeckAnalysisSummaries(filteredMatches, decks);
 
   return (
     <AppShell>
@@ -36,11 +53,21 @@ export default async function AnalysisPage({
         <section>
           <h1 className="text-2xl font-bold text-ink">分析</h1>
           <p className="mt-1 text-sm text-muted">
-            {selectedEnvironmentName ? `${selectedEnvironmentName} の戦績を分析しています。` : "全環境の戦績を分析しています。"}
+            {selectedEnvironmentName ? `${selectedEnvironmentName} の戦績を分析しています。` : "環境を作成すると戦績を分析できます。"}
           </p>
         </section>
 
-        <EnvironmentFilter basePath="/analysis" environments={environments} selectedEnvironmentId={selectedEnvironmentId} />
+        <AnalysisFilters
+          decks={matrixDecks}
+          environments={environments}
+          values={{
+            environmentId: selectedEnvironmentId,
+            myDeckId: selectedMyDeckId,
+            opponentDeckId: selectedOpponentDeckId,
+            turnOrder: selectedTurnOrder,
+            result: selectedResult
+          }}
+        />
 
         <DeckAnalysisCards summaries={summaries} />
 

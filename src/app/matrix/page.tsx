@@ -4,21 +4,23 @@ import { EnvironmentFilter } from "@/components/EnvironmentFilter";
 import { MatchupMatrix } from "@/components/MatchupMatrix";
 import { buildWinRateMatrix } from "@/lib/analytics";
 import { getActiveArchetypes, getDecks, getEnvironments, getMatches } from "@/lib/data";
+import { getMostRecentlyCreatedId } from "@/lib/utils";
 
 export default async function MatrixPage({
   searchParams
 }: {
   searchParams: Promise<{ environment?: string }>;
 }) {
-  const params = await searchParams;
-  const selectedEnvironmentId = params.environment ?? "";
-  const [decks, archetypes, environments, matches] = await Promise.all([
+  const [params, environments] = await Promise.all([searchParams, getEnvironments()]);
+  const selectedEnvironmentId = environments.some((environment) => environment.id === params.environment)
+    ? params.environment ?? ""
+    : getMostRecentlyCreatedId(environments);
+  const [decks, archetypes, matches] = await Promise.all([
     getDecks(),
     getActiveArchetypes(),
-    getEnvironments(),
     getMatches(selectedEnvironmentId)
   ]);
-  const selectedEnvironmentName = environments.find((environment) => environment.id === selectedEnvironmentId)?.name ?? "全環境";
+  const selectedEnvironmentName = environments.find((environment) => environment.id === selectedEnvironmentId)?.name ?? "環境なし";
   const matrixDecks = archetypes.length > 0 ? archetypes : decks;
   const rows = buildWinRateMatrix(matches, matrixDecks, matrixDecks);
 

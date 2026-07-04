@@ -12,5 +12,4 @@ export type StoredGuestMatch = Pick<
   | "turn_order"
   | "result"
   | "played_at"
-  | "memo"
 >;

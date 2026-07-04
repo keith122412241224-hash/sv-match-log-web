@@ -76,7 +76,7 @@ export function GuestApp({
         turn_order: draft.turn_order,
         result: draft.result,
         played_at: draft.played_at,
-        memo: draft.memo,
+        memo: null,
         created_at: createdAt
       };
       const next = [nextMatch, ...current];
@@ -188,8 +188,7 @@ function toStoredGuestMatch(match: Match): StoredGuestMatch {
     opponent_archetype_id: match.opponent_archetype_id,
     turn_order: match.turn_order,
     result: match.result,
-    played_at: match.played_at,
-    memo: match.memo
+    played_at: match.played_at
   };
 }
 
@@ -207,7 +206,7 @@ function toGuestMatch(match: StoredGuestMatch, index: number): Match {
     turn_order: match.turn_order,
     result: match.result,
     played_at: match.played_at,
-    memo: match.memo,
+    memo: null,
     created_at: createdAt
   };
 }

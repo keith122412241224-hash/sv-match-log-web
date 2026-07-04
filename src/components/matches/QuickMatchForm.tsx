@@ -7,9 +7,9 @@ import type { FormEvent } from "react";
 import { createMatch } from "@/app/actions";
 import { Button } from "@/components/Button";
 import { ClassIcon, DeckWithClassIcon } from "@/components/ClassIcon";
-import { FieldLabel, Input, Select, Textarea } from "@/components/Field";
+import { FieldLabel, Input, Select } from "@/components/Field";
 import { RESULT_LABELS, SHADOWVERSE_CLASSES, TURN_ORDER_LABELS } from "@/lib/constants";
-import { cn, toDatetimeLocalValue } from "@/lib/utils";
+import { cn, getMostRecentlyCreatedId, toDatetimeLocalValue } from "@/lib/utils";
 import type { Deck, DeckArchetype, Environment, MatchResult, TurnOrder } from "@/types/database";
 
 const LAST_MY_CHOICE_KEY = "svml:last-my-choice-id";
@@ -31,7 +31,6 @@ export type GuestMatchDraft = {
   turn_order: TurnOrder;
   result: MatchResult;
   played_at: string;
-  memo: string | null;
 };
 
 export function QuickMatchForm({
@@ -69,7 +68,7 @@ export function QuickMatchForm({
   const [turnOrder, setTurnOrder] = useState<TurnOrder>("first");
   const [result, setResult] = useState<MatchResult>("win");
   const [playedAt, setPlayedAt] = useState(toDatetimeLocalValue());
-  const [environmentId, setEnvironmentId] = useState(environments[0]?.id ?? "");
+  const [environmentId, setEnvironmentId] = useState(getMostRecentlyCreatedId(environments));
 
   useEffect(() => {
     const stored = window.localStorage.getItem(LAST_MY_CHOICE_KEY);
@@ -90,8 +89,8 @@ export function QuickMatchForm({
     const stored = window.localStorage.getItem(LAST_ENVIRONMENT_KEY);
     if (stored && environments.some((environment) => environment.id === stored)) {
       setEnvironmentId(stored);
-    } else if (environments[0]) {
-      setEnvironmentId(environments[0].id);
+    } else {
+      setEnvironmentId(getMostRecentlyCreatedId(environments));
     }
   }, [environments]);
 
@@ -119,8 +118,6 @@ export function QuickMatchForm({
       return;
     }
 
-    const formData = new FormData(event.currentTarget);
-    const memo = String(formData.get("memo") ?? "").trim();
     onGuestSubmit?.({
       environment_id: environmentId,
       my_deck_id: selectedMyChoice.id,
@@ -129,8 +126,7 @@ export function QuickMatchForm({
       opponent_archetype_id: usesArchetypes ? selectedOpponentDeckId : null,
       turn_order: turnOrder,
       result,
-      played_at: playedAt ? new Date(playedAt).toISOString() : new Date().toISOString(),
-      memo: memo || null
+      played_at: playedAt ? new Date(playedAt).toISOString() : new Date().toISOString()
     });
   }
 
@@ -289,13 +285,6 @@ export function QuickMatchForm({
         対戦日時
         <Input name="played_at" type="datetime-local" value={playedAt} onChange={(event) => setPlayedAt(event.target.value)} />
       </FieldLabel>
-
-      <details className="rounded-md border border-slate-200 p-3">
-        <summary className="cursor-pointer text-sm font-semibold text-ink">メモを入力する</summary>
-        <div className="mt-3">
-          <Textarea name="memo" placeholder="キープ、負け筋、印象など" />
-        </div>
-      </details>
 
       <div className="grid gap-2 sm:grid-cols-2">
         <MatchSubmitButtons guest={guest} />
