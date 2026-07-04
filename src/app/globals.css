@@ -21,3 +21,22 @@ textarea {
 .matrix-scrollbar {
   scrollbar-width: thin;
 }
+
+.global-pending-bar {
+  animation: global-pending-bar 1.1s ease-in-out infinite;
+  transform-origin: left;
+}
+
+@keyframes global-pending-bar {
+  0% {
+    transform: translateX(-55%) scaleX(0.35);
+  }
+
+  55% {
+    transform: translateX(25%) scaleX(0.55);
+  }
+
+  100% {
+    transform: translateX(110%) scaleX(0.35);
+  }
+}

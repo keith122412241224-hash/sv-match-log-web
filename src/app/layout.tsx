@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { Suspense } from "react";
+import { GlobalPendingIndicator } from "@/components/GlobalPendingIndicator";
 import "./globals.css";
 
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://sv-match-log-web.vercel.app").replace(/\/$/, "");
@@ -51,7 +53,12 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <html lang="ja">
-      <body>{children}</body>
+      <body>
+        <Suspense fallback={null}>
+          <GlobalPendingIndicator />
+        </Suspense>
+        {children}
+      </body>
     </html>
   );
 }
