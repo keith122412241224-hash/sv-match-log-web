@@ -48,6 +48,7 @@ export async function AppShell({ children }: { children: ReactNode }) {
                 className="inline-flex min-h-10 shrink-0 items-center gap-2 rounded-md px-3 text-sm font-semibold text-muted hover:bg-slate-100 hover:text-ink"
                 href={item.href}
                 key={item.href}
+                prefetch
               >
                 <Icon size={17} aria-hidden="true" />
                 {item.label}
