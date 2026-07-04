@@ -349,14 +349,19 @@ function revalidateDeckPaths() {
 
 async function getSiteUrl() {
   const requestHeaders = await headers();
-  const host = requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host");
-  const protocol = requestHeaders.get("x-forwarded-proto") ?? (host?.startsWith("localhost") ? "http" : "https");
+  const host = firstHeaderValue(requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host"));
+  const forwardedProtocol = firstHeaderValue(requestHeaders.get("x-forwarded-proto"));
+  const protocol = forwardedProtocol ?? (host?.startsWith("localhost") ? "http" : "https");
 
   if (host) {
     return `${protocol}://${host}`;
   }
 
   return (process.env.NEXT_PUBLIC_SITE_URL ?? "https://sv-match-log-web.vercel.app").replace(/\/$/, "");
+}
+
+function firstHeaderValue(value: string | null) {
+  return value?.split(",")[0]?.trim() || null;
 }
 
 async function ensureCompatDeckForArchetype(

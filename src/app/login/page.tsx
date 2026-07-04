@@ -37,11 +37,27 @@ export default async function LoginPage({
             パスワード
             <Input name="password" type="password" autoComplete="current-password" required minLength={6} />
           </FieldLabel>
-          <div className="grid gap-2 sm:grid-cols-2">
-            <Button type="submit">ログイン</Button>
-            <Button formAction={signUpWithPassword} type="submit" variant="secondary">新規登録</Button>
-          </div>
-          <Button formAction={sendPasswordReset} type="submit" variant="ghost">パスワードを再設定する</Button>
+          <Button type="submit">ログイン</Button>
+        </form>
+
+        <form action={signUpWithPassword} className="mt-4 grid gap-4 rounded-md bg-slate-50 p-3">
+          <FieldLabel>
+            メールアドレス
+            <Input name="email" type="email" autoComplete="email" required placeholder="you@example.com" />
+          </FieldLabel>
+          <FieldLabel>
+            パスワード
+            <Input name="password" type="password" autoComplete="new-password" required minLength={6} />
+          </FieldLabel>
+          <Button type="submit" variant="secondary">新規登録</Button>
+        </form>
+
+        <form action={sendPasswordReset} className="mt-4 grid gap-3">
+          <FieldLabel>
+            パスワード再設定用メールアドレス
+            <Input name="email" type="email" autoComplete="email" required placeholder="you@example.com" />
+          </FieldLabel>
+          <Button type="submit" variant="ghost">パスワードを再設定する</Button>
         </form>
 
         {message ? (

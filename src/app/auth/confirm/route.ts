@@ -7,7 +7,7 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get("code");
   const tokenHash = searchParams.get("token_hash");
   const type = searchParams.get("type") as EmailOtpType | null;
-  const next = searchParams.get("next") ?? "/";
+  const next = normalizeNextPath(searchParams.get("next"));
   const supabase = await createSupabaseServerClient();
 
   if (code) {
@@ -30,4 +30,12 @@ export async function GET(request: NextRequest) {
   }
 
   return NextResponse.redirect(`${origin}/login?message=${encodeURIComponent("ログインリンクを確認できませんでした")}`);
+}
+
+function normalizeNextPath(next: string | null) {
+  if (!next || !next.startsWith("/") || next.startsWith("//")) {
+    return "/";
+  }
+
+  return next;
 }
