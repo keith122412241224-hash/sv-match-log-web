@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { StoredGuestMatch } from "@/lib/guest-storage";
@@ -28,7 +29,7 @@ export async function signUpWithPassword(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
   const supabase = await createSupabaseServerClient();
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+  const siteUrl = await getSiteUrl();
 
   if (!email || password.length < 6) {
     redirect(`/login?message=${encodeURIComponent("メールアドレスと6文字以上のパスワードを入力してください")}`);
@@ -52,7 +53,7 @@ export async function signUpWithPassword(formData: FormData) {
 export async function sendPasswordReset(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim();
   const supabase = await createSupabaseServerClient();
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+  const siteUrl = await getSiteUrl();
 
   if (!email) {
     redirect(`/login?message=${encodeURIComponent("メールアドレスを入力してください")}`);
@@ -344,6 +345,18 @@ function revalidateDeckPaths() {
   revalidatePath("/matches");
   revalidatePath("/analysis");
   revalidatePath("/matrix");
+}
+
+async function getSiteUrl() {
+  const requestHeaders = await headers();
+  const host = requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host");
+  const protocol = requestHeaders.get("x-forwarded-proto") ?? (host?.startsWith("localhost") ? "http" : "https");
+
+  if (host) {
+    return `${protocol}://${host}`;
+  }
+
+  return (process.env.NEXT_PUBLIC_SITE_URL ?? "https://sv-match-log-web.vercel.app").replace(/\/$/, "");
 }
 
 async function ensureCompatDeckForArchetype(
