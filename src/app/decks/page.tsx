@@ -1,11 +1,11 @@
 import { Save, Trash2 } from "lucide-react";
 import { createDeck, deleteDeck, updateDeck } from "@/app/actions";
 import { AppShell } from "@/components/AppShell";
-import { Button } from "@/components/Button";
 import { ClassIcon, DeckWithClassIcon } from "@/components/ClassIcon";
 import { ClassPicker } from "@/components/ClassPicker";
 import { DeckSuggestionForm } from "@/components/decks/DeckSuggestionForm";
 import { FieldLabel, Input } from "@/components/Field";
+import { SubmitButton } from "@/components/SubmitButton";
 import { SHADOWVERSE_CLASSES } from "@/lib/constants";
 import { getActiveArchetypes, getDecks, getIsAdmin } from "@/lib/data";
 
@@ -75,7 +75,7 @@ export default async function DecksPage() {
               表示順
               <Input name="sort_order" type="number" defaultValue={0} />
             </FieldLabel>
-            <Button type="submit">追加</Button>
+            <SubmitButton type="submit" pendingLabel="追加中...">追加</SubmitButton>
           </form>
         ) : null}
 
@@ -105,14 +105,14 @@ export default async function DecksPage() {
                     <Input name="sort_order" type="number" defaultValue={deck.sort_order} />
                   </FieldLabel>
                   <div className="flex flex-wrap gap-2">
-                    <Button type="submit" variant="secondary">
+                    <SubmitButton type="submit" variant="secondary" pendingLabel="更新中...">
                       <Save size={16} aria-hidden="true" />
                       更新
-                    </Button>
-                    <Button formAction={deleteDeck.bind(null, deck.id)} type="submit" variant="danger">
+                    </SubmitButton>
+                    <SubmitButton formAction={deleteDeck.bind(null, deck.id)} type="submit" variant="danger" pendingLabel="削除中...">
                       <Trash2 size={16} aria-hidden="true" />
                       削除
-                    </Button>
+                    </SubmitButton>
                   </div>
                 </form>
               ))

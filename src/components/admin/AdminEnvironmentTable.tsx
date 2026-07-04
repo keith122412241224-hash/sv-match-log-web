@@ -24,7 +24,7 @@ export function AdminEnvironmentTable({ environments }: { environments: Environm
               開始日
               <Input name={`start_date_${environment.id}`} type="date" defaultValue={environment.start_date ?? ""} />
             </FieldLabel>
-            <button
+            <SubmitButton
               className="min-h-11 rounded-md border border-rose-200 bg-rose-50 px-4 text-sm font-bold text-rose-700 transition hover:bg-rose-100"
               formAction={deleteEnvironment.bind(null, environment.id)}
               formNoValidate
@@ -33,10 +33,11 @@ export function AdminEnvironmentTable({ environments }: { environments: Environm
                   event.preventDefault();
                 }
               }}
+              pendingLabel="削除中..."
               type="submit"
             >
               削除
-            </button>
+            </SubmitButton>
           </div>
         </section>
       ))}

@@ -1,7 +1,7 @@
 import { approveSuggestionAsArchetype, updateSuggestionStatus } from "@/app/admin/actions";
-import { Button } from "@/components/Button";
 import { ClassIcon } from "@/components/ClassIcon";
 import { Input } from "@/components/Field";
+import { SubmitButton } from "@/components/SubmitButton";
 import type { DeckSuggestion } from "@/types/database";
 
 export function SuggestionsPanel({ suggestions }: { suggestions: DeckSuggestion[] }) {
@@ -30,7 +30,7 @@ export function SuggestionsPanel({ suggestions }: { suggestions: DeckSuggestion[
                   標準デッキ名
                   <Input name="name" defaultValue={suggestion.suggested_name} />
                 </label>
-                <Button type="submit">採用</Button>
+                <SubmitButton type="submit" pendingLabel="採用中...">採用</SubmitButton>
               </form>
 
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -38,7 +38,7 @@ export function SuggestionsPanel({ suggestions }: { suggestions: DeckSuggestion[
                 <form action={updateSuggestionStatus}>
                   <input name="id" type="hidden" value={suggestion.id} />
                   <input name="status" type="hidden" value="rejected" />
-                  <Button type="submit" variant="secondary">却下</Button>
+                  <SubmitButton type="submit" variant="secondary" pendingLabel="却下中...">却下</SubmitButton>
                 </form>
               </div>
             </article>

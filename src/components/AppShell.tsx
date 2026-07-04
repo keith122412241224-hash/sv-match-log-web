@@ -4,6 +4,7 @@ import { BarChart3, Grid3X3, Home, ListPlus, LockKeyhole, LogOut, Swords } from 
 import type { ReactNode } from "react";
 import { signOut } from "@/app/actions";
 import { BrandMark } from "@/components/BrandMark";
+import { SubmitButton } from "@/components/SubmitButton";
 import { getCurrentUser, getIsAdmin } from "@/lib/data";
 
 const navItems = [
@@ -34,10 +35,10 @@ export async function AppShell({ children }: { children: ReactNode }) {
             <span className="sm:hidden">SVML</span>
           </Link>
           <form action={signOut}>
-            <button className="inline-flex min-h-10 items-center gap-2 rounded-md px-3 text-sm font-semibold text-muted hover:bg-slate-100" type="submit">
+            <SubmitButton className="inline-flex min-h-10 items-center gap-2 rounded-md px-3 text-sm font-semibold text-muted hover:bg-slate-100" pendingLabel="ログアウト中..." type="submit" variant="ghost">
               <LogOut size={17} aria-hidden="true" />
               <span className="hidden sm:inline">ログアウト</span>
-            </button>
+            </SubmitButton>
           </form>
         </div>
         <nav className="mx-auto flex max-w-7xl gap-1 overflow-x-auto px-4 pb-3">

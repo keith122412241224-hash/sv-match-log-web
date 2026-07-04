@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { importGuestMatches } from "@/app/actions";
+import { SubmitButton } from "@/components/SubmitButton";
 import { GUEST_MATCHES_STORAGE_KEY, type StoredGuestMatch } from "@/lib/guest-storage";
 
 export function GuestImportPrompt({
@@ -62,9 +63,9 @@ export function GuestImportPrompt({
         <div className="flex flex-wrap gap-2">
           <form action={importGuestMatches}>
             <input name="guest_matches_json" type="hidden" value={payload} />
-            <button className="min-h-11 rounded-md bg-ink px-4 text-sm font-bold text-white" type="submit">
+            <SubmitButton className="min-h-11 rounded-md bg-ink px-4 text-sm font-bold text-white" pendingLabel="取り込み中..." type="submit">
               正式データに取り込む
-            </button>
+            </SubmitButton>
           </form>
           <button
             className="min-h-11 rounded-md border border-amber-300 bg-white px-4 text-sm font-bold text-amber-950"

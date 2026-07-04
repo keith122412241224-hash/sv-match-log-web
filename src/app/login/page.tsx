@@ -2,8 +2,8 @@ import Link from "next/link";
 import { PlayCircle } from "lucide-react";
 import { sendPasswordReset, signInWithPassword, signUpWithPassword } from "@/app/actions";
 import { BrandMark } from "@/components/BrandMark";
-import { Button } from "@/components/Button";
 import { FieldLabel, Input } from "@/components/Field";
+import { SubmitButton } from "@/components/SubmitButton";
 
 export default async function LoginPage({
   searchParams
@@ -37,7 +37,7 @@ export default async function LoginPage({
             パスワード
             <Input name="password" type="password" autoComplete="current-password" required minLength={6} />
           </FieldLabel>
-          <Button type="submit">ログイン</Button>
+          <SubmitButton type="submit" pendingLabel="ログイン中...">ログイン</SubmitButton>
         </form>
 
         <form action={signUpWithPassword} className="mt-4 grid gap-4 rounded-md bg-slate-50 p-3">
@@ -49,7 +49,7 @@ export default async function LoginPage({
             パスワード
             <Input name="password" type="password" autoComplete="new-password" required minLength={6} />
           </FieldLabel>
-          <Button type="submit" variant="secondary">新規登録</Button>
+          <SubmitButton type="submit" variant="secondary" pendingLabel="登録中...">新規登録</SubmitButton>
         </form>
 
         <form action={sendPasswordReset} className="mt-4 grid gap-3">
@@ -57,7 +57,7 @@ export default async function LoginPage({
             パスワード再設定用メールアドレス
             <Input name="email" type="email" autoComplete="email" required placeholder="you@example.com" />
           </FieldLabel>
-          <Button type="submit" variant="ghost">パスワードを再設定する</Button>
+          <SubmitButton type="submit" variant="ghost" pendingLabel="送信中...">パスワードを再設定する</SubmitButton>
         </form>
 
         {message ? (
