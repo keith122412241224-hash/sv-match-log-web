@@ -69,40 +69,68 @@ export default async function HomePage({
           {recent.length === 0 ? (
             <div className="p-4 text-sm text-muted">この環境の戦績はまだありません。</div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[820px] text-left text-sm">
-                <thead className="bg-slate-50 text-muted">
-                  <tr>
-                    <th className="px-4 py-3">日時</th>
-                    <th className="px-4 py-3">環境</th>
-                    <th className="px-4 py-3">使用デッキ</th>
-                    <th className="px-4 py-3">相手デッキ</th>
-                    <th className="px-4 py-3">先後</th>
-                    <th className="px-4 py-3">結果</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recent.map((match) => (
-                    <tr className="border-t border-slate-100" key={match.id}>
-                      <td className="px-4 py-3">{new Date(match.played_at).toLocaleString("ja-JP")}</td>
-                      <td className="px-4 py-3">{match.environment?.name ?? "環境なし"}</td>
-                      <td className="px-4 py-3 font-semibold">
+            <>
+              <div className="grid gap-2 p-3 md:hidden">
+                {recent.map((match) => (
+                  <article className="rounded-md border border-slate-200 bg-slate-50 p-3" key={match.id}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-xs font-semibold text-muted">{new Date(match.played_at).toLocaleString("ja-JP")}</div>
+                        <div className="mt-1 truncate text-xs text-muted">{match.environment?.name ?? "環境なし"}</div>
+                      </div>
+                      <span className={match.result === "win" ? "shrink-0 font-bold text-emerald-700" : "shrink-0 font-bold text-red-700"}>
+                        {RESULT_LABELS[match.result]}
+                      </span>
+                    </div>
+                    <div className="mt-3 grid gap-2 text-sm">
+                      <div className="min-w-0">
+                        <div className="mb-1 text-xs font-semibold text-muted">使用デッキ</div>
                         {match.my_deck ? <DeckWithClassIcon className={match.my_deck.class_name} name={match.my_deck.name} /> : "-"}
-                      </td>
-                      <td className="px-4 py-3">
+                      </div>
+                      <div className="min-w-0">
+                        <div className="mb-1 text-xs font-semibold text-muted">相手デッキ</div>
                         {match.opponent_deck ? <DeckWithClassIcon className={match.opponent_deck.class_name} name={match.opponent_deck.name} /> : "-"}
-                      </td>
-                      <td className="px-4 py-3">{TURN_ORDER_LABELS[match.turn_order]}</td>
-                      <td className="px-4 py-3">
-                        <span className={match.result === "win" ? "font-bold text-emerald-700" : "font-bold text-red-700"}>
-                          {RESULT_LABELS[match.result]}
-                        </span>
-                      </td>
+                      </div>
+                    </div>
+                    <div className="mt-2 text-xs font-semibold text-muted">{TURN_ORDER_LABELS[match.turn_order]}</div>
+                  </article>
+                ))}
+              </div>
+              <div className="hidden overflow-x-auto md:block">
+                <table className="w-full min-w-[820px] text-left text-sm">
+                  <thead className="bg-slate-50 text-muted">
+                    <tr>
+                      <th className="px-4 py-3">日時</th>
+                      <th className="px-4 py-3">環境</th>
+                      <th className="px-4 py-3">使用デッキ</th>
+                      <th className="px-4 py-3">相手デッキ</th>
+                      <th className="px-4 py-3">先後</th>
+                      <th className="px-4 py-3">結果</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {recent.map((match) => (
+                      <tr className="border-t border-slate-100" key={match.id}>
+                        <td className="px-4 py-3">{new Date(match.played_at).toLocaleString("ja-JP")}</td>
+                        <td className="px-4 py-3">{match.environment?.name ?? "環境なし"}</td>
+                        <td className="px-4 py-3 font-semibold">
+                          {match.my_deck ? <DeckWithClassIcon className={match.my_deck.class_name} name={match.my_deck.name} /> : "-"}
+                        </td>
+                        <td className="px-4 py-3">
+                          {match.opponent_deck ? <DeckWithClassIcon className={match.opponent_deck.class_name} name={match.opponent_deck.name} /> : "-"}
+                        </td>
+                        <td className="px-4 py-3">{TURN_ORDER_LABELS[match.turn_order]}</td>
+                        <td className="px-4 py-3">
+                          <span className={match.result === "win" ? "font-bold text-emerald-700" : "font-bold text-red-700"}>
+                            {RESULT_LABELS[match.result]}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </section>
       </div>

@@ -4,21 +4,21 @@ export default function Loading() {
   return (
     <div className="min-h-screen bg-surface">
       <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-3 py-2 sm:gap-3 sm:px-4 sm:py-3">
           <div className="flex items-center gap-2 font-bold text-ink">
-            <BrandMark className="size-9" />
+            <BrandMark className="size-8 sm:size-9" />
             <span className="hidden sm:inline">SV Match Log Web</span>
             <span className="sm:hidden">SVML</span>
           </div>
           <div className="h-10 w-24 rounded-md bg-slate-100" />
         </div>
-        <nav className="mx-auto flex max-w-7xl gap-1 overflow-x-auto px-4 pb-3">
+        <nav className="mx-auto grid max-w-7xl grid-cols-5 gap-1 px-2 pb-2 sm:flex sm:overflow-x-auto sm:px-4 sm:pb-3">
           {["/", "/matches", "/decks", "/analysis", "/matrix"].map((href) => (
-            <div className="h-10 w-24 shrink-0 rounded-md bg-slate-100" key={href} />
+            <div className="h-12 min-w-0 rounded-md bg-slate-100 sm:h-10 sm:w-24 sm:shrink-0" key={href} />
           ))}
         </nav>
       </header>
-      <main className="mx-auto max-w-7xl px-4 py-6">
+      <main className="mx-auto max-w-7xl px-3 py-4 sm:px-4 sm:py-6">
         <div className="grid gap-6">
           <section>
             <div className="h-8 w-40 rounded bg-slate-200" />

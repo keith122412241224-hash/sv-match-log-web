@@ -89,27 +89,27 @@ export function GuestApp({
   return (
     <div className="min-h-screen bg-surface">
       <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-4">
-          <div>
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-3 py-3 sm:gap-3 sm:px-4 sm:py-4">
+          <div className="min-w-0">
             <h1 className="font-bold text-ink">ゲストモード</h1>
-            <p className="text-xs text-muted">実際の標準デッキと環境で、入力から分析まで試せます。ログインすると正式データへ取り込めます。</p>
+            <p className="line-clamp-2 text-xs text-muted">実際の標準デッキと環境で、入力から分析まで試せます。ログインすると正式データへ取り込めます。</p>
           </div>
-          <Link className="rounded-md bg-ink px-4 py-2 text-sm font-semibold text-white" href="/login">ログイン</Link>
+          <Link className="shrink-0 rounded-md bg-ink px-3 py-2 text-sm font-semibold text-white sm:px-4" href="/login">ログイン</Link>
         </div>
-        <nav className="mx-auto flex max-w-7xl gap-1 overflow-x-auto px-4 pb-3">
+        <nav className="mx-auto grid max-w-7xl grid-cols-4 gap-1 px-2 pb-2 sm:flex sm:overflow-x-auto sm:px-4 sm:pb-3">
           {([
             ["home", "ホーム"],
             ["input", "戦績入力"],
             ["analysis", "分析"],
             ["matrix", "相性表"]
           ] as const).map(([value, label]) => (
-            <button className={tab === value ? "min-h-10 shrink-0 rounded-md bg-ink px-3 text-sm font-bold text-white" : "min-h-10 shrink-0 rounded-md px-3 text-sm font-bold text-muted"} key={value} onClick={() => setTab(value)} type="button">
+            <button className={tab === value ? "min-h-11 min-w-0 truncate rounded-md bg-ink px-1 text-[11px] font-bold text-white sm:min-h-10 sm:shrink-0 sm:px-3 sm:text-sm" : "min-h-11 min-w-0 truncate rounded-md px-1 text-[11px] font-bold text-muted sm:min-h-10 sm:shrink-0 sm:px-3 sm:text-sm"} key={value} onClick={() => setTab(value)} type="button">
               {label}
             </button>
           ))}
         </nav>
       </header>
-      <main className="mx-auto grid max-w-7xl gap-6 px-4 py-6">
+      <main className="mx-auto grid max-w-7xl gap-6 px-3 py-4 sm:px-4 sm:py-6">
         <p className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-950">
           ゲスト入力はこの端末に一時保存されます。正式に残すにはログイン後に取り込んでください。
         </p>
