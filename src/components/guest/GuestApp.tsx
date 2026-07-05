@@ -25,7 +25,6 @@ export function GuestApp({
   const [tab, setTab] = useState<Tab>("home");
   const [matches, setMatches] = useState<Match[]>([]);
   const [savedCount, setSavedCount] = useState(0);
-  const [selectedMatrixDeckId, setSelectedMatrixDeckId] = useState("");
 
   useEffect(() => {
     const raw = window.localStorage.getItem(GUEST_MATCHES_STORAGE_KEY);
@@ -57,24 +56,8 @@ export function GuestApp({
     [archetypes]
   );
 
-  useEffect(() => {
-    if (guestDecks.length === 0) {
-      setSelectedMatrixDeckId("");
-      return;
-    }
-
-    setSelectedMatrixDeckId((current) => (guestDecks.some((deck) => deck.id === current) ? current : guestDecks[0].id));
-  }, [guestDecks]);
-
   const summary = useMemo(() => summarizeMatches(matches), [matches]);
-  const selectedMatrixDeck = useMemo(
-    () => guestDecks.find((deck) => deck.id === selectedMatrixDeckId) ?? guestDecks[0],
-    [guestDecks, selectedMatrixDeckId]
-  );
-  const matrix = useMemo(
-    () => (selectedMatrixDeck ? buildWinRateMatrix(matches, [selectedMatrixDeck], guestDecks) : []),
-    [guestDecks, matches, selectedMatrixDeck]
-  );
+  const matrix = useMemo(() => buildWinRateMatrix(matches, guestDecks, guestDecks), [guestDecks, matches]);
   const deckSummaries = useMemo(() => buildDeckAnalysisSummaries(matches, guestDecks), [guestDecks, matches]);
   const canInput = archetypes.length > 0 && environments.length > 0;
 
@@ -190,30 +173,7 @@ export function GuestApp({
         ) : null}
 
         {tab === "analysis" ? <DeckAnalysisCards summaries={deckSummaries} /> : null}
-        {tab === "matrix" ? (
-          <div className="grid gap-4">
-            <label className="grid gap-1.5 rounded-md border border-slate-200 bg-white p-3 text-sm font-semibold text-ink sm:max-w-md">
-              表示する使用デッキ
-              <select
-                className="min-h-11 rounded-md border border-slate-300 bg-white px-3 py-2 text-base"
-                value={selectedMatrixDeckId}
-                onChange={(event) => setSelectedMatrixDeckId(event.target.value)}
-              >
-                {guestDecks.map((deck) => (
-                  <option key={deck.id} value={deck.id}>
-                    {deck.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <MatchupMatrix
-              rows={matrix}
-              opponentDecks={guestDecks}
-              title={selectedMatrixDeck ? `${selectedMatrixDeck.name} 対面勝率表` : "ゲスト対面勝率表"}
-              environmentName="ゲスト入力"
-            />
-          </div>
-        ) : null}
+        {tab === "matrix" ? <MatchupMatrix rows={matrix} opponentDecks={guestDecks} title="ゲスト対面勝率表" environmentName="ゲスト入力" /> : null}
       </main>
     </div>
   );

@@ -1,5 +1,6 @@
 import { AppShell } from "@/components/AppShell";
 import { EmptyState } from "@/components/EmptyState";
+import { EnvironmentFilter } from "@/components/EnvironmentFilter";
 import { MatchupMatrix } from "@/components/MatchupMatrix";
 import { buildWinRateMatrix } from "@/lib/analytics";
 import { getActiveArchetypes, getDecks, getEnvironments, getMatches } from "@/lib/data";
@@ -8,7 +9,7 @@ import { getMostRecentlyCreatedId } from "@/lib/utils";
 export default async function MatrixPage({
   searchParams
 }: {
-  searchParams: Promise<{ environment?: string; deck?: string }>;
+  searchParams: Promise<{ environment?: string }>;
 }) {
   const [params, environments] = await Promise.all([searchParams, getEnvironments()]);
   const selectedEnvironmentId = environments.some((environment) => environment.id === params.environment)
@@ -21,43 +22,17 @@ export default async function MatrixPage({
   ]);
   const selectedEnvironmentName = environments.find((environment) => environment.id === selectedEnvironmentId)?.name ?? "環境なし";
   const matrixDecks = archetypes.length > 0 ? archetypes : decks;
-  const selectedDeckId = matrixDecks.some((deck) => deck.id === params.deck) ? params.deck ?? "" : matrixDecks[0]?.id ?? "";
-  const selectedDeck = matrixDecks.find((deck) => deck.id === selectedDeckId);
-  const rows = selectedDeck ? buildWinRateMatrix(matches, [selectedDeck], matrixDecks) : [];
+  const rows = buildWinRateMatrix(matches, matrixDecks, matrixDecks);
 
   return (
     <AppShell>
       <div className="grid gap-6">
         <section>
           <h1 className="text-2xl font-bold text-ink">相性表</h1>
-          <p className="mt-1 text-sm text-muted">環境ごとに、選択した使用デッキの対面勝率表を生成します。</p>
+          <p className="mt-1 text-sm text-muted">環境ごとに、表示したいデッキを選んで対面勝率表を生成します。</p>
         </section>
 
-        <form action="/matrix" className="grid gap-3 rounded-md border border-slate-200 bg-white p-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
-          <label className="grid gap-1.5 text-sm font-semibold text-ink">
-            表示する環境
-            <select className="min-h-11 rounded-md border border-slate-300 bg-white px-3 py-2 text-base" name="environment" defaultValue={selectedEnvironmentId}>
-              {environments.map((environment) => (
-                <option key={environment.id} value={environment.id}>
-                  {environment.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="grid gap-1.5 text-sm font-semibold text-ink">
-            表示する使用デッキ
-            <select className="min-h-11 rounded-md border border-slate-300 bg-white px-3 py-2 text-base" name="deck" defaultValue={selectedDeckId}>
-              {matrixDecks.map((deck) => (
-                <option key={deck.id} value={deck.id}>
-                  {deck.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button className="min-h-11 rounded-md bg-ink px-4 text-sm font-bold text-white" type="submit">
-            表示
-          </button>
-        </form>
+        <EnvironmentFilter basePath="/matrix" environments={environments} selectedEnvironmentId={selectedEnvironmentId} />
 
         {matrixDecks.length === 0 ? (
           <EmptyState
@@ -67,12 +42,7 @@ export default async function MatrixPage({
             action="デッキ管理へ"
           />
         ) : (
-          <MatchupMatrix
-            rows={rows}
-            opponentDecks={matrixDecks}
-            title={selectedDeck ? `${selectedDeck.name} 対面勝率表` : "対面勝率表"}
-            environmentName={selectedEnvironmentName}
-          />
+          <MatchupMatrix rows={rows} opponentDecks={matrixDecks} environmentName={selectedEnvironmentName} />
         )}
       </div>
     </AppShell>
