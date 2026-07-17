@@ -19,7 +19,7 @@ export function GuideScreenshot({
       {!failed && src ? (
         <img
           alt={alt}
-          className="aspect-[16/10] w-full object-cover"
+          className="h-auto w-full"
           loading="lazy"
           onError={() => setFailed(true)}
           src={src}

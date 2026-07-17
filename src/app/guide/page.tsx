@@ -188,7 +188,7 @@ export default async function GuidePage() {
         {steps.map((step, index) => {
           const Icon = step.icon;
           return (
-            <section className="grid gap-5 rounded-md border border-slate-200 bg-white p-4 sm:p-5 lg:grid-cols-[minmax(0,1fr)_minmax(280px,420px)] lg:items-start" id={step.id} key={step.id}>
+            <section className="grid gap-5 rounded-md border border-slate-200 bg-white p-4 sm:p-5 lg:grid-cols-[minmax(0,0.9fr)_minmax(360px,1fr)] lg:items-start" id={step.id} key={step.id}>
               <div>
                 <div className="flex items-center gap-3">
                   <span className="grid size-10 shrink-0 place-items-center rounded-md bg-emerald-50 text-emerald-700">
