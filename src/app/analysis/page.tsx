@@ -13,7 +13,17 @@ type AnalysisSearchParams = {
   opponentDeck?: string;
   turnOrder?: string;
   result?: string;
+  playedFrom?: string;
+  playedTo?: string;
 };
+
+function normalizeDatetimeLocal(value?: string) {
+  return value && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value) ? value : "";
+}
+
+function toJstIso(value: string, endOfMinute = false) {
+  return new Date(`${value}:${endOfMinute ? "59.999" : "00"}+09:00`).toISOString();
+}
 
 export default async function AnalysisPage({
   searchParams
@@ -33,11 +43,15 @@ export default async function AnalysisPage({
   const selectedOpponentDeckId = params.opponentDeck && filterDeckIds.has(params.opponentDeck) ? params.opponentDeck : "";
   const selectedTurnOrder = params.turnOrder && isTurnOrder(params.turnOrder) ? params.turnOrder : "";
   const selectedResult = params.result && isMatchResult(params.result) ? params.result : "";
+  const selectedPlayedFrom = normalizeDatetimeLocal(params.playedFrom);
+  const selectedPlayedTo = normalizeDatetimeLocal(params.playedTo);
   const filteredMatches = await getMatches(selectedEnvironmentId, {
     myDeckId: selectedMyDeckId,
     opponentDeckId: selectedOpponentDeckId,
     turnOrder: selectedTurnOrder || undefined,
     result: selectedResult || undefined,
+    playedAtFrom: selectedPlayedFrom ? toJstIso(selectedPlayedFrom) : undefined,
+    playedAtTo: selectedPlayedTo ? toJstIso(selectedPlayedTo, true) : undefined,
     deckIdField: archetypes.length > 0 ? "archetype" : "deck"
   });
 
@@ -65,7 +79,9 @@ export default async function AnalysisPage({
             myDeckId: selectedMyDeckId,
             opponentDeckId: selectedOpponentDeckId,
             turnOrder: selectedTurnOrder,
-            result: selectedResult
+            result: selectedResult,
+            playedFrom: selectedPlayedFrom,
+            playedTo: selectedPlayedTo
           }}
         />
 

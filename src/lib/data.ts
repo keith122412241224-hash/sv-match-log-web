@@ -39,6 +39,8 @@ export type MatchFilters = {
   opponentDeckId?: string;
   turnOrder?: Match["turn_order"];
   result?: Match["result"];
+  playedAtFrom?: string;
+  playedAtTo?: string;
   deckIdField?: "archetype" | "deck";
 };
 
@@ -70,6 +72,14 @@ export async function getMatches(environmentId?: string, filters: MatchFilters =
 
   if (filters.result) {
     query = query.eq("result", filters.result);
+  }
+
+  if (filters.playedAtFrom) {
+    query = query.gte("played_at", filters.playedAtFrom);
+  }
+
+  if (filters.playedAtTo) {
+    query = query.lte("played_at", filters.playedAtTo);
   }
 
   const { data } = await query;
