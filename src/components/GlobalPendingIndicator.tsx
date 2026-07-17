@@ -91,11 +91,11 @@ export function GlobalPendingIndicator() {
   }
 
   return (
-    <div aria-live="polite" aria-busy="true" className="pointer-events-none fixed inset-x-0 top-0 z-50">
+    <div aria-live="polite" aria-busy="true" className="pointer-events-none fixed inset-0 z-50">
       <div className="h-1 overflow-hidden bg-slate-200">
         <div className="global-pending-bar h-full bg-ink" />
       </div>
-      <div className="mx-auto flex max-w-7xl justify-end px-4 pt-3">
+      <div className="absolute inset-x-0 bottom-4 flex justify-center px-4 sm:bottom-6">
         <div className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-ink shadow-sm">
           <span className="size-3 animate-spin rounded-full border-2 border-slate-300 border-t-ink" />
           読み込み中
