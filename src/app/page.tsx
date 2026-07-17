@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BarChart3, Grid3X3, ListPlus, LogIn, Swords, Trophy } from "lucide-react";
+import { BarChart3, BookOpen, Grid3X3, ListPlus, LogIn, Swords, Trophy } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { BrandMark } from "@/components/BrandMark";
 import { DeckWithClassIcon } from "@/components/ClassIcon";
@@ -133,6 +133,8 @@ export default async function HomePage({
             </>
           )}
         </section>
+
+        <GuideLinkCard />
       </div>
     </AppShell>
   );
@@ -168,13 +170,16 @@ function LandingPage() {
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
           <Link className="flex items-center gap-2 font-bold" href="/">
             <BrandMark className="size-10" />
-            <span>SV Match Log Web</span>
+            <span className="hidden sm:inline">SV Match Log Web</span>
           </Link>
-          <div className="flex items-center gap-2">
-            <Link className="rounded-md px-3 py-2 text-sm font-semibold text-muted hover:bg-slate-100 hover:text-ink" href="/guest">
+          <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+            <Link className="rounded-md px-2 py-2 text-sm font-semibold text-muted hover:bg-slate-100 hover:text-ink sm:px-3" href="/guest">
               ゲストで試す
             </Link>
-            <Link className="inline-flex items-center gap-2 rounded-md bg-ink px-4 py-2 text-sm font-bold text-white" href="/login">
+            <Link className="rounded-md px-2 py-2 text-sm font-semibold text-muted hover:bg-slate-100 hover:text-ink sm:px-3" href="/guide">
+              使い方
+            </Link>
+            <Link className="inline-flex items-center gap-2 rounded-md bg-ink px-3 py-2 text-sm font-bold text-white sm:px-4" href="/login">
               <LogIn size={16} aria-hidden="true" />
               ログイン
             </Link>
@@ -236,6 +241,10 @@ function LandingPage() {
         </div>
       </section>
 
+      <section className="mx-auto max-w-6xl px-4 pt-10">
+        <GuideLinkCard />
+      </section>
+
       <section className="mx-auto max-w-6xl px-4 py-10">
         <div className="rounded-md border border-slate-200 bg-white p-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -256,5 +265,27 @@ function LandingPage() {
         </div>
       </section>
     </main>
+  );
+}
+
+function GuideLinkCard() {
+  return (
+    <section className="rounded-md border border-slate-200 bg-white p-5">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <div className="flex items-center gap-2 text-sm font-bold text-muted">
+            <BookOpen size={16} aria-hidden="true" />
+            初めての方へ
+          </div>
+          <h2 className="mt-2 text-xl font-bold text-ink">使い方を画像付きで確認できます</h2>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
+            戦績入力から勝率分析、相性表の保存まで、画像付きで基本的な使い方を紹介しています。
+          </p>
+        </div>
+        <Link className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-md border border-slate-300 bg-white px-5 text-sm font-bold text-ink hover:bg-slate-50" href="/guide">
+          使い方を見る
+        </Link>
+      </div>
+    </section>
   );
 }
