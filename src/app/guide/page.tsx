@@ -137,10 +137,11 @@ const steps = [
 
 export default async function GuidePage() {
   const user = await getCurrentUser();
+  const signedIn = Boolean(user);
 
   return (
     <main className="min-h-screen bg-surface text-ink">
-      <GuideHeader signedIn={Boolean(user)} />
+      <GuideHeader signedIn={signedIn} />
 
       <section className="border-b border-slate-200 bg-white">
         <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-center lg:py-14">
@@ -150,16 +151,7 @@ export default async function GuidePage() {
             <p className="mt-5 max-w-2xl text-base leading-8 text-muted">
               戦績入力から勝率分析、相性表のPNG保存まで、SV Match Log Webの基本的な使い方を紹介します。ログインせず、ゲストモードで操作を試すこともできます。
             </p>
-            <div className="mt-6 flex flex-wrap gap-3">
-              <Link className="inline-flex min-h-11 items-center gap-2 rounded-md border border-slate-300 bg-white px-5 text-sm font-bold text-ink hover:bg-slate-50" href="/guest">
-                <PlayCircle size={17} aria-hidden="true" />
-                ログインせず試す
-              </Link>
-              <Link className="inline-flex min-h-11 items-center gap-2 rounded-md bg-ink px-5 text-sm font-bold text-white hover:bg-slate-700" href="/login">
-                <LogIn size={17} aria-hidden="true" />
-                無料で始める
-              </Link>
-            </div>
+            {signedIn ? <SignedInHeroActions /> : <SignedOutHeroActions />}
           </div>
 
           <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
@@ -222,22 +214,74 @@ export default async function GuidePage() {
               </div>
               <h2 className="mt-2 text-2xl font-black text-ink">まずは戦績入力から始めてみましょう</h2>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-emerald-950">
-                ゲストモードで試してから、必要に応じてアカウント登録できます。継続して戦績を管理したい場合はログインして利用してください。
+                {signedIn
+                  ? "ログイン中のアカウントで、そのまま戦績入力や分析を利用できます。"
+                  : "ゲストモードで試してから、必要に応じてアカウント登録できます。継続して戦績を管理したい場合はログインして利用してください。"}
               </p>
             </div>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Link className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-emerald-300 bg-white px-5 text-sm font-bold text-ink hover:bg-emerald-50" href="/guest">
-                ログインせず試す
-              </Link>
-              <Link className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-ink px-5 text-sm font-bold text-white hover:bg-slate-700" href="/login">
-                ログイン／新規登録
-                <ArrowRight size={16} aria-hidden="true" />
-              </Link>
-            </div>
+            {signedIn ? <SignedInFooterActions /> : <SignedOutFooterActions />}
           </div>
         </section>
       </div>
     </main>
+  );
+}
+
+function SignedInHeroActions() {
+  return (
+    <div className="mt-6 flex flex-wrap gap-3">
+      <Link className="inline-flex min-h-11 items-center gap-2 rounded-md bg-ink px-5 text-sm font-bold text-white hover:bg-slate-700" href="/matches">
+        <ListPlus size={17} aria-hidden="true" />
+        戦績入力へ
+      </Link>
+      <Link className="inline-flex min-h-11 items-center gap-2 rounded-md border border-slate-300 bg-white px-5 text-sm font-bold text-ink hover:bg-slate-50" href="/analysis">
+        <BarChart3 size={17} aria-hidden="true" />
+        分析を見る
+      </Link>
+    </div>
+  );
+}
+
+function SignedOutHeroActions() {
+  return (
+    <div className="mt-6 flex flex-wrap gap-3">
+      <Link className="inline-flex min-h-11 items-center gap-2 rounded-md border border-slate-300 bg-white px-5 text-sm font-bold text-ink hover:bg-slate-50" href="/guest">
+        <PlayCircle size={17} aria-hidden="true" />
+        ログインせず試す
+      </Link>
+      <Link className="inline-flex min-h-11 items-center gap-2 rounded-md bg-ink px-5 text-sm font-bold text-white hover:bg-slate-700" href="/login">
+        <LogIn size={17} aria-hidden="true" />
+        無料で始める
+      </Link>
+    </div>
+  );
+}
+
+function SignedInFooterActions() {
+  return (
+    <div className="flex flex-col gap-2 sm:flex-row">
+      <Link className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-ink px-5 text-sm font-bold text-white hover:bg-slate-700" href="/matches">
+        戦績入力へ
+        <ArrowRight size={16} aria-hidden="true" />
+      </Link>
+      <Link className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-emerald-300 bg-white px-5 text-sm font-bold text-ink hover:bg-emerald-50" href="/matrix">
+        相性表を見る
+      </Link>
+    </div>
+  );
+}
+
+function SignedOutFooterActions() {
+  return (
+    <div className="flex flex-col gap-2 sm:flex-row">
+      <Link className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-emerald-300 bg-white px-5 text-sm font-bold text-ink hover:bg-emerald-50" href="/guest">
+        ログインせず試す
+      </Link>
+      <Link className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-ink px-5 text-sm font-bold text-white hover:bg-slate-700" href="/login">
+        ログイン／新規登録
+        <ArrowRight size={16} aria-hidden="true" />
+      </Link>
+    </div>
   );
 }
 
