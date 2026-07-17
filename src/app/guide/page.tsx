@@ -54,7 +54,7 @@ const steps = [
     icon: PlayCircle,
     title: "利用を開始する",
     screenshot: {
-      src: "/guide/guest-mode.png",
+      src: "/guide/ゲストモード画面.png",
       alt: "SV Match Log Webのゲストモード画面",
       label: "ゲストモード画面のイメージ"
     },
@@ -68,7 +68,7 @@ const steps = [
     icon: Swords,
     title: "デッキを設定する",
     screenshot: {
-      src: "/guide/decks.png",
+      src: "/guide/デッキ管理画面.png",
       alt: "SV Match Log Webのデッキ管理画面",
       label: "デッキ管理画面のイメージ"
     },
@@ -82,7 +82,7 @@ const steps = [
     icon: ListPlus,
     title: "戦績を入力する",
     screenshot: {
-      src: "/guide/match-input.png",
+      src: "/guide/戦績入力画面.png",
       alt: "SV Match Log Webの戦績入力画面",
       label: "戦績入力画面のイメージ"
     },
@@ -96,7 +96,7 @@ const steps = [
     icon: BarChart3,
     title: "勝率を分析する",
     screenshot: {
-      src: "/guide/analysis.png",
+      src: "/guide/分析画面.png",
       alt: "SV Match Log Webの分析画面",
       label: "分析画面のイメージ"
     },
@@ -110,7 +110,7 @@ const steps = [
     icon: Trophy,
     title: "対面別勝率を確認する",
     screenshot: {
-      src: "/guide/matchups.png",
+      src: "/guide/対面勝率画面.png",
       alt: "SV Match Log Webの対面別勝率画面",
       label: "対面勝率画面のイメージ"
     },
@@ -124,7 +124,7 @@ const steps = [
     icon: Grid3X3,
     title: "相性表を作成・保存する",
     screenshot: {
-      src: "/guide/matrix.png",
+      src: "/guide/相性表画面.png",
       alt: "SV Match Log Webの相性表画面",
       label: "相性表画面のイメージ"
     },

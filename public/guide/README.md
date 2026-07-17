@@ -1,6 +1,15 @@
 Place guide screenshots in this directory.
 
-Recommended files:
+Current screenshot files:
+
+- ゲストモード画面.png
+- デッキ管理画面.png
+- 戦績入力画面.png
+- 分析画面.png
+- 対面勝率画面.png
+- 相性表画面.png
+
+Alternative English file names, if the guide page is updated to reference them:
 
 - guest-mode.png
 - decks.png
