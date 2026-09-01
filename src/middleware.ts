@@ -11,6 +11,10 @@ type CookieToSet = {
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
 
+  if (request.headers.has("next-action") || request.headers.get("purpose") === "prefetch") {
+    return response;
+  }
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -33,5 +37,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"]
+  matcher: ["/matches/:path*", "/decks/:path*", "/analysis/:path*", "/matrix/:path*", "/admin/:path*", "/auth/:path*"]
 };

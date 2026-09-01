@@ -6,7 +6,7 @@ import { getActiveArchetypes, getDecks, getEnvironments } from "@/lib/data";
 export default async function MatchesPage({
   searchParams
 }: {
-  searchParams: Promise<{ saved?: string }>;
+  searchParams: Promise<{ saved?: string; error?: string }>;
 }) {
   const [decks, archetypes, environments, params] = await Promise.all([
     getDecks(),
@@ -40,7 +40,13 @@ export default async function MatchesPage({
             action="管理画面へ"
           />
         ) : (
-          <QuickMatchForm archetypes={archetypes} decks={decks} environments={environments} saved={params.saved === "1"} />
+          <QuickMatchForm
+            archetypes={archetypes}
+            decks={decks}
+            environments={environments}
+            error={params.error}
+            saved={params.saved === "1"}
+          />
         )}
       </div>
     </AppShell>

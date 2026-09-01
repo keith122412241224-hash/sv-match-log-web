@@ -5,14 +5,15 @@ import type { ReactNode } from "react";
 import { signOut } from "@/app/actions";
 import { BrandMark } from "@/components/BrandMark";
 import { SubmitButton } from "@/components/SubmitButton";
-import { getCurrentUser, getIsAdmin } from "@/lib/data";
+import { getCurrentUser } from "@/lib/data";
 
 const navItems = [
   { href: "/", label: "ホーム", icon: Home },
   { href: "/matches", label: "戦績入力", icon: ListPlus },
   { href: "/decks", label: "デッキ管理", icon: Swords },
   { href: "/analysis", label: "分析", icon: BarChart3 },
-  { href: "/matrix", label: "相性表", icon: Grid3X3 }
+  { href: "/matrix", label: "相性表", icon: Grid3X3 },
+  { href: "/admin", label: "管理", icon: LockKeyhole }
 ];
 
 export async function AppShell({ children }: { children: ReactNode }) {
@@ -21,9 +22,6 @@ export async function AppShell({ children }: { children: ReactNode }) {
   if (!user) {
     redirect("/login");
   }
-
-  const isAdmin = await getIsAdmin();
-  const items = isAdmin ? [...navItems, { href: "/admin", label: "管理", icon: LockKeyhole }] : navItems;
 
   return (
     <div className="min-h-screen bg-surface">
@@ -48,9 +46,9 @@ export async function AppShell({ children }: { children: ReactNode }) {
         </div>
         <nav
           className="mx-auto grid max-w-7xl gap-1 px-2 pb-2 sm:flex sm:overflow-x-auto sm:px-4 sm:pb-3"
-          style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}
+          style={{ gridTemplateColumns: `repeat(${navItems.length}, minmax(0, 1fr))` }}
         >
-          {items.map((item) => {
+          {navItems.map((item) => {
             const Icon = item.icon;
             return (
               <Link

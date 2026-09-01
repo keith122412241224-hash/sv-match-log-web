@@ -7,6 +7,11 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { StoredGuestMatch } from "@/lib/guest-storage";
 import type { MatchResult, TurnOrder } from "@/types/database";
 
+type CreateMatchResult = {
+  ok: boolean;
+  message?: string;
+};
+
 export async function signInWithPassword(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
@@ -147,60 +152,22 @@ export async function deleteDeck(id: string) {
 }
 
 export async function createMatch(formData: FormData) {
-  const supabase = await createSupabaseServerClient();
-  const user = await requireUser();
-  let myDeckId = String(formData.get("my_deck_id") ?? "");
-  let myArchetypeId = String(formData.get("my_archetype_id") ?? "");
-  let opponentDeckId = String(formData.get("opponent_deck_id") ?? "");
-  let opponentArchetypeId = String(formData.get("opponent_archetype_id") ?? "");
-  const environmentId = String(formData.get("environment_id") ?? "");
-  const turnOrder = String(formData.get("turn_order") ?? "") as TurnOrder;
-  const result = String(formData.get("result") ?? "") as MatchResult;
-  const playedAt = String(formData.get("played_at") ?? "");
+  const result = await saveMatchFromForm(formData, { revalidate: true });
   const nextAction = String(formData.get("next_action") ?? "home");
 
-  if (!environmentId || !["first", "second"].includes(turnOrder) || !["win", "lose"].includes(result)) {
-    return;
+  if (!result.ok) {
+    redirect(`/matches?error=${encodeURIComponent(result.message ?? "保存できませんでした。")}`);
   }
-
-  if (!myDeckId && myArchetypeId) {
-    myDeckId = await ensureCompatDeckForArchetype(supabase, user.id, myArchetypeId);
-  }
-
-  if (!opponentDeckId && opponentArchetypeId) {
-    opponentDeckId = await ensureCompatDeckForArchetype(supabase, user.id, opponentArchetypeId);
-  }
-
-  if (!myArchetypeId && myDeckId) {
-    myArchetypeId = await findArchetypeForDeck(supabase, myDeckId);
-  }
-
-  if (!opponentArchetypeId && opponentDeckId) {
-    opponentArchetypeId = await findArchetypeForDeck(supabase, opponentDeckId);
-  }
-
-  if (!myDeckId || !opponentDeckId) {
-    return;
-  }
-
-  await supabase.from("matches").insert({
-    user_id: user.id,
-    environment_id: environmentId || null,
-    my_deck_id: myDeckId,
-    opponent_deck_id: opponentDeckId,
-    my_archetype_id: myArchetypeId || null,
-    opponent_archetype_id: opponentArchetypeId || null,
-    turn_order: turnOrder,
-    result,
-    played_at: playedAt ? new Date(playedAt).toISOString() : new Date().toISOString()
-  });
 
   if (nextAction === "continue") {
     redirect("/matches?saved=1");
   }
 
-  revalidatePath("/");
   redirect("/");
+}
+
+export async function createMatchInline(formData: FormData): Promise<CreateMatchResult> {
+  return saveMatchFromForm(formData, { revalidate: false });
 }
 
 export async function importGuestMatches(formData: FormData) {
@@ -340,6 +307,139 @@ async function requireAdminClient() {
   return supabase;
 }
 
+async function saveMatchFromForm(
+  formData: FormData,
+  { revalidate }: { revalidate: boolean }
+): Promise<CreateMatchResult> {
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+  let myDeckId = String(formData.get("my_deck_id") ?? "");
+  let myArchetypeId = String(formData.get("my_archetype_id") ?? "");
+  let opponentDeckId = String(formData.get("opponent_deck_id") ?? "");
+  let opponentArchetypeId = String(formData.get("opponent_archetype_id") ?? "");
+  const environmentId = String(formData.get("environment_id") ?? "");
+  const turnOrder = String(formData.get("turn_order") ?? "") as TurnOrder;
+  const result = String(formData.get("result") ?? "") as MatchResult;
+  const playedAt = String(formData.get("played_at") ?? "");
+
+  if (!user) {
+    redirect("/login");
+  }
+
+  if (!environmentId || !["first", "second"].includes(turnOrder) || !["win", "lose"].includes(result)) {
+    return { ok: false, message: "入力内容を確認してください。" };
+  }
+
+  const archetypeDecks = await ensureCompatDecksForSelectedArchetypes(
+    supabase,
+    user.id,
+    [myArchetypeId, opponentArchetypeId].filter(Boolean)
+  );
+
+  if (myArchetypeId) {
+    myDeckId = archetypeDecks.get(myArchetypeId) ?? "";
+  } else if (myDeckId) {
+    myArchetypeId = await findArchetypeForDeck(supabase, myDeckId);
+  }
+
+  if (opponentArchetypeId) {
+    opponentDeckId = archetypeDecks.get(opponentArchetypeId) ?? "";
+  } else if (opponentDeckId) {
+    opponentArchetypeId = await findArchetypeForDeck(supabase, opponentDeckId);
+  }
+
+  if (!myDeckId || !opponentDeckId) {
+    return { ok: false, message: "デッキ情報を保存できませんでした。" };
+  }
+
+  const { error } = await supabase.from("matches").insert({
+    user_id: user.id,
+    environment_id: environmentId,
+    my_deck_id: myDeckId,
+    opponent_deck_id: opponentDeckId,
+    my_archetype_id: myArchetypeId || null,
+    opponent_archetype_id: opponentArchetypeId || null,
+    turn_order: turnOrder,
+    result,
+    played_at: playedAt ? new Date(playedAt).toISOString() : new Date().toISOString()
+  });
+
+  if (error) {
+    return { ok: false, message: error.message };
+  }
+
+  if (revalidate) {
+    revalidateMatchDerivedPaths();
+  }
+
+  return { ok: true };
+}
+
+async function ensureCompatDecksForSelectedArchetypes(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  userId: string,
+  archetypeIds: string[]
+) {
+  const uniqueArchetypeIds = Array.from(new Set(archetypeIds));
+  const deckIdsByArchetypeId = new Map<string, string>();
+
+  if (uniqueArchetypeIds.length === 0) {
+    return deckIdsByArchetypeId;
+  }
+
+  const { data: archetypes } = await supabase
+    .from("deck_archetypes")
+    .select("id, name, class_name")
+    .in("id", uniqueArchetypeIds)
+    .eq("is_active", true);
+
+  if (!archetypes || archetypes.length !== uniqueArchetypeIds.length) {
+    return deckIdsByArchetypeId;
+  }
+
+  const archetypesToCreate = Array.from(new Map(archetypes.map((archetype) => [archetype.name, archetype])).values());
+
+  await supabase.from("decks").upsert(
+    archetypesToCreate.map((archetype) => ({
+      user_id: userId,
+      name: archetype.name,
+      class_name: archetype.class_name,
+      deck_type: "my_deck" as const,
+      sort_order: 999
+    })),
+    { onConflict: "user_id,deck_type,name", ignoreDuplicates: true }
+  );
+
+  const { data: decks } = await supabase
+    .from("decks")
+    .select("id, name, class_name")
+    .eq("user_id", userId)
+    .eq("deck_type", "my_deck")
+    .in(
+      "name",
+      archetypes.map((archetype) => archetype.name)
+    );
+
+  const decksByName = new Map((decks ?? []).map((deck) => [deck.name, deck]));
+
+  for (const archetype of archetypes) {
+    const deck = decksByName.get(archetype.name);
+    if (deck && deck.class_name === archetype.class_name) {
+      deckIdsByArchetypeId.set(archetype.id, deck.id);
+    }
+  }
+
+  return deckIdsByArchetypeId;
+}
+
+function revalidateMatchDerivedPaths() {
+  revalidatePath("/");
+  revalidatePath("/analysis");
+  revalidatePath("/matrix");
+}
+
 function revalidateDeckPaths() {
   revalidatePath("/decks");
   revalidatePath("/matches");
@@ -379,31 +479,32 @@ async function ensureCompatDeckForArchetype(
     return "";
   }
 
-  const { data: existing } = await supabase
+  await supabase
     .from("decks")
-    .select("id")
+    .upsert(
+      {
+        user_id: userId,
+        name: archetype.name,
+        class_name: archetype.class_name,
+        deck_type: "my_deck",
+        sort_order: 999
+      },
+      { onConflict: "user_id,deck_type,name", ignoreDuplicates: true }
+    );
+
+  const { data: deck } = await supabase
+    .from("decks")
+    .select("id, class_name")
     .eq("user_id", userId)
+    .eq("deck_type", "my_deck")
     .eq("name", archetype.name)
-    .eq("class_name", archetype.class_name)
     .maybeSingle();
 
-  if (existing?.id) {
-    return existing.id as string;
+  if (deck?.class_name !== archetype.class_name) {
+    return "";
   }
 
-  const { data: created } = await supabase
-    .from("decks")
-    .insert({
-      user_id: userId,
-      name: archetype.name,
-      class_name: archetype.class_name,
-      deck_type: "my_deck",
-      sort_order: 999
-    })
-    .select("id")
-    .single();
-
-  return (created?.id as string | undefined) ?? "";
+  return (deck?.id as string | undefined) ?? "";
 }
 
 async function findArchetypeForDeck(

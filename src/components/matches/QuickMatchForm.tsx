@@ -4,7 +4,7 @@ import { Loader2, Save } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useFormStatus } from "react-dom";
 import type { FormEvent } from "react";
-import { createMatch } from "@/app/actions";
+import { createMatch, createMatchInline } from "@/app/actions";
 import { Button } from "@/components/Button";
 import { ClassIcon, DeckWithClassIcon } from "@/components/ClassIcon";
 import { FieldLabel, Input, Select } from "@/components/Field";
@@ -38,6 +38,7 @@ export function QuickMatchForm({
   environments,
   archetypes = [],
   saved,
+  error,
   guest = false,
   onGuestSubmit
 }: {
@@ -45,6 +46,7 @@ export function QuickMatchForm({
   environments: Environment[];
   archetypes?: DeckArchetype[];
   saved?: boolean;
+  error?: string;
   guest?: boolean;
   onGuestSubmit?: (match: GuestMatchDraft) => void;
 }) {
@@ -69,6 +71,9 @@ export function QuickMatchForm({
   const [result, setResult] = useState<MatchResult>("win");
   const [playedAt, setPlayedAt] = useState(toDatetimeLocalValue());
   const [environmentId, setEnvironmentId] = useState(getMostRecentlyCreatedId(environments));
+  const [saveState, setSaveState] = useState<"idle" | "saved" | "error">("idle");
+  const [saveMessage, setSaveMessage] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     const stored = window.localStorage.getItem(LAST_MY_CHOICE_KEY);
@@ -108,8 +113,38 @@ export function QuickMatchForm({
   const usesArchetypes = archetypes.length > 0;
   const selectedOpponentDeckId = usesArchetypes ? opponentArchetypeId : opponentDeckId;
 
-  function handleGuestSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     if (!guest) {
+      const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
+
+      if (submitter?.value !== "continue") {
+        return;
+      }
+
+      event.preventDefault();
+      setIsSaving(true);
+      setSaveState("idle");
+      setSaveMessage("");
+
+      try {
+        const formData = new FormData(event.currentTarget);
+        formData.set("next_action", "continue");
+        const response = await createMatchInline(formData);
+
+        if (response.ok) {
+          setSaveState("saved");
+          setPlayedAt(toDatetimeLocalValue());
+        } else {
+          setSaveState("error");
+          setSaveMessage(response.message ?? "保存できませんでした。");
+        }
+      } catch {
+        setSaveState("error");
+        setSaveMessage("保存できませんでした。");
+      } finally {
+        setIsSaving(false);
+      }
+
       return;
     }
 
@@ -134,11 +169,16 @@ export function QuickMatchForm({
     <form
       action={guest ? undefined : createMatch}
       className="grid gap-4 rounded-md border border-slate-200 bg-white p-4"
-      onSubmit={guest ? handleGuestSubmit : undefined}
+      onSubmit={handleSubmit}
     >
-      {saved || guest ? (
+      {saved || guest || saveState === "saved" ? (
         <p className="rounded-md bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">
           {guest ? "ゲスト体験中です。入力操作だけ確認できます。" : "保存しました。続けて入力できます。"}
+        </p>
+      ) : null}
+      {error || saveState === "error" ? (
+        <p className="rounded-md bg-red-50 px-3 py-2 text-sm font-semibold text-red-800">
+          {saveState === "error" ? saveMessage : error}
         </p>
       ) : null}
 
@@ -287,33 +327,34 @@ export function QuickMatchForm({
       </FieldLabel>
 
       <div className="grid gap-2 sm:grid-cols-2">
-        <MatchSubmitButtons guest={guest} />
+        <MatchSubmitButtons guest={guest} pendingOverride={isSaving} />
       </div>
     </form>
   );
 }
 
-function MatchSubmitButtons({ guest }: { guest: boolean }) {
+function MatchSubmitButtons({ guest, pendingOverride = false }: { guest: boolean; pendingOverride?: boolean }) {
   const { pending } = useFormStatus();
+  const isPending = pending || pendingOverride;
 
   return (
     <>
-      <Button aria-disabled={pending} disabled={pending} name="next_action" type="submit" value="continue">
-        {pending ? <Loader2 className="animate-spin" size={17} aria-hidden="true" /> : <Save size={17} aria-hidden="true" />}
-        {pending ? "保存中..." : guest ? "入力を試す" : "保存して続ける"}
+      <Button aria-disabled={isPending} disabled={isPending} name="next_action" type="submit" value="continue">
+        {isPending ? <Loader2 className="animate-spin" size={17} aria-hidden="true" /> : <Save size={17} aria-hidden="true" />}
+        {isPending ? "保存中..." : guest ? "入力を試す" : "保存して続ける"}
       </Button>
       <Button
-        aria-disabled={pending}
+        aria-disabled={isPending}
         className={guest ? "hidden" : undefined}
-        disabled={pending}
+        disabled={isPending}
         name="next_action"
         type="submit"
         value="home"
         variant="secondary"
       >
-        {pending ? "保存中..." : "保存してホームへ"}
+        {isPending ? "保存中..." : "保存してホームへ"}
       </Button>
-      {pending ? (
+      {isPending ? (
         <p aria-live="polite" className="sm:col-span-2 rounded-md bg-slate-50 px-3 py-2 text-sm font-semibold text-muted">
           戦績を保存しています。完了するまでこのままお待ちください。
         </p>
