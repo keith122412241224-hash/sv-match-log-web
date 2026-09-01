@@ -57,14 +57,25 @@ export type MatchFilters = {
   playedAtFrom?: string;
   playedAtTo?: string;
   deckIdField?: "archetype" | "deck";
+  includeAllUsers?: boolean;
 };
 
 export async function getMatches(environmentId?: string, filters: MatchFilters = {}) {
   const supabase = await createSupabaseServerClient();
+  const [user, isAdmin] = await Promise.all([getCurrentUser(), filters.includeAllUsers ? getIsAdmin() : false]);
+
+  if (!user) {
+    return [];
+  }
+
   let query = supabase
     .from("matches")
     .select(MATCH_ANALYTICS_COLUMNS)
     .order("played_at", { ascending: false });
+
+  if (!filters.includeAllUsers || !isAdmin) {
+    query = query.eq("user_id", user.id);
+  }
 
   if (environmentId) {
     query = query.eq("environment_id", environmentId);
@@ -104,6 +115,12 @@ export async function getMatches(environmentId?: string, filters: MatchFilters =
 
 export async function getRecentMatchesWithRelations(environmentId?: string, limit = 10) {
   const supabase = await createSupabaseServerClient();
+  const user = await getCurrentUser();
+
+  if (!user) {
+    return [];
+  }
+
   let query = supabase
     .from("matches")
     .select(
@@ -111,6 +128,8 @@ export async function getRecentMatchesWithRelations(environmentId?: string, limi
     )
     .order("played_at", { ascending: false })
     .limit(limit);
+
+  query = query.eq("user_id", user.id);
 
   if (environmentId) {
     query = query.eq("environment_id", environmentId);
@@ -142,9 +161,21 @@ export async function getHomeDashboard(environmentId?: string, limit = 10): Prom
 
 export async function getMatchSummaryStats(environmentId?: string): Promise<MatchSummaryStats> {
   const supabase = await createSupabaseServerClient();
+  const user = await getCurrentUser();
+
+  if (!user) {
+    return {
+      total: 0,
+      wins: 0,
+      winRate: null,
+      firstWinRate: null,
+      secondWinRate: null
+    };
+  }
+  const userId = user.id;
 
   async function countMatches(filters: { result?: Match["result"]; turnOrder?: Match["turn_order"] }) {
-    let query = supabase.from("matches").select("id", { count: "exact", head: true });
+    let query = supabase.from("matches").select("id", { count: "exact", head: true }).eq("user_id", userId);
 
     if (environmentId) {
       query = query.eq("environment_id", environmentId);

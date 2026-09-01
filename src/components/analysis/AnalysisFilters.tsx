@@ -13,22 +13,40 @@ export type AnalysisFilterValues = {
   result: string;
   playedFrom: string;
   playedTo: string;
+  scope: string;
 };
 
 export function AnalysisFilters({
   environments,
   decks,
-  values
+  values,
+  canUseAllUsers
 }: {
   environments: Environment[];
   decks: DeckLike[];
   values: AnalysisFilterValues;
+  canUseAllUsers?: boolean;
 }) {
-  const resetHref = values.environmentId ? `/analysis?environment=${encodeURIComponent(values.environmentId)}` : "/analysis";
+  const scopeQuery = values.scope === "all" ? "&scope=all" : "";
+  const resetHref = values.environmentId
+    ? `/analysis?environment=${encodeURIComponent(values.environmentId)}${scopeQuery}`
+    : values.scope === "all"
+      ? "/analysis?scope=all"
+      : "/analysis";
 
   return (
     <form action="/analysis" className="rounded-md border border-slate-200 bg-white p-3">
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-[1.1fr_1fr_1fr_0.85fr_0.85fr_0.95fr_0.95fr_auto_auto] 2xl:items-end">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-[1fr_1.1fr_1fr_1fr_0.85fr_0.85fr_0.95fr_0.95fr_auto_auto] 2xl:items-end">
+        {canUseAllUsers ? (
+          <FieldLabel>
+            集計範囲
+            <Select name="scope" defaultValue={values.scope}>
+              <option value="mine">自分のみ</option>
+              <option value="all">全ユーザー</option>
+            </Select>
+          </FieldLabel>
+        ) : null}
+
         <FieldLabel>
           表示する環境
           <Select name="environment" defaultValue={values.environmentId}>

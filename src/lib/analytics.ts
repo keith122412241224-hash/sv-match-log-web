@@ -1,5 +1,5 @@
 import { LOW_SAMPLE_THRESHOLD } from "@/lib/constants";
-import type { Deck, Match, TurnOrder } from "@/types/database";
+import type { Match, TurnOrder } from "@/types/database";
 
 export type DeckLike = {
   id: string;
@@ -26,7 +26,7 @@ export type MatrixCell = {
 };
 
 export type DeckAnalysisSummary = {
-  deck: Deck;
+  deck: DeckLike;
   total: number;
   winRate: number | null;
   firstWinRate: number | null;
@@ -133,13 +133,20 @@ export function turnOrderWinRates(matches: Match[]): WinRateSummary[] {
   );
 }
 
-export function buildDeckAnalysisSummaries(matches: Match[], decks: Deck[]): DeckAnalysisSummary[] {
+export function buildDeckAnalysisSummaries(
+  matches: Match[],
+  decks: DeckLike[],
+  deckIdField: "archetype" | "deck" = "deck"
+): DeckAnalysisSummary[] {
   const deckName = new Map(decks.map((deck) => [deck.id, deck.name]));
   const statsByDeckId = new Map<string, DeckStats>();
 
   for (const match of matches) {
+    const myDeckId = deckIdField === "archetype" ? match.my_archetype_id ?? match.my_deck_id : match.my_deck_id;
+    const opponentDeckId =
+      deckIdField === "archetype" ? match.opponent_archetype_id ?? match.opponent_deck_id : match.opponent_deck_id;
     const stats =
-      statsByDeckId.get(match.my_deck_id) ??
+      statsByDeckId.get(myDeckId) ??
       {
         total: 0,
         wins: 0,
@@ -151,7 +158,7 @@ export function buildDeckAnalysisSummaries(matches: Match[], decks: Deck[]): Dec
         matchups: new Map<string, { total: number; wins: number }>()
       };
     const won = match.result === "win";
-    const matchup = stats.matchups.get(match.opponent_deck_id) ?? { total: 0, wins: 0 };
+    const matchup = stats.matchups.get(opponentDeckId) ?? { total: 0, wins: 0 };
 
     stats.total += 1;
     stats.wins += won ? 1 : 0;
@@ -170,8 +177,8 @@ export function buildDeckAnalysisSummaries(matches: Match[], decks: Deck[]): Dec
 
     matchup.total += 1;
     matchup.wins += won ? 1 : 0;
-    stats.matchups.set(match.opponent_deck_id, matchup);
-    statsByDeckId.set(match.my_deck_id, stats);
+    stats.matchups.set(opponentDeckId, matchup);
+    statsByDeckId.set(myDeckId, stats);
   }
 
   return decks.map((deck) => {

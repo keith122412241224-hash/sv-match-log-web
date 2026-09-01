@@ -4,7 +4,7 @@ import { AppShell } from "@/components/AppShell";
 import { DeckWithClassIcon } from "@/components/ClassIcon";
 import { SummaryTable } from "@/components/SummaryTable";
 import { buildDeckAnalysisSummaries, buildWinRateMatrix, groupWinRates, turnOrderWinRates } from "@/lib/analytics";
-import { getActiveArchetypes, getDecks, getEnvironments, getMatches } from "@/lib/data";
+import { getActiveArchetypes, getDecks, getEnvironments, getIsAdmin, getMatches } from "@/lib/data";
 import { formatPercent, getMostRecentlyCreatedId } from "@/lib/utils";
 
 type AnalysisSearchParams = {
@@ -15,6 +15,7 @@ type AnalysisSearchParams = {
   result?: string;
   playedFrom?: string;
   playedTo?: string;
+  scope?: string;
 };
 
 function normalizeDatetimeLocal(value?: string) {
@@ -30,7 +31,8 @@ export default async function AnalysisPage({
 }: {
   searchParams: Promise<AnalysisSearchParams>;
 }) {
-  const [params, environments] = await Promise.all([searchParams, getEnvironments()]);
+  const [params, environments, isAdmin] = await Promise.all([searchParams, getEnvironments(), getIsAdmin()]);
+  const selectedScope = isAdmin && params.scope === "all" ? "all" : "mine";
   const selectedEnvironmentId = environments.some((environment) => environment.id === params.environment)
     ? params.environment ?? ""
     : getMostRecentlyCreatedId(environments);
@@ -45,6 +47,7 @@ export default async function AnalysisPage({
   const selectedResult = params.result && isMatchResult(params.result) ? params.result : "";
   const selectedPlayedFrom = normalizeDatetimeLocal(params.playedFrom);
   const selectedPlayedTo = normalizeDatetimeLocal(params.playedTo);
+  const deckIdField = archetypes.length > 0 ? "archetype" : "deck";
   const filteredMatches = await getMatches(selectedEnvironmentId, {
     myDeckId: selectedMyDeckId,
     opponentDeckId: selectedOpponentDeckId,
@@ -52,14 +55,15 @@ export default async function AnalysisPage({
     result: selectedResult || undefined,
     playedAtFrom: selectedPlayedFrom ? toJstIso(selectedPlayedFrom) : undefined,
     playedAtTo: selectedPlayedTo ? toJstIso(selectedPlayedTo, true) : undefined,
-    deckIdField: archetypes.length > 0 ? "archetype" : "deck"
+    deckIdField,
+    includeAllUsers: selectedScope === "all"
   });
 
   const byMyDeck = groupWinRates(filteredMatches, (match) => match.my_archetype_id ?? match.my_deck_id, (id) => deckName.get(id) ?? "不明");
   const byOpponentDeck = groupWinRates(filteredMatches, (match) => match.opponent_archetype_id ?? match.opponent_deck_id, (id) => deckName.get(id) ?? "不明");
   const byTurn = turnOrderWinRates(filteredMatches);
   const matrix = buildWinRateMatrix(filteredMatches, matrixDecks, matrixDecks);
-  const summaries = buildDeckAnalysisSummaries(filteredMatches, decks);
+  const summaries = buildDeckAnalysisSummaries(filteredMatches, matrixDecks, deckIdField);
 
   return (
     <AppShell>
@@ -71,9 +75,22 @@ export default async function AnalysisPage({
           </p>
         </section>
 
+        {isAdmin ? (
+          <section className="rounded-md border border-slate-200 bg-white p-4">
+            <div className="text-xs font-bold text-muted">管理者分析</div>
+            <div className="mt-1 text-lg font-bold text-ink">
+              {selectedScope === "all" ? "全ユーザー戦績" : "自分の戦績"}
+            </div>
+            <p className="mt-1 text-sm text-muted">
+              全ユーザー戦績は、管理者だけが閲覧できる総合集計です。通常ユーザーには表示されません。
+            </p>
+          </section>
+        ) : null}
+
         <AnalysisFilters
           decks={matrixDecks}
           environments={environments}
+          canUseAllUsers={isAdmin}
           values={{
             environmentId: selectedEnvironmentId,
             myDeckId: selectedMyDeckId,
@@ -81,7 +98,8 @@ export default async function AnalysisPage({
             turnOrder: selectedTurnOrder,
             result: selectedResult,
             playedFrom: selectedPlayedFrom,
-            playedTo: selectedPlayedTo
+            playedTo: selectedPlayedTo,
+            scope: selectedScope
           }}
         />
 

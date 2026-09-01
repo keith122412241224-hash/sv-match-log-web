@@ -11,6 +11,8 @@ Run order:
 5. `005_authenticated_app_table_grants.sql`
 6. `006_restore_user_owned_decks_matches_policies.sql`
 7. `007_remove_other_archetypes.sql`
+8. `008_home_dashboard_rpc.sql`
+9. `009_admin_all_matches_analysis.sql`
 
 Notes:
 
