@@ -117,13 +117,6 @@ export default async function AdminPage({
 
         <AdminArchetypeTable archetypes={filtered} />
 
-        <section className="rounded-md border border-amber-200 bg-amber-50 p-4">
-          <h2 className="font-bold text-amber-950">その他デッキの再分類</h2>
-          <p className="mt-2 text-sm leading-6 text-amber-950">
-            再分類は一括更新になるため、次段階では「その他デッキの対象件数を確認 → 移動先標準デッキを選択 → 確認画面 → 実行」の順に実装します。
-            DBには `matches.opponent_archetype_id` が入っているため、安全確認後に対象matchだけを新しい標準デッキIDへ更新できます。
-          </p>
-        </section>
       </div>
     </main>
   );
