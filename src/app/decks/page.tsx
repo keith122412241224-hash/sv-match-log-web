@@ -1,17 +1,11 @@
-import { Save, Trash2 } from "lucide-react";
-import { createDeck, deleteDeck, updateDeck } from "@/app/actions";
 import { AppShell } from "@/components/AppShell";
 import { ClassIcon } from "@/components/ClassIcon";
-import { ClassPicker } from "@/components/ClassPicker";
 import { DeckSuggestionForm } from "@/components/decks/DeckSuggestionForm";
-import { FieldLabel, Input } from "@/components/Field";
-import { SubmitButton } from "@/components/SubmitButton";
 import { SHADOWVERSE_CLASSES } from "@/lib/constants";
-import { getActiveArchetypes, getDecks, getIsAdmin } from "@/lib/data";
+import { getActiveArchetypes } from "@/lib/data";
 
 export default async function DecksPage() {
-  const [archetypes, isAdmin] = await Promise.all([getActiveArchetypes(), getIsAdmin()]);
-  const decks = isAdmin ? await getDecks() : [];
+  const archetypes = await getActiveArchetypes();
 
   return (
     <AppShell>
@@ -61,67 +55,6 @@ export default async function DecksPage() {
           <h2 className="mb-3 font-bold text-ink">一覧にないデッキを提案</h2>
           <DeckSuggestionForm />
         </section>
-
-        {isAdmin ? (
-          <>
-            <form action={createDeck} className="grid gap-4 rounded-md border border-slate-200 bg-white p-4 sm:grid-cols-[1fr_1fr_120px_auto] sm:items-end">
-              <FieldLabel>
-                管理者用カスタムデッキ名
-                <Input name="name" required placeholder="例: ミッドレンジロイヤル" />
-              </FieldLabel>
-              <FieldLabel>
-                クラス
-                <ClassPicker />
-              </FieldLabel>
-              <FieldLabel>
-                表示順
-                <Input name="sort_order" type="number" defaultValue={0} />
-              </FieldLabel>
-              <SubmitButton type="submit" pendingLabel="追加中...">追加</SubmitButton>
-            </form>
-
-            <section className="rounded-md border border-slate-200 bg-white">
-              <div className="border-b border-slate-200 px-4 py-3">
-                <h2 className="font-bold text-ink">マイデッキ一覧</h2>
-              </div>
-              <div className="grid gap-3 p-4">
-                {decks.length === 0 ? (
-                  <p className="text-sm text-muted">標準デッキを使って戦績入力すると、互換用のマイデッキが自動作成されます。</p>
-                ) : (
-                  decks.map((deck) => (
-                    <form action={updateDeck} className="grid gap-3 rounded-md border border-slate-200 p-3 lg:grid-cols-[minmax(220px,1fr)_minmax(320px,420px)_100px_auto] lg:items-end" key={deck.id}>
-                      <input name="id" type="hidden" value={deck.id} />
-                      <FieldLabel>
-                        デッキ名
-                        <Input name="name" defaultValue={deck.name} required />
-                      </FieldLabel>
-                      <FieldLabel>
-                        クラス
-                        <div className="rounded-md border border-slate-200 bg-slate-50 p-2">
-                          <ClassPicker compact defaultValue={deck.class_name} />
-                        </div>
-                      </FieldLabel>
-                      <FieldLabel>
-                        表示順
-                        <Input name="sort_order" type="number" defaultValue={deck.sort_order} />
-                      </FieldLabel>
-                      <div className="flex flex-wrap gap-2">
-                        <SubmitButton type="submit" variant="secondary" pendingLabel="更新中...">
-                          <Save size={16} aria-hidden="true" />
-                          更新
-                        </SubmitButton>
-                        <SubmitButton formAction={deleteDeck.bind(null, deck.id)} type="submit" variant="danger" pendingLabel="削除中...">
-                          <Trash2 size={16} aria-hidden="true" />
-                          削除
-                        </SubmitButton>
-                      </div>
-                    </form>
-                  ))
-                )}
-              </div>
-            </section>
-          </>
-        ) : null}
       </div>
     </AppShell>
   );

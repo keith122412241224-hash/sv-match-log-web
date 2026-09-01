@@ -211,7 +211,7 @@ export async function importGuestMatches(formData: FormData) {
       opponent_archetype_id: opponentArchetypeId || null,
       turn_order: draft.turn_order,
       result: draft.result,
-      played_at: draft.played_at ? new Date(draft.played_at).toISOString() : new Date().toISOString()
+      played_at: toValidIsoString(draft.played_at) ?? new Date().toISOString()
     });
   }
 
@@ -273,6 +273,11 @@ function parseGuestMatches(raw: string): StoredGuestMatch[] {
   } catch {
     return [];
   }
+}
+
+function toValidIsoString(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
 async function requireUser() {

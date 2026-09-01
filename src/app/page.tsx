@@ -9,7 +9,7 @@ import { OnboardingPanel } from "@/components/onboarding/OnboardingPanel";
 import { StatCard } from "@/components/StatCard";
 import { RESULT_LABELS, TURN_ORDER_LABELS } from "@/lib/constants";
 import { getCurrentUser, getEnvironments, getHomeDashboard } from "@/lib/data";
-import { formatPercent, getMostRecentlyCreatedId } from "@/lib/utils";
+import { formatJstDateTime, formatPercent, getMostRecentlyCreatedId } from "@/lib/utils";
 
 export default async function HomePage({
   searchParams
@@ -72,7 +72,7 @@ export default async function HomePage({
                   <article className="rounded-md border border-slate-200 bg-slate-50 p-3" key={match.id}>
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="text-xs font-semibold text-muted">{new Date(match.played_at).toLocaleString("ja-JP")}</div>
+                        <div className="text-xs font-semibold text-muted">{formatJstDateTime(match.played_at)}</div>
                         <div className="mt-1 truncate text-xs text-muted">{match.environment?.name ?? "環境なし"}</div>
                       </div>
                       <span className={match.result === "win" ? "shrink-0 font-bold text-emerald-700" : "shrink-0 font-bold text-red-700"}>
@@ -108,7 +108,7 @@ export default async function HomePage({
                   <tbody>
                     {recent.map((match) => (
                       <tr className="border-t border-slate-100" key={match.id}>
-                        <td className="px-4 py-3">{new Date(match.played_at).toLocaleString("ja-JP")}</td>
+                        <td className="px-4 py-3">{formatJstDateTime(match.played_at)}</td>
                         <td className="px-4 py-3">{match.environment?.name ?? "環境なし"}</td>
                         <td className="px-4 py-3 font-semibold">
                           {match.my_deck ? <DeckWithClassIcon className={match.my_deck.class_name} name={match.my_deck.name} /> : "-"}

@@ -1,6 +1,7 @@
 "use client";
 
 import { ImageIcon } from "lucide-react";
+import Image from "next/image";
 import { useState } from "react";
 
 export function GuideScreenshot({
@@ -17,12 +18,14 @@ export function GuideScreenshot({
   return (
     <figure className="overflow-hidden rounded-md border border-slate-200 bg-white">
       {!failed && src ? (
-        <img
+        <Image
           alt={alt}
           className="h-auto w-full"
+          height={800}
           loading="lazy"
           onError={() => setFailed(true)}
           src={src}
+          width={1280}
         />
       ) : (
         <div className="grid aspect-[16/10] place-items-center bg-slate-50 px-4 text-center">

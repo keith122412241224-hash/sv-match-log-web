@@ -112,6 +112,16 @@ export function QuickMatchForm({
   const usesArchetypes = archetypes.length > 0;
   const selectedOpponentDeckId = usesArchetypes ? opponentArchetypeId : opponentDeckId;
 
+  useEffect(() => {
+    if (!usesArchetypes) {
+      return;
+    }
+
+    if (!classArchetypes.some((archetype) => archetype.id === opponentArchetypeId)) {
+      setOpponentArchetypeId(classArchetypes[0]?.id ?? "");
+    }
+  }, [classArchetypes, opponentArchetypeId, usesArchetypes]);
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     if (!guest) {
       const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
@@ -228,9 +238,7 @@ export function QuickMatchForm({
                   onClick={() => {
                     setOpponentClass(className);
                     const next = archetypes.find((archetype) => archetype.class_name === className);
-                    if (next) {
-                      setOpponentArchetypeId(next.id);
-                    }
+                    setOpponentArchetypeId(next?.id ?? "");
                   }}
                   title={className}
                   type="button"

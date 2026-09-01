@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AdminEnvironmentTable } from "@/components/admin/AdminEnvironmentTable";
 import { AdminArchetypeTable } from "@/components/admin/AdminArchetypeTable";
@@ -21,10 +22,23 @@ const noticeMessages: Record<string, string> = {
   suggestion_approved: "候補を標準デッキとして採用しました。"
 };
 
+const errorNoticeKeys = new Set([
+  "create_failed",
+  "update_failed",
+  "batch_update_failed",
+  "deactivate_failed",
+  "environment_create_failed",
+  "environments_update_failed",
+  "environment_delete_failed",
+  "suggestion_update_failed",
+  "suggestion_approve_failed",
+  "suggestion_status_after_approve_failed"
+]);
+
 export default async function AdminPage({
   searchParams
 }: {
-  searchParams: Promise<{ q?: string; class?: string; active?: string; notice?: string }>;
+  searchParams: Promise<{ q?: string; class?: string; active?: string; notice?: string; error?: string }>;
 }) {
   const isAdmin = await getIsAdmin();
 
@@ -42,7 +56,8 @@ export default async function AdminPage({
   const query = (params.q ?? "").trim().toLowerCase();
   const classFilter = params.class ?? "";
   const activeFilter = params.active ?? "";
-  const notice = params.notice ? noticeMessages[params.notice] : null;
+  const isErrorNotice = params.notice ? errorNoticeKeys.has(params.notice) : false;
+  const notice = params.notice ? noticeMessages[params.notice] ?? "処理に失敗しました。" : null;
   const filtered = archetypes.filter((archetype) => {
     const matchesQuery = !query || archetype.name.toLowerCase().includes(query);
     const matchesClass = !classFilter || archetype.class_name === classFilter;
@@ -58,14 +73,15 @@ export default async function AdminPage({
             <h1 className="text-2xl font-bold text-ink">管理画面</h1>
             <p className="mt-1 text-sm text-muted">標準デッキとユーザー提案を管理します。</p>
           </div>
-          <a className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-ink" href="/">
+          <Link className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-ink" href="/">
             通常画面へ
-          </a>
+          </Link>
         </header>
 
         {notice ? (
-          <div className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-900">
+          <div className={isErrorNotice ? "rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800" : "rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-900"}>
             {notice}
+            {isErrorNotice && params.error ? <span className="mt-1 block text-xs font-medium">{params.error}</span> : null}
           </div>
         ) : null}
 

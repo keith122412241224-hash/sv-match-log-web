@@ -13,7 +13,12 @@ export async function createArchetype(formData: FormData) {
     return;
   }
 
-  await supabase.from("deck_archetypes").insert(payload);
+  const { error } = await supabase.from("deck_archetypes").insert(payload);
+
+  if (error) {
+    redirectAdminError("create_failed", error.message);
+  }
+
   revalidateAdminPaths();
   redirect("/admin?notice=created");
 }
@@ -28,11 +33,16 @@ export async function createEnvironment(formData: FormData) {
     return;
   }
 
-  await supabase.from("environments").insert({
+  const { error } = await supabase.from("environments").insert({
     user_id: user.id,
     name,
     start_date: startDate || null
   });
+
+  if (error) {
+    redirectAdminError("environment_create_failed", error.message);
+  }
+
   revalidateAdminPaths();
   redirect("/admin?notice=environment_created");
 }
@@ -58,9 +68,15 @@ export async function updateEnvironmentsBatch(formData: FormData) {
     };
   });
 
-  await Promise.all(
+  const results = await Promise.all(
     updates.map(({ id, payload }) => supabase.from("environments").update(payload).eq("id", id))
   );
+  const error = results.find((result) => result.error)?.error;
+
+  if (error) {
+    redirectAdminError("environments_update_failed", error.message);
+  }
+
   revalidateAdminPaths();
   redirect("/admin?notice=environments_updated");
 }
@@ -88,7 +104,12 @@ export async function updateArchetype(formData: FormData) {
     return;
   }
 
-  await supabase.from("deck_archetypes").update(payload).eq("id", id);
+  const { error } = await supabase.from("deck_archetypes").update(payload).eq("id", id);
+
+  if (error) {
+    redirectAdminError("update_failed", error.message);
+  }
+
   revalidateAdminPaths();
   redirect("/admin?notice=updated");
 }
@@ -117,9 +138,15 @@ export async function updateArchetypesBatch(formData: FormData) {
     };
   });
 
-  await Promise.all(
+  const results = await Promise.all(
     updates.map(({ id, payload }) => supabase.from("deck_archetypes").update(payload).eq("id", id))
   );
+  const error = results.find((result) => result.error)?.error;
+
+  if (error) {
+    redirectAdminError("batch_update_failed", error.message);
+  }
+
   revalidateAdminPaths();
   redirect("/admin?notice=batch_updated");
 }
@@ -132,7 +159,12 @@ export async function deactivateArchetype(id: string) {
     return;
   }
 
-  await supabase.from("deck_archetypes").update({ is_active: false }).eq("id", archetypeId);
+  const { error } = await supabase.from("deck_archetypes").update({ is_active: false }).eq("id", archetypeId);
+
+  if (error) {
+    redirectAdminError("deactivate_failed", error.message);
+  }
+
   revalidateAdminPaths();
   redirect("/admin?notice=deactivated");
 }
@@ -146,7 +178,12 @@ export async function updateSuggestionStatus(formData: FormData) {
     return;
   }
 
-  await supabase.from("deck_suggestions").update({ status }).eq("id", id);
+  const { error } = await supabase.from("deck_suggestions").update({ status }).eq("id", id);
+
+  if (error) {
+    redirectAdminError("suggestion_update_failed", error.message);
+  }
+
   revalidateAdminPaths();
   redirect("/admin?notice=suggestion_updated");
 }
@@ -161,13 +198,26 @@ export async function approveSuggestionAsArchetype(formData: FormData) {
     return;
   }
 
-  await supabase.from("deck_archetypes").insert({
+  const { error: archetypeError } = await supabase.from("deck_archetypes").insert({
     class_name: className,
     name,
     is_active: true,
     sort_order: 0
   });
-  await supabase.from("deck_suggestions").update({ status: "approved" }).eq("id", suggestionId);
+
+  if (archetypeError) {
+    redirectAdminError("suggestion_approve_failed", archetypeError.message);
+  }
+
+  const { error: suggestionError } = await supabase
+    .from("deck_suggestions")
+    .update({ status: "approved" })
+    .eq("id", suggestionId);
+
+  if (suggestionError) {
+    redirectAdminError("suggestion_status_after_approve_failed", suggestionError.message);
+  }
+
   revalidateAdminPaths();
   redirect("/admin?notice=suggestion_approved");
 }
@@ -234,4 +284,8 @@ function revalidateAdminPaths() {
   revalidatePath("/decks");
   revalidatePath("/matrix");
   revalidatePath("/analysis");
+}
+
+function redirectAdminError(code: string, message: string) {
+  redirect(`/admin?notice=${encodeURIComponent(code)}&error=${encodeURIComponent(message)}`);
 }
