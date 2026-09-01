@@ -8,6 +8,9 @@ Run order:
 2. `002_admin_environments.sql`
 3. `003_guest_public_read.sql`
 4. `004_backfill_match_archetype_ids.sql`
+5. `005_authenticated_app_table_grants.sql`
+6. `006_restore_user_owned_decks_matches_policies.sql`
+7. `007_remove_other_archetypes.sql`
 
 Notes:
 

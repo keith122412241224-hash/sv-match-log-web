@@ -7,6 +7,16 @@ import type { ArchetypeWithAliases, Deck, MatchWithRelations } from "@/types/vie
 const MATCH_ANALYTICS_COLUMNS =
   "id,user_id,environment_id,my_deck_id,opponent_deck_id,my_user_deck_id,my_archetype_id,opponent_archetype_id,turn_order,result,played_at,created_at";
 
+const REMOVED_OTHER_ARCHETYPE_NAMES = new Set([
+  "その他エルフ",
+  "その他ロイヤル",
+  "その他ウィッチ",
+  "その他ドラゴン",
+  "その他ナイトメア",
+  "その他ビショップ",
+  "その他ネメシス"
+]);
+
 export type MatchSummaryStats = {
   total: number;
   wins: number;
@@ -173,7 +183,7 @@ export const getActiveArchetypes = cache(async () => {
     return [];
   }
 
-  return (data ?? []) as DeckArchetype[];
+  return ((data ?? []) as DeckArchetype[]).filter((archetype) => !REMOVED_OTHER_ARCHETYPE_NAMES.has(archetype.name));
 });
 
 export async function getAdminArchetypes() {
@@ -189,7 +199,9 @@ export async function getAdminArchetypes() {
     return [];
   }
 
-  return (data ?? []) as unknown as ArchetypeWithAliases[];
+  return ((data ?? []) as unknown as ArchetypeWithAliases[]).filter(
+    (archetype) => !REMOVED_OTHER_ARCHETYPE_NAMES.has(archetype.name)
+  );
 }
 
 export async function getDeckSuggestionsForAdmin() {

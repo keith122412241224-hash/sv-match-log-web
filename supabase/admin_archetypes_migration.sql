@@ -163,17 +163,6 @@ create policy "deck_suggestions_admin_update" on public.deck_suggestions
   for update using (public.is_admin()) with check (public.is_admin());
 
 insert into public.deck_archetypes (class_name, name, environment_name, is_active, is_other, sort_order)
-values
-  ('エルフ', 'その他エルフ', '初期', true, true, 999),
-  ('ロイヤル', 'その他ロイヤル', '初期', true, true, 999),
-  ('ウィッチ', 'その他ウィッチ', '初期', true, true, 999),
-  ('ドラゴン', 'その他ドラゴン', '初期', true, true, 999),
-  ('ナイトメア', 'その他ナイトメア', '初期', true, true, 999),
-  ('ビショップ', 'その他ビショップ', '初期', true, true, 999),
-  ('ネメシス', 'その他ネメシス', '初期', true, true, 999)
-on conflict do nothing;
-
-insert into public.deck_archetypes (class_name, name, environment_name, is_active, is_other, sort_order)
 select distinct d.class_name, d.name, '既存データ', true, false, min(d.sort_order)
 from public.decks d
 group by d.class_name, d.name

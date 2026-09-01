@@ -163,17 +163,6 @@ create policy "deck_suggestions_admin_update" on public.deck_suggestions
   for update using (public.is_admin()) with check (public.is_admin());
 
 insert into public.deck_archetypes (class_name, name, environment_name, is_active, is_other, sort_order)
-values
-  (U&'\30A8\30EB\30D5', U&'\305D\306E\4ED6\30A8\30EB\30D5', U&'\521D\671F', true, true, 999),
-  (U&'\30ED\30A4\30E4\30EB', U&'\305D\306E\4ED6\30ED\30A4\30E4\30EB', U&'\521D\671F', true, true, 999),
-  (U&'\30A6\30A3\30C3\30C1', U&'\305D\306E\4ED6\30A6\30A3\30C3\30C1', U&'\521D\671F', true, true, 999),
-  (U&'\30C9\30E9\30B4\30F3', U&'\305D\306E\4ED6\30C9\30E9\30B4\30F3', U&'\521D\671F', true, true, 999),
-  (U&'\30CA\30A4\30C8\30E1\30A2', U&'\305D\306E\4ED6\30CA\30A4\30C8\30E1\30A2', U&'\521D\671F', true, true, 999),
-  (U&'\30D3\30B7\30E7\30C3\30D7', U&'\305D\306E\4ED6\30D3\30B7\30E7\30C3\30D7', U&'\521D\671F', true, true, 999),
-  (U&'\30CD\30E1\30B7\30B9', U&'\305D\306E\4ED6\30CD\30E1\30B7\30B9', U&'\521D\671F', true, true, 999)
-on conflict do nothing;
-
-insert into public.deck_archetypes (class_name, name, environment_name, is_active, is_other, sort_order)
 select distinct d.class_name, d.name, U&'\65E2\5B58\30C7\30FC\30BF', true, false, min(d.sort_order)
 from public.decks d
 group by d.class_name, d.name
