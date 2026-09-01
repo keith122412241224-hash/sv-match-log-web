@@ -288,7 +288,15 @@ export type Database = {
       };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      get_home_dashboard: {
+        Args: {
+          p_environment_id?: string | null;
+          p_limit?: number | null;
+        };
+        Returns: Json;
+      };
+    };
     Enums: {
       deck_type: DeckType;
       turn_order: TurnOrder;

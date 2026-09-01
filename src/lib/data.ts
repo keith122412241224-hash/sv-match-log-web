@@ -25,6 +25,11 @@ export type MatchSummaryStats = {
   secondWinRate: number | null;
 };
 
+export type HomeDashboardData = {
+  summary: MatchSummaryStats;
+  recent: RecentMatchWithRelations[];
+};
+
 export const getCurrentUser = cache(async () => {
   const supabase = await createSupabaseServerClient();
   const {
@@ -116,6 +121,25 @@ export async function getRecentMatchesWithRelations(environmentId?: string, limi
   return (data ?? []) as unknown as RecentMatchWithRelations[];
 }
 
+export async function getHomeDashboard(environmentId?: string, limit = 10): Promise<HomeDashboardData> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("get_home_dashboard", {
+    p_environment_id: environmentId || null,
+    p_limit: limit
+  });
+
+  if (!error && isHomeDashboardData(data)) {
+    return data;
+  }
+
+  const [summary, recent] = await Promise.all([
+    getMatchSummaryStats(environmentId),
+    getRecentMatchesWithRelations(environmentId, limit)
+  ]);
+
+  return { summary, recent };
+}
+
 export async function getMatchSummaryStats(environmentId?: string): Promise<MatchSummaryStats> {
   const supabase = await createSupabaseServerClient();
 
@@ -154,6 +178,15 @@ export async function getMatchSummaryStats(environmentId?: string): Promise<Matc
     firstWinRate: calculateWinRate(firstWins, firstTotal),
     secondWinRate: calculateWinRate(secondWins, secondTotal)
   };
+}
+
+function isHomeDashboardData(value: unknown): value is HomeDashboardData {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const dashboard = value as Partial<HomeDashboardData>;
+  return Boolean(dashboard.summary && Array.isArray(dashboard.recent));
 }
 
 export const getEnvironments = cache(async () => {

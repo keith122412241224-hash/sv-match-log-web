@@ -8,7 +8,7 @@ import { GuestImportPrompt } from "@/components/guest/GuestImportPrompt";
 import { OnboardingPanel } from "@/components/onboarding/OnboardingPanel";
 import { StatCard } from "@/components/StatCard";
 import { RESULT_LABELS, TURN_ORDER_LABELS } from "@/lib/constants";
-import { getCurrentUser, getEnvironments, getMatchSummaryStats, getRecentMatchesWithRelations } from "@/lib/data";
+import { getCurrentUser, getEnvironments, getHomeDashboard } from "@/lib/data";
 import { formatPercent, getMostRecentlyCreatedId } from "@/lib/utils";
 
 export default async function HomePage({
@@ -26,10 +26,7 @@ export default async function HomePage({
   const selectedEnvironmentId = environments.some((environment) => environment.id === params.environment)
     ? params.environment ?? ""
     : getMostRecentlyCreatedId(environments);
-  const [summary, recent] = await Promise.all([
-    getMatchSummaryStats(selectedEnvironmentId),
-    getRecentMatchesWithRelations(selectedEnvironmentId)
-  ]);
+  const { summary, recent } = await getHomeDashboard(selectedEnvironmentId);
   const selectedEnvironmentName = environments.find((environment) => environment.id === selectedEnvironmentId)?.name;
 
   return (
