@@ -41,10 +41,6 @@ export function AdminArchetypeTable({ archetypes }: { archetypes: ArchetypeWithA
                 <input name={`is_active_${archetype.id}`} type="checkbox" defaultChecked={archetype.is_active} />
                 有効
               </label>
-              <label className="inline-flex items-center gap-2">
-                <input name={`is_other_${archetype.id}`} type="checkbox" defaultChecked={archetype.is_other} />
-                その他
-              </label>
             </div>
           </div>
         </section>

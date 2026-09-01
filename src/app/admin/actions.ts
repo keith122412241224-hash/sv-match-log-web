@@ -112,7 +112,6 @@ export async function updateArchetypesBatch(formData: FormData) {
         class_name: className,
         name,
         is_active: formData.get(`is_active_${id}`) === "on",
-        is_other: formData.get(`is_other_${id}`) === "on",
         sort_order: Number.isFinite(sortOrder) ? sortOrder : 0
       }
     };
@@ -166,7 +165,6 @@ export async function approveSuggestionAsArchetype(formData: FormData) {
     class_name: className,
     name,
     is_active: true,
-    is_other: false,
     sort_order: 0
   });
   await supabase.from("deck_suggestions").update({ status: "approved" }).eq("id", suggestionId);
@@ -182,7 +180,6 @@ function readArchetypeForm(formData: FormData) {
     class_name: String(formData.get("class_name") ?? "").trim(),
     name: String(formData.get("name") ?? "").trim(),
     is_active: formData.get("is_active") === "on",
-    is_other: formData.get("is_other") === "on",
     sort_order: Number.isFinite(sortOrder) ? sortOrder : 0,
     memo: memo || null
   };

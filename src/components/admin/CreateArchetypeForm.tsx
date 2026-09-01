@@ -23,10 +23,6 @@ export function CreateArchetypeForm() {
           <input name="is_active" type="checkbox" defaultChecked />
           有効
         </label>
-        <label className="inline-flex items-center gap-2">
-          <input name="is_other" type="checkbox" />
-          その他
-        </label>
       </div>
       <div className="lg:col-span-3">
         <SubmitButton pendingLabel="追加中..." type="submit">標準デッキを追加</SubmitButton>
