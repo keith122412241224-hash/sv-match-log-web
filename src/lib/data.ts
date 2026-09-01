@@ -2,7 +2,7 @@ import { cache } from "react";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { calculateWinRate } from "@/lib/analytics";
 import type { DeckArchetype, Environment, Match } from "@/types/database";
-import type { ArchetypeWithAliases, Deck, MatchWithRelations } from "@/types/view-models";
+import type { ArchetypeWithAliases, Deck, RecentMatchWithRelations } from "@/types/view-models";
 
 const MATCH_ANALYTICS_COLUMNS =
   "id,user_id,environment_id,my_deck_id,opponent_deck_id,my_user_deck_id,my_archetype_id,opponent_archetype_id,turn_order,result,played_at,created_at";
@@ -101,7 +101,9 @@ export async function getRecentMatchesWithRelations(environmentId?: string, limi
   const supabase = await createSupabaseServerClient();
   let query = supabase
     .from("matches")
-    .select("*, environment:environments(*), my_deck:decks!matches_my_deck_id_fkey(*), opponent_deck:decks!matches_opponent_deck_id_fkey(*)")
+    .select(
+      "id,played_at,result,turn_order,environment:environments(name),my_deck:decks!matches_my_deck_id_fkey(name,class_name),opponent_deck:decks!matches_opponent_deck_id_fkey(name,class_name)"
+    )
     .order("played_at", { ascending: false })
     .limit(limit);
 
@@ -111,7 +113,7 @@ export async function getRecentMatchesWithRelations(environmentId?: string, limi
 
   const { data } = await query;
 
-  return (data ?? []) as unknown as MatchWithRelations[];
+  return (data ?? []) as unknown as RecentMatchWithRelations[];
 }
 
 export async function getMatchSummaryStats(environmentId?: string): Promise<MatchSummaryStats> {
@@ -136,14 +138,14 @@ export async function getMatchSummaryStats(environmentId?: string): Promise<Matc
     return error ? 0 : count ?? 0;
   }
 
-  const [total, wins, firstTotal, firstWins, secondTotal, secondWins] = await Promise.all([
-    countMatches({}),
-    countMatches({ result: "win" }),
+  const [firstTotal, firstWins, secondTotal, secondWins] = await Promise.all([
     countMatches({ turnOrder: "first" }),
     countMatches({ result: "win", turnOrder: "first" }),
     countMatches({ turnOrder: "second" }),
     countMatches({ result: "win", turnOrder: "second" })
   ]);
+  const total = firstTotal + secondTotal;
+  const wins = firstWins + secondWins;
 
   return {
     total,

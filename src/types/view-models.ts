@@ -1,14 +1,11 @@
-import type { Deck, DeckArchetype, Environment, Match, UserDeck } from "@/types/database";
+import type { Deck, DeckArchetype, Environment, Match } from "@/types/database";
 
 export type { Deck, Match };
 
-export type MatchWithRelations = Match & {
-  my_deck: Deck | null;
-  opponent_deck: Deck | null;
-  environment?: Environment | null;
-  my_archetype?: DeckArchetype | null;
-  opponent_archetype?: DeckArchetype | null;
-  my_user_deck?: UserDeck | null;
+export type RecentMatchWithRelations = Pick<Match, "id" | "played_at" | "result" | "turn_order"> & {
+  my_deck: Pick<Deck, "name" | "class_name"> | null;
+  opponent_deck: Pick<Deck, "name" | "class_name"> | null;
+  environment?: Pick<Environment, "name"> | null;
 };
 
 export type ArchetypeWithAliases = DeckArchetype & {

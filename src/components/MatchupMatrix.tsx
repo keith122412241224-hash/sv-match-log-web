@@ -1,7 +1,6 @@
 "use client";
 
 import { Download } from "lucide-react";
-import { toPng } from "html-to-image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/Button";
 import { ClassIcon, DeckWithClassIcon } from "@/components/ClassIcon";
@@ -78,6 +77,7 @@ export function MatchupMatrix({
       return;
     }
 
+    const { toPng } = await import("html-to-image");
     const dataUrl = await toPng(ref.current, {
       cacheBust: true,
       backgroundColor: "#ffffff",

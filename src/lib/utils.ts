@@ -12,11 +12,6 @@ export function formatPercent(value: number | null) {
   return `${Math.round(value * 10) / 10}%`;
 }
 
-export function toDatetimeLocalValue(date = new Date()) {
-  const offsetMs = date.getTimezoneOffset() * 60_000;
-  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
-}
-
 export function getMostRecentlyCreatedId<T extends { id: string; created_at: string }>(items: T[]) {
   return items.reduce((latest, item) => {
     if (!latest) {

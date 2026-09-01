@@ -7,11 +7,6 @@ export type DeckLike = {
   class_name: string;
 };
 
-export type MatchWithDecks = Match & {
-  my_deck: Deck | null;
-  opponent_deck: Deck | null;
-};
-
 export type WinRateSummary = {
   label: string;
   total: number;
@@ -42,6 +37,17 @@ export type DeckAnalysisSummary = {
   recentResults: Match["result"][];
 };
 
+type DeckStats = {
+  total: number;
+  wins: number;
+  firstTotal: number;
+  firstWins: number;
+  secondTotal: number;
+  secondWins: number;
+  recentResults: Match["result"][];
+  matchups: Map<string, { total: number; wins: number }>;
+};
+
 export function calculateWinRate(wins: number, total: number) {
   if (total === 0) {
     return null;
@@ -51,25 +57,42 @@ export function calculateWinRate(wins: number, total: number) {
 }
 
 export function summarizeMatches(matches: Match[]) {
-  const total = matches.length;
-  const wins = matches.filter((match) => match.result === "win").length;
-  const firstMatches = matches.filter((match) => match.turn_order === "first");
-  const secondMatches = matches.filter((match) => match.turn_order === "second");
+  let wins = 0;
+  let firstTotal = 0;
+  let firstWins = 0;
+  let secondTotal = 0;
+  let secondWins = 0;
+
+  for (const match of matches) {
+    const won = match.result === "win";
+    wins += won ? 1 : 0;
+
+    if (match.turn_order === "first") {
+      firstTotal += 1;
+      firstWins += won ? 1 : 0;
+    } else {
+      secondTotal += 1;
+      secondWins += won ? 1 : 0;
+    }
+  }
 
   return {
-    total,
+    total: matches.length,
     wins,
-    winRate: calculateWinRate(wins, total),
-    firstWinRate: winRateFor(firstMatches),
-    secondWinRate: winRateFor(secondMatches)
+    winRate: calculateWinRate(wins, matches.length),
+    firstWinRate: calculateWinRate(firstWins, firstTotal),
+    secondWinRate: calculateWinRate(secondWins, secondTotal)
   };
 }
 
 export function winRateFor(matches: Match[]) {
-  return calculateWinRate(
-    matches.filter((match) => match.result === "win").length,
-    matches.length
-  );
+  let wins = 0;
+
+  for (const match of matches) {
+    wins += match.result === "win" ? 1 : 0;
+  }
+
+  return calculateWinRate(wins, matches.length);
 }
 
 export function groupWinRates<T extends Match>(
@@ -111,28 +134,71 @@ export function turnOrderWinRates(matches: Match[]): WinRateSummary[] {
 }
 
 export function buildDeckAnalysisSummaries(matches: Match[], decks: Deck[]): DeckAnalysisSummary[] {
+  const deckName = new Map(decks.map((deck) => [deck.id, deck.name]));
+  const statsByDeckId = new Map<string, DeckStats>();
+
+  for (const match of matches) {
+    const stats =
+      statsByDeckId.get(match.my_deck_id) ??
+      {
+        total: 0,
+        wins: 0,
+        firstTotal: 0,
+        firstWins: 0,
+        secondTotal: 0,
+        secondWins: 0,
+        recentResults: [],
+        matchups: new Map<string, { total: number; wins: number }>()
+      };
+    const won = match.result === "win";
+    const matchup = stats.matchups.get(match.opponent_deck_id) ?? { total: 0, wins: 0 };
+
+    stats.total += 1;
+    stats.wins += won ? 1 : 0;
+
+    if (match.turn_order === "first") {
+      stats.firstTotal += 1;
+      stats.firstWins += won ? 1 : 0;
+    } else {
+      stats.secondTotal += 1;
+      stats.secondWins += won ? 1 : 0;
+    }
+
+    if (stats.recentResults.length < 10) {
+      stats.recentResults.push(match.result);
+    }
+
+    matchup.total += 1;
+    matchup.wins += won ? 1 : 0;
+    stats.matchups.set(match.opponent_deck_id, matchup);
+    statsByDeckId.set(match.my_deck_id, stats);
+  }
+
   return decks.map((deck) => {
-    const deckMatches = matches.filter((match) => match.my_deck_id === deck.id);
-    const matchupRows = groupWinRates(
-      deckMatches,
-      (match) => match.opponent_deck_id,
-      (id) => decks.find((item) => item.id === id)?.name ?? "不明"
-    ).filter((row) => row.total >= 5);
+    const stats = statsByDeckId.get(deck.id);
+    const matchupRows = [...(stats?.matchups.entries() ?? [])]
+      .map(([opponentDeckId, value]) => ({
+        label: deckName.get(opponentDeckId) ?? "不明",
+        total: value.total,
+        wins: value.wins,
+        winRate: calculateWinRate(value.wins, value.total)
+      }))
+      .filter((row) => row.total >= 5);
 
     return {
       deck,
-      total: deckMatches.length,
-      winRate: winRateFor(deckMatches),
-      firstWinRate: winRateFor(deckMatches.filter((match) => match.turn_order === "first")),
-      secondWinRate: winRateFor(deckMatches.filter((match) => match.turn_order === "second")),
-      isLowSample: deckMatches.length > 0 && deckMatches.length < LOW_SAMPLE_THRESHOLD,
+      total: stats?.total ?? 0,
+      winRate: calculateWinRate(stats?.wins ?? 0, stats?.total ?? 0),
+      firstWinRate: calculateWinRate(stats?.firstWins ?? 0, stats?.firstTotal ?? 0),
+      secondWinRate: calculateWinRate(stats?.secondWins ?? 0, stats?.secondTotal ?? 0),
+      isLowSample: Boolean(stats && stats.total > 0 && stats.total < LOW_SAMPLE_THRESHOLD),
       goodMatchups: [...matchupRows]
         .sort((a, b) => (b.winRate ?? 0) - (a.winRate ?? 0) || b.total - a.total)
         .slice(0, 3),
       badMatchups: [...matchupRows]
         .sort((a, b) => (a.winRate ?? 0) - (b.winRate ?? 0) || b.total - a.total)
         .slice(0, 3),
-      recentResults: deckMatches.slice(0, 10).map((match) => match.result)
+      recentResults: stats?.recentResults ?? []
     };
   });
 }
