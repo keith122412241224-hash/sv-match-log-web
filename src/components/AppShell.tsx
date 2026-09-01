@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { signOut } from "@/app/actions";
 import { BrandMark } from "@/components/BrandMark";
 import { SubmitButton } from "@/components/SubmitButton";
-import { getCurrentUser } from "@/lib/data";
+import { getCurrentUser, getIsAdmin } from "@/lib/data";
 
 const navItems = [
   { href: "/", label: "ホーム", icon: Home },
@@ -17,11 +17,13 @@ const navItems = [
 ];
 
 export async function AppShell({ children }: { children: ReactNode }) {
-  const user = await getCurrentUser();
+  const [user, isAdmin] = await Promise.all([getCurrentUser(), getIsAdmin()]);
 
   if (!user) {
     redirect("/login");
   }
+
+  const visibleNavItems = navItems.filter((item) => item.href !== "/admin" || isAdmin);
 
   return (
     <div className="min-h-screen bg-surface">
@@ -46,9 +48,9 @@ export async function AppShell({ children }: { children: ReactNode }) {
         </div>
         <nav
           className="mx-auto grid max-w-7xl gap-1 px-2 pb-2 sm:flex sm:overflow-x-auto sm:px-4 sm:pb-3"
-          style={{ gridTemplateColumns: `repeat(${navItems.length}, minmax(0, 1fr))` }}
+          style={{ gridTemplateColumns: `repeat(${visibleNavItems.length}, minmax(0, 1fr))` }}
         >
-          {navItems.map((item) => {
+          {visibleNavItems.map((item) => {
             const Icon = item.icon;
             return (
               <Link
