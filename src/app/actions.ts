@@ -182,6 +182,13 @@ export async function importGuestMatches(formData: FormData) {
 
   const rows = [];
   let skippedCount = 0;
+  const environmentIds = Array.from(new Set(drafts.map((draft) => draft.environment_id).filter(Boolean)));
+  const { data: inputEnabledEnvironments } = await supabase
+    .from("environments")
+    .select("id")
+    .in("id", environmentIds)
+    .eq("allow_match_input", true);
+  const inputEnabledEnvironmentIds = new Set((inputEnabledEnvironments ?? []).map((environment) => environment.id));
 
   for (const draft of drafts) {
     let myDeckId = draft.my_deck_id;
@@ -197,7 +204,7 @@ export async function importGuestMatches(formData: FormData) {
       opponentDeckId = await ensureCompatDeckForArchetype(supabase, user.id, opponentArchetypeId);
     }
 
-    if (!myDeckId || !opponentDeckId || !draft.environment_id) {
+    if (!myDeckId || !opponentDeckId || !inputEnabledEnvironmentIds.has(draft.environment_id)) {
       skippedCount += 1;
       continue;
     }
@@ -336,6 +343,10 @@ async function saveMatchFromForm(
     return { ok: false, message: "入力内容を確認してください。" };
   }
 
+  if (!(await isEnvironmentInputEnabled(supabase, environmentId))) {
+    return { ok: false, message: "この環境は戦績入力を停止しています。" };
+  }
+
   const archetypeDecks = await ensureCompatDecksForSelectedArchetypes(
     supabase,
     user.id,
@@ -436,6 +447,19 @@ async function ensureCompatDecksForSelectedArchetypes(
   }
 
   return deckIdsByArchetypeId;
+}
+
+async function isEnvironmentInputEnabled(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  environmentId: string
+) {
+  const { data } = await supabase
+    .from("environments")
+    .select("allow_match_input")
+    .eq("id", environmentId)
+    .maybeSingle();
+
+  return data?.allow_match_input === true;
 }
 
 function revalidateMatchDerivedPaths() {

@@ -1,21 +1,23 @@
 import { AppShell } from "@/components/AppShell";
 import { EmptyState } from "@/components/EmptyState";
 import { QuickMatchForm } from "@/components/matches/QuickMatchForm";
-import { getActiveArchetypes, getDecks, getEnvironments } from "@/lib/data";
+import { getActiveArchetypes, getDecks, getEnvironments, getInputEnabledEnvironments } from "@/lib/data";
 
 export default async function MatchesPage({
   searchParams
 }: {
   searchParams: Promise<{ saved?: string; error?: string }>;
 }) {
-  const [decks, archetypes, environments, params] = await Promise.all([
+  const [decks, archetypes, allEnvironments, environments, params] = await Promise.all([
     getDecks(),
     getActiveArchetypes(),
     getEnvironments(),
+    getInputEnabledEnvironments(),
     searchParams
   ]);
   const hasDecks = decks.length > 0 || archetypes.length > 0;
-  const hasEnvironments = environments.length > 0;
+  const hasEnvironments = allEnvironments.length > 0;
+  const hasInputEnabledEnvironments = environments.length > 0;
 
   return (
     <AppShell>
@@ -36,6 +38,13 @@ export default async function MatchesPage({
           <EmptyState
             title="環境がまだありません"
             description="戦績を正しく集計するため、環境なしでは入力できません。管理者が管理画面から環境を作成してください。"
+            href="/admin"
+            action="管理画面へ"
+          />
+        ) : !hasInputEnabledEnvironments ? (
+          <EmptyState
+            title="入力できる環境がありません"
+            description="終了した環境は戦績入力の候補から外れています。管理画面で入力可にすると、ふたたび戦績を保存できます。"
             href="/admin"
             action="管理画面へ"
           />

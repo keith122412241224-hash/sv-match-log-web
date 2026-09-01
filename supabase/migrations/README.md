@@ -13,6 +13,7 @@ Run order:
 7. `007_remove_other_archetypes.sql`
 8. `008_home_dashboard_rpc.sql`
 9. `009_admin_all_matches_analysis.sql`
+10. `010_environment_match_input_toggle.sql`
 
 Notes:
 

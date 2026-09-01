@@ -34,6 +34,7 @@ export type Database = {
           user_id: string;
           name: string;
           start_date: string | null;
+          allow_match_input: boolean;
           memo: string | null;
           created_at: string;
         };
@@ -42,12 +43,14 @@ export type Database = {
           user_id: string;
           name: string;
           start_date?: string | null;
+          allow_match_input?: boolean;
           memo?: string | null;
           created_at?: string;
         };
         Update: {
           name?: string;
           start_date?: string | null;
+          allow_match_input?: boolean;
           memo?: string | null;
           created_at?: string;
         };

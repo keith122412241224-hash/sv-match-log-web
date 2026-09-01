@@ -15,7 +15,7 @@ export function AdminEnvironmentTable({ environments }: { environments: Environm
       {environments.map((environment) => (
         <section className="rounded-md border border-slate-200 bg-white p-4" key={environment.id}>
           <input name="environment_ids" type="hidden" value={environment.id} />
-          <div className="grid gap-3 sm:grid-cols-[1fr_180px_auto] sm:items-end">
+          <div className="grid gap-3 sm:grid-cols-[1fr_180px_140px_auto] sm:items-end">
             <FieldLabel>
               環境名
               <Input name={`name_${environment.id}`} defaultValue={environment.name} required />
@@ -24,6 +24,15 @@ export function AdminEnvironmentTable({ environments }: { environments: Environm
               開始日
               <Input name={`start_date_${environment.id}`} type="date" defaultValue={environment.start_date ?? ""} />
             </FieldLabel>
+            <label className="flex min-h-11 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-ink">
+              <input
+                className="h-4 w-4 accent-slate-900"
+                defaultChecked={environment.allow_match_input}
+                name={`allow_match_input_${environment.id}`}
+                type="checkbox"
+              />
+              入力可
+            </label>
             <SubmitButton
               className="min-h-11 rounded-md border border-rose-200 bg-rose-50 px-4 text-sm font-bold text-rose-700 transition hover:bg-rose-100"
               formAction={deleteEnvironment.bind(null, environment.id)}

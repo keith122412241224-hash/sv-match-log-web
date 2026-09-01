@@ -27,6 +27,7 @@ create table public.environments (
   user_id uuid not null references auth.users(id) on delete cascade,
   name text not null,
   start_date date,
+  allow_match_input boolean not null default true,
   memo text,
   created_at timestamptz not null default now(),
   unique (name)
@@ -302,7 +303,7 @@ create policy "matches_insert_own" on public.matches
     auth.uid() = user_id
     and exists (
       select 1 from public.environments e
-      where e.id = environment_id
+      where e.id = environment_id and e.allow_match_input = true
     )
     and exists (
       select 1 from public.decks d
@@ -321,7 +322,7 @@ create policy "matches_update_own" on public.matches
     auth.uid() = user_id
     and exists (
       select 1 from public.environments e
-      where e.id = environment_id
+      where e.id = environment_id and e.allow_match_input = true
     )
     and exists (
       select 1 from public.decks d

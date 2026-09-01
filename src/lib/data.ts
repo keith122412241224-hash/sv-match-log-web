@@ -235,6 +235,11 @@ export const getEnvironments = cache(async () => {
   return (data ?? []) as Environment[];
 });
 
+export const getInputEnabledEnvironments = cache(async () => {
+  const environments = await getEnvironments();
+  return environments.filter((environment) => environment.allow_match_input);
+});
+
 export const getActiveArchetypes = cache(async () => {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase

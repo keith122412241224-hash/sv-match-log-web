@@ -36,7 +36,8 @@ export async function createEnvironment(formData: FormData) {
   const { error } = await supabase.from("environments").insert({
     user_id: user.id,
     name,
-    start_date: startDate || null
+    start_date: startDate || null,
+    allow_match_input: true
   });
 
   if (error) {
@@ -63,7 +64,8 @@ export async function updateEnvironmentsBatch(formData: FormData) {
       id,
       payload: {
         name,
-        start_date: startDate || null
+        start_date: startDate || null,
+        allow_match_input: formData.get(`allow_match_input_${id}`) === "on"
       }
     };
   });
