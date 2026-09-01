@@ -3,22 +3,23 @@ import { EmptyState } from "@/components/EmptyState";
 import { EnvironmentFilter } from "@/components/EnvironmentFilter";
 import { MatchupMatrix } from "@/components/MatchupMatrix";
 import { buildWinRateMatrix } from "@/lib/analytics";
-import { getActiveArchetypes, getDecks, getEnvironments, getMatches } from "@/lib/data";
+import { getActiveArchetypes, getDecks, getEnvironments, getIsAdmin, getMatches } from "@/lib/data";
 import { getMostRecentlyCreatedId } from "@/lib/utils";
 
 export default async function MatrixPage({
   searchParams
 }: {
-  searchParams: Promise<{ environment?: string }>;
+  searchParams: Promise<{ environment?: string; scope?: string }>;
 }) {
-  const [params, environments] = await Promise.all([searchParams, getEnvironments()]);
+  const [params, environments, isAdmin] = await Promise.all([searchParams, getEnvironments(), getIsAdmin()]);
+  const selectedScope = isAdmin && params.scope === "all" ? "all" : "mine";
   const selectedEnvironmentId = environments.some((environment) => environment.id === params.environment)
     ? params.environment ?? ""
     : getMostRecentlyCreatedId(environments);
   const [decks, archetypes, matches] = await Promise.all([
     getDecks(),
     getActiveArchetypes(),
-    getMatches(selectedEnvironmentId)
+    getMatches(selectedEnvironmentId, { includeAllUsers: selectedScope === "all" })
   ]);
   const selectedEnvironmentName = environments.find((environment) => environment.id === selectedEnvironmentId)?.name ?? "環境なし";
   const matrixDecks = archetypes.length > 0 ? archetypes : decks;
@@ -32,7 +33,25 @@ export default async function MatrixPage({
           <p className="mt-1 text-sm text-muted">環境ごとに、表示したいデッキを選んで対面勝率表を生成します。</p>
         </section>
 
-        <EnvironmentFilter basePath="/matrix" environments={environments} selectedEnvironmentId={selectedEnvironmentId} />
+        {isAdmin ? (
+          <section className="rounded-md border border-slate-200 bg-white p-4">
+            <div className="text-xs font-bold text-muted">管理者相性表</div>
+            <div className="mt-1 text-lg font-bold text-ink">
+              {selectedScope === "all" ? "全ユーザー戦績" : "自分の戦績"}
+            </div>
+            <p className="mt-1 text-sm text-muted">
+              全ユーザー戦績は、管理者だけが閲覧できる総合相性表です。通常ユーザーには表示されません。
+            </p>
+          </section>
+        ) : null}
+
+        <EnvironmentFilter
+          basePath="/matrix"
+          canUseAllUsers={isAdmin}
+          environments={environments}
+          scope={selectedScope}
+          selectedEnvironmentId={selectedEnvironmentId}
+        />
 
         {matrixDecks.length === 0 ? (
           <EmptyState
