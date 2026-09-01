@@ -7,9 +7,9 @@ import type { FormEvent } from "react";
 import { createMatch, createMatchInline } from "@/app/actions";
 import { Button } from "@/components/Button";
 import { ClassIcon, DeckWithClassIcon } from "@/components/ClassIcon";
-import { FieldLabel, Input, Select } from "@/components/Field";
+import { FieldLabel, Select } from "@/components/Field";
 import { RESULT_LABELS, SHADOWVERSE_CLASSES, TURN_ORDER_LABELS } from "@/lib/constants";
-import { cn, getMostRecentlyCreatedId, toDatetimeLocalValue } from "@/lib/utils";
+import { cn, getMostRecentlyCreatedId } from "@/lib/utils";
 import type { Deck, DeckArchetype, Environment, MatchResult, TurnOrder } from "@/types/database";
 
 const LAST_MY_CHOICE_KEY = "svml:last-my-choice-id";
@@ -69,7 +69,6 @@ export function QuickMatchForm({
   const [opponentClass, setOpponentClass] = useState(archetypes[0]?.class_name ?? SHADOWVERSE_CLASSES[0]);
   const [turnOrder, setTurnOrder] = useState<TurnOrder>("first");
   const [result, setResult] = useState<MatchResult>("win");
-  const [playedAt, setPlayedAt] = useState(toDatetimeLocalValue());
   const [environmentId, setEnvironmentId] = useState(getMostRecentlyCreatedId(environments));
   const [saveState, setSaveState] = useState<"idle" | "saved" | "error">("idle");
   const [saveMessage, setSaveMessage] = useState("");
@@ -133,7 +132,6 @@ export function QuickMatchForm({
 
         if (response.ok) {
           setSaveState("saved");
-          setPlayedAt(toDatetimeLocalValue());
         } else {
           setSaveState("error");
           setSaveMessage(response.message ?? "保存できませんでした。");
@@ -161,7 +159,7 @@ export function QuickMatchForm({
       opponent_archetype_id: usesArchetypes ? selectedOpponentDeckId : null,
       turn_order: turnOrder,
       result,
-      played_at: playedAt ? new Date(playedAt).toISOString() : new Date().toISOString()
+      played_at: new Date().toISOString()
     });
   }
 
@@ -320,11 +318,6 @@ export function QuickMatchForm({
           ))}
         </div>
       </section>
-
-      <FieldLabel>
-        対戦日時
-        <Input name="played_at" type="datetime-local" value={playedAt} onChange={(event) => setPlayedAt(event.target.value)} />
-      </FieldLabel>
 
       <div className="grid gap-2 sm:grid-cols-2">
         <MatchSubmitButtons guest={guest} pendingOverride={isSaving} />

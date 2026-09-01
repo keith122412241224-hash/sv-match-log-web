@@ -322,7 +322,6 @@ async function saveMatchFromForm(
   const environmentId = String(formData.get("environment_id") ?? "");
   const turnOrder = String(formData.get("turn_order") ?? "") as TurnOrder;
   const result = String(formData.get("result") ?? "") as MatchResult;
-  const playedAt = String(formData.get("played_at") ?? "");
 
   if (!user) {
     redirect("/login");
@@ -363,7 +362,7 @@ async function saveMatchFromForm(
     opponent_archetype_id: opponentArchetypeId || null,
     turn_order: turnOrder,
     result,
-    played_at: playedAt ? new Date(playedAt).toISOString() : new Date().toISOString()
+    played_at: new Date().toISOString()
   });
 
   if (error) {
