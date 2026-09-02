@@ -171,6 +171,9 @@ sitemap.xml
 - `/analysis`: 分析
 - `/matrix`: 相性表
 - `/admin`: 管理画面
+- `/admin/weekly-report`: 管理者向け週次環境レポート
+
+週次環境レポートの詳細は `docs/weekly-report.md` を参照してください。
 
 ## DBテーブル
 

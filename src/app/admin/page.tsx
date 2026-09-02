@@ -73,9 +73,14 @@ export default async function AdminPage({
             <h1 className="text-2xl font-bold text-ink">管理画面</h1>
             <p className="mt-1 text-sm text-muted">標準デッキとユーザー提案を管理します。</p>
           </div>
-          <Link className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-ink" href="/">
-            通常画面へ
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-ink" href="/admin/weekly-report">
+              週次レポート
+            </Link>
+            <Link className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-ink" href="/">
+              通常画面へ
+            </Link>
+          </div>
         </header>
 
         {notice ? (
