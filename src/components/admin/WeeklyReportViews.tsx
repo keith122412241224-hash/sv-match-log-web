@@ -184,11 +184,6 @@ function TierTable({ rows }: { rows: TierCandidateRow[] }) {
                     {row.warnings.join(" / ")}
                   </div>
                 ) : null}
-                <ul className="mt-1 grid gap-0.5 text-[11px] leading-4 text-muted">
-                  {row.reasons.slice(0, 3).map((reason) => (
-                    <li key={reason}>・{reason}</li>
-                  ))}
-                </ul>
               </div>
             ))}
           </div>
