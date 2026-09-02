@@ -67,6 +67,13 @@ export async function AppShell({ children }: { children: ReactNode }) {
         </nav>
       </header>
       <main className="mx-auto max-w-7xl px-3 py-4 sm:px-4 sm:py-6">{children}</main>
+      <footer className="border-t border-slate-200 bg-white">
+        <div className="mx-auto flex max-w-7xl justify-end px-3 py-4 sm:px-4">
+          <Link className="text-xs font-semibold text-muted hover:text-ink" href="/privacy">
+            プライバシーポリシー
+          </Link>
+        </div>
+      </footer>
     </div>
   );
 }
