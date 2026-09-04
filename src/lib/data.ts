@@ -1,7 +1,7 @@
 import { cache } from "react";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { calculateWinRate } from "@/lib/analytics";
-import { buildWeeklyPeriod, buildWeeklyReport, shiftWeeklyPeriod } from "@/lib/weekly-report";
+import { buildWeeklyPeriod, buildWeeklyReport, getPreviousWeeklyReportPeriod } from "@/lib/weekly-report";
 import type { DeckArchetype, Environment, Match } from "@/types/database";
 import type { ArchetypeWithAliases, Deck, RecentMatchWithRelations } from "@/types/view-models";
 
@@ -305,15 +305,15 @@ export async function getDeckSuggestionsForAdmin() {
   return data ?? [];
 }
 
-export async function getWeeklyReport(startDate: string) {
+export async function getWeeklyReport(startDate: string, endDate?: string) {
   const [isAdmin, archetypes] = await Promise.all([getIsAdmin(), getActiveArchetypes()]);
 
   if (!isAdmin) {
     return null;
   }
 
-  const period = buildWeeklyPeriod(startDate);
-  const previousPeriod = shiftWeeklyPeriod(period, -7);
+  const period = buildWeeklyPeriod(startDate, endDate);
+  const previousPeriod = getPreviousWeeklyReportPeriod(period);
 
   const [currentMatches, previousMatches] = await Promise.all([
     getWeeklyReportMatchesForPeriod(period.startIso, period.endIso),
@@ -340,6 +340,7 @@ async function getWeeklyReportMatchesForPeriod(startIso: string, endIso: string)
       .gte("played_at", startIso)
       .lte("played_at", endIso)
       .order("played_at", { ascending: false })
+      .order("id", { ascending: false })
       .range(from, from + pageSize - 1);
 
     if (error) {

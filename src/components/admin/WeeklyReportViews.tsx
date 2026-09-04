@@ -87,23 +87,23 @@ export function WeeklyReportTables({
 }) {
   return (
     <div className="grid gap-6">
-      <ExportableReportBlock title="ランクマで多く当たったデッキ" fileName="weekly-opponent-ranking.png">
+      <ExportableReportBlock title="ランクマで多く当たったデッキ" fileName="period-opponent-ranking.png">
         <OpponentRankingChart rows={opponentRows} />
       </ExportableReportBlock>
 
-      <ExportableReportBlock title="使用デッキ別勝率" fileName="weekly-my-deck-win-rate.png">
+      <ExportableReportBlock title="使用デッキ別勝率" fileName="period-my-deck-win-rate.png">
         <MyDeckWinRateChart rows={winRateRows} />
       </ExportableReportBlock>
 
-      <ExportableReportBlock title="主要対面データ" fileName="weekly-matchups.png">
+      <ExportableReportBlock title="主要対面データ" fileName="period-matchups.png">
         <MatchupTable rows={matchupRows} />
       </ExportableReportBlock>
 
-      <ExportableReportBlock title="Tier候補" fileName="weekly-tier-candidates.png">
+      <ExportableReportBlock title="Tier候補" fileName="period-tier-candidates.png">
         <TierTable rows={tierRows} />
       </ExportableReportBlock>
 
-      <ExportableReportBlock title="環境相関図" fileName="weekly-correlation.png">
+      <ExportableReportBlock title="環境相関図" fileName="period-correlation.png">
         <CorrelationGraph rows={correlationRows} />
       </ExportableReportBlock>
     </div>

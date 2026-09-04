@@ -175,17 +175,24 @@ type CountStats = {
   wins: number;
 };
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 export function getDefaultWeeklyReportStartDate(now = new Date()) {
   const parts = getJstParts(now);
   const todayStartUtc = Date.UTC(parts.year, parts.month - 1, parts.day) - 9 * 60 * 60 * 1000;
-  const yesterdayStartJstAsUtc = todayStartUtc - 24 * 60 * 60 * 1000;
-  return toJstDateInput(new Date(yesterdayStartJstAsUtc - 6 * 24 * 60 * 60 * 1000));
+  const yesterdayStartJstAsUtc = todayStartUtc - DAY_MS;
+  return toJstDateInput(new Date(yesterdayStartJstAsUtc - 6 * DAY_MS));
 }
 
-export function buildWeeklyPeriod(startDate: string): WeeklyReportPeriod {
+export function buildWeeklyPeriod(startDate: string, endDate?: string): WeeklyReportPeriod {
   const normalized = /^\d{4}-\d{2}-\d{2}$/.test(startDate) ? startDate : getDefaultWeeklyReportStartDate();
   const start = new Date(`${normalized}T00:00:00+09:00`);
-  const end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000 - 1);
+  const normalizedEnd = /^\d{4}-\d{2}-\d{2}$/.test(endDate ?? "")
+    ? endDate!
+    : toJstDateInput(new Date(start.getTime() + 6 * DAY_MS));
+  const endStart = new Date(`${normalizedEnd}T00:00:00+09:00`);
+  const effectiveEndStart = endStart.getTime() >= start.getTime() ? endStart : start;
+  const end = new Date(effectiveEndStart.getTime() + DAY_MS - 1);
 
   return {
     startDate: normalized,
@@ -196,12 +203,23 @@ export function buildWeeklyPeriod(startDate: string): WeeklyReportPeriod {
 }
 
 export function shiftWeeklyPeriod(period: WeeklyReportPeriod, days: number): WeeklyReportPeriod {
-  const start = new Date(new Date(`${period.startDate}T00:00:00+09:00`).getTime() + days * 24 * 60 * 60 * 1000);
-  return buildWeeklyPeriod(toJstDateInput(start));
+  const start = new Date(new Date(`${period.startDate}T00:00:00+09:00`).getTime() + days * DAY_MS);
+  const end = new Date(new Date(`${period.endDate}T00:00:00+09:00`).getTime() + days * DAY_MS);
+  return buildWeeklyPeriod(toJstDateInput(start), toJstDateInput(end));
+}
+
+export function getWeeklyReportPeriodDayCount(period: WeeklyReportPeriod) {
+  const start = new Date(`${period.startDate}T00:00:00+09:00`);
+  const end = new Date(`${period.endDate}T00:00:00+09:00`);
+  return Math.max(1, Math.round((end.getTime() - start.getTime()) / DAY_MS) + 1);
+}
+
+export function getPreviousWeeklyReportPeriod(period: WeeklyReportPeriod) {
+  return shiftWeeklyPeriod(period, -getWeeklyReportPeriodDayCount(period));
 }
 
 export function buildWeeklyReport(matches: WeeklyMatch[], previousMatches: WeeklyMatch[], archetypes: DeckArchetype[], period: WeeklyReportPeriod): WeeklyReportData {
-  const previousPeriod = shiftWeeklyPeriod(period, -7);
+  const previousPeriod = getPreviousWeeklyReportPeriod(period);
   const comparisonConfidence = getComparisonConfidence(matches.length, previousMatches.length);
   const dataQualityWarnings = buildDataQualityWarnings(matches.length, previousMatches.length, comparisonConfidence);
   const deckInfo = buildDeckInfo(archetypes);
@@ -298,7 +316,7 @@ function buildOpponentDeckRanking(
     shareChange: row.share - (previousShare.get(row.deckId) ?? 0),
     rankChange: previousRank.has(row.deckId) ? previousRank.get(row.deckId)! - row.rank : null,
     confidence: getDataConfidence(row.matches),
-    comparisonNote: comparisonConfidence === "low" ? "前週比較は参考値" : null
+    comparisonNote: comparisonConfidence === "low" ? "前期間比較は参考値" : null
   }));
 }
 
@@ -344,7 +362,7 @@ function buildMyDeckWinRates(matches: WeeklyMatch[], previousMatches: WeeklyMatc
           (previous.get(deckId)?.matches ?? 0) >= WEEKLY_REPORT_CONFIG.comparison.minWinRateComparisonMatches,
         comparisonNote:
           prevRate !== null && (previous.get(deckId)?.matches ?? 0) < WEEKLY_REPORT_CONFIG.comparison.minWinRateComparisonMatches
-            ? `前週${previous.get(deckId)?.matches ?? 0}戦のため参考値`
+            ? `前期間${previous.get(deckId)?.matches ?? 0}戦のため参考値`
             : null,
         rank: 0,
         confidence: getDataConfidence(value.matches),
@@ -390,7 +408,7 @@ function buildUnifiedMatchups(matches: WeeklyMatch[], previousMatches: WeeklyMat
           (previousValue?.totalMatches ?? 0) >= WEEKLY_REPORT_CONFIG.comparison.minMatchupComparisonMatches,
         comparisonNote:
           previousValue && previousValue.totalMatches < WEEKLY_REPORT_CONFIG.comparison.minMatchupComparisonMatches
-            ? `前週${previousValue.totalMatches}戦のため参考値`
+            ? `前期間${previousValue.totalMatches}戦のため参考値`
             : null,
         confidence: getDataConfidence(value.totalMatches)
       };
@@ -459,7 +477,7 @@ function buildTierCandidates(
     }
 
     if (row.isWinRateComparisonReliable && row.winRateChange !== null) {
-      reasons.push(`前週比${formatNumber(row.winRateChange)}pt`);
+      reasons.push(`前期間比${formatNumber(row.winRateChange)}pt`);
     }
 
     return {
@@ -774,7 +792,7 @@ Shadowverse: Worlds Beyond の
 集計済みランクマ戦績です。
 
 数値を変更・推測せず、
-週次環境レポートを作成してください。
+選択期間の環境レポートを作成してください。
 
 【ルール】
 
@@ -788,11 +806,11 @@ Shadowverse: Worlds Beyond の
 ・自然で読みやすい日本語
 ・note向けの記事として作成する
 
-【週比較】
+【期間比較】
 
-・今週と前週のサンプル数に大きな差がある場合、前週比を環境変化として断定しない
+・選択期間と前期間のサンプル数に大きな差がある場合、期間比を環境変化として断定しない
 ・comparisonConfidence が low の場合、「参考値」と明記する
-・前週0件でも、前週全体のサンプルが不足している場合は「新規デッキ」と断定しない
+・前期間0件でも、前期間全体のサンプルが不足している場合は「新規デッキ」と断定しない
 
 【Tier】
 
@@ -813,7 +831,7 @@ Shadowverse: Worlds Beyond の
 ・データから言えることと編集者の考察を分ける
 ・将来予測は断定しない
 ・数値は小数1桁程度に丸める
-・今週の重要ポイントを3点程度に絞る
+・選択期間の重要ポイントを3点程度に絞る
 ・同じ数字を何度も繰り返さない
 ・表で見せた方が良い部分はMarkdown表にする
 ・重要な対面は3～5個程度に絞る
@@ -834,15 +852,15 @@ ${operatorMemo.trim() || "未入力"}
 
 構成：
 
-# 週刊 SV Match Log 環境レポート
+# SV Match Log 環境レポート
 
 【無料部分】
 
-## 今週の環境まとめ
+## 選択期間の環境まとめ
 
 ## ランクマで多く当たったデッキ TOP5
 
-## 今週の重要ポイント
+## 選択期間の重要ポイント
 
 ここまでで記事の価値が分かる内容にしてください。
 
@@ -852,17 +870,17 @@ ${operatorMemo.trim() || "未入力"}
 
 ## 使用デッキ別勝率
 
-## 前週から増えた・減ったデッキ
+## 前期間から増えた・減ったデッキ
 
-## 今週のTier表
+## 選択期間のTier表
 
 ## 注目対面
 
 ## 環境相関図から見るメタ
 
-## 今週注目したいデッキ
+## 選択期間で注目したいデッキ
 
-## 来週注目したいポイント
+## 次に注目したいポイント
 
 ## データについて
 
@@ -879,15 +897,15 @@ function buildDataQualityWarnings(
   const warnings: string[] = [];
 
   if (comparisonConfidence === "low") {
-    warnings.push(`前週比較は参考値です。今週${currentMatches}戦 / 前週${previousMatches}戦。`);
+    warnings.push(`前期間比較は参考値です。選択期間${currentMatches}戦 / 前期間${previousMatches}戦。`);
   }
 
   if (currentMatches === 0) {
-    warnings.push("対象週の戦績が0件です。");
+    warnings.push("対象期間の戦績が0件です。");
   }
 
   if (previousMatches === 0) {
-    warnings.push("前週の戦績が0件です。新規デッキとは断定しません。");
+    warnings.push("前期間の戦績が0件です。新規デッキとは断定しません。");
   }
 
   return warnings;

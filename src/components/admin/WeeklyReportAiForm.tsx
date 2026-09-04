@@ -18,9 +18,20 @@ const initialState: AiFormState = {
   error: null
 };
 
-export function WeeklyReportAiForm({ prompt, startDate, hasApiKey }: { prompt: string; startDate: string; hasApiKey: boolean }) {
+export function WeeklyReportAiForm({
+  prompt,
+  startDate,
+  endDate,
+  hasApiKey
+}: {
+  prompt: string;
+  startDate: string;
+  endDate: string;
+  hasApiKey: boolean;
+}) {
   const [state, formAction] = useActionState(generateWeeklyReportMarkdown, initialState);
   const markdown = state.markdown;
+  const fileDate = startDate === endDate ? startDate : `${startDate}_${endDate}`;
 
   return (
     <div className="grid gap-3">
@@ -45,7 +56,7 @@ export function WeeklyReportAiForm({ prompt, startDate, hasApiKey }: { prompt: s
         <div className="grid gap-3">
           <div className="flex flex-wrap gap-2">
             <CopyButton text={markdown} label="本文コピー" />
-            <MarkdownDownloadButton markdown={markdown} fileName={`weekly-report-${startDate}.md`} />
+            <MarkdownDownloadButton markdown={markdown} fileName={`period-report-${fileDate}.md`} />
           </div>
           <textarea
             className="min-h-[420px] rounded-md border border-slate-300 bg-slate-50 p-3 font-mono text-sm leading-6 text-ink"

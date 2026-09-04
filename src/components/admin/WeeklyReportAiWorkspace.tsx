@@ -12,12 +12,14 @@ const tierOptions: TierCandidate[] = ["Tier1", "Tier1.5", "Tier2", "Tier3", "評
 export function WeeklyReportAiWorkspace({
   aiJson,
   startDate,
+  endDate,
   hasApiKey,
   tierOverrides,
   onTierChange
 }: {
   aiJson: WeeklyReportAiJson;
   startDate: string;
+  endDate: string;
   hasApiKey: boolean;
   tierOverrides: Record<string, TierCandidate>;
   onTierChange: (deckName: string, tier: TierCandidate) => void;
@@ -111,7 +113,7 @@ export function WeeklyReportAiWorkspace({
           </p>
         </div>
         <div className="mt-3">
-          <WeeklyReportAiForm prompt={prompt} startDate={startDate} hasApiKey={hasApiKey} />
+          <WeeklyReportAiForm prompt={prompt} startDate={startDate} endDate={endDate} hasApiKey={hasApiKey} />
         </div>
       </section>
     </div>

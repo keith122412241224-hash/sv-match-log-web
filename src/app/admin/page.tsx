@@ -75,7 +75,7 @@ export default async function AdminPage({
           </div>
           <div className="flex flex-wrap gap-2">
             <Link className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-ink" href="/admin/weekly-report">
-              週次レポート
+              期間レポート
             </Link>
             <Link className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-ink" href="/">
               通常画面へ

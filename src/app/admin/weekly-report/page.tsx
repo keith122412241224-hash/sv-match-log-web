@@ -3,14 +3,14 @@ import { redirect } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
 import { WeeklyReportInteractiveSections } from "@/components/admin/WeeklyReportInteractiveSections";
 import { WEEKLY_REPORT_CONFIG } from "@/lib/weekly-report-config";
-import { getDefaultWeeklyReportStartDate, shiftWeeklyPeriod } from "@/lib/weekly-report";
+import { getDefaultWeeklyReportStartDate, getWeeklyReportPeriodDayCount } from "@/lib/weekly-report";
 import { getIsAdmin, getWeeklyReport } from "@/lib/data";
 import { formatPercent } from "@/lib/utils";
 
 export default async function AdminWeeklyReportPage({
   searchParams
 }: {
-  searchParams: Promise<{ start?: string }>;
+  searchParams: Promise<{ start?: string; end?: string }>;
 }) {
   const isAdmin = await getIsAdmin();
 
@@ -20,13 +20,14 @@ export default async function AdminWeeklyReportPage({
 
   const params = await searchParams;
   const selectedStartDate = /^\d{4}-\d{2}-\d{2}$/.test(params.start ?? "") ? params.start! : getDefaultWeeklyReportStartDate();
+  const selectedEndDate = /^\d{4}-\d{2}-\d{2}$/.test(params.end ?? "") ? params.end! : undefined;
   let report;
   let fetchError: string | null = null;
 
   try {
-    report = await getWeeklyReport(selectedStartDate);
+    report = await getWeeklyReport(selectedStartDate, selectedEndDate);
   } catch (error) {
-    fetchError = error instanceof Error ? error.message : "Supabaseから週次レポートを取得できませんでした。";
+    fetchError = error instanceof Error ? error.message : "Supabaseから期間レポートを取得できませんでした。";
   }
 
   if (!report) {
@@ -34,15 +35,14 @@ export default async function AdminWeeklyReportPage({
       <main className="min-h-screen bg-surface px-4 py-6">
         <div className="mx-auto max-w-7xl">
           <p className="rounded-md border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-800">
-            {fetchError ?? "週次レポートを表示できません。"}
+            {fetchError ?? "期間レポートを表示できません。"}
           </p>
         </div>
       </main>
     );
   }
 
-  const previousWeek = shiftWeeklyPeriod(report.period, -7).startDate;
-  const nextWeek = shiftWeeklyPeriod(report.period, 7).startDate;
+  const periodDayCount = getWeeklyReportPeriodDayCount(report.period);
   const isLowComparisonConfidence = report.comparisonConfidence === "low";
 
   return (
@@ -50,9 +50,9 @@ export default async function AdminWeeklyReportPage({
       <div className="mx-auto grid max-w-7xl gap-6">
         <header className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-ink">週次環境レポート</h1>
+            <h1 className="text-2xl font-bold text-ink">期間環境レポート</h1>
             <p className="mt-1 text-sm text-muted">
-              {report.period.startDate} 00:00:00 ～ {report.period.endDate} 23:59:59 / {WEEKLY_REPORT_CONFIG.timeZone}
+              {report.period.startDate} 00:00:00 ～ {report.period.endDate} 23:59:59 / {WEEKLY_REPORT_CONFIG.timeZone} / {periodDayCount}日間
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -66,27 +66,25 @@ export default async function AdminWeeklyReportPage({
         </header>
 
         <section className="rounded-md border border-slate-200 bg-white p-4">
-          <form className="grid gap-3 md:grid-cols-[1fr_auto_auto_auto]" action="/admin/weekly-report">
+          <form className="grid gap-3 md:grid-cols-[1fr_1fr_auto]" action="/admin/weekly-report">
             <label className="grid gap-1 text-sm font-semibold text-ink">
-              対象週の開始日
+              開始日
               <input className="min-h-11 rounded-md border border-slate-300 px-3" type="date" name="start" defaultValue={report.period.startDate} />
             </label>
-            <Link className="inline-flex min-h-11 items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-bold text-ink" href={`/admin/weekly-report?start=${previousWeek}`}>
-              前週
-            </Link>
-            <button className="min-h-11 rounded-md bg-ink px-4 text-sm font-bold text-white" type="submit">
+            <label className="grid gap-1 text-sm font-semibold text-ink">
+              終了日
+              <input className="min-h-11 rounded-md border border-slate-300 px-3" type="date" name="end" defaultValue={report.period.endDate} />
+            </label>
+            <button className="min-h-11 self-end rounded-md bg-ink px-4 text-sm font-bold text-white" type="submit">
               表示
             </button>
-            <Link className="inline-flex min-h-11 items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-bold text-ink" href={`/admin/weekly-report?start=${nextWeek}`}>
-              次週
-            </Link>
           </form>
         </section>
 
         <section className="grid gap-3 md:grid-cols-4">
-          <MiniStat label="総試合数" value={`${report.totalMatches}`} detail={`前週 ${report.previousTotalMatches}戦`} />
-          <MiniStat label="前週比" value={`${report.totalMatches - report.previousTotalMatches > 0 ? "+" : ""}${report.totalMatches - report.previousTotalMatches}`} detail="試合数差分" />
-          <MiniStat label="週比較信頼度" value={report.comparisonConfidence.toUpperCase()} detail={isLowComparisonConfidence ? "前週比較は参考値" : "通常比較"} />
+          <MiniStat label="総試合数" value={`${report.totalMatches}`} detail={`前期間 ${report.previousTotalMatches}戦`} />
+          <MiniStat label="前期間比" value={`${report.totalMatches - report.previousTotalMatches > 0 ? "+" : ""}${report.totalMatches - report.previousTotalMatches}`} detail="試合数差分" />
+          <MiniStat label="期間比較信頼度" value={report.comparisonConfidence.toUpperCase()} detail={isLowComparisonConfidence ? "前期間比較は参考値" : "通常比較"} />
           <MiniStat label="主要対面" value={`${report.unifiedMatchups.filter((row) => row.totalMatches >= WEEKLY_REPORT_CONFIG.majorMatchupMinMatches).length}`} detail={`${WEEKLY_REPORT_CONFIG.majorMatchupMinMatches}戦以上`} />
         </section>
 
@@ -95,9 +93,9 @@ export default async function AdminWeeklyReportPage({
             <div className="flex items-start gap-2">
               <AlertTriangle className="mt-0.5 shrink-0" size={20} aria-hidden="true" />
               <div>
-                <h2 className="font-bold">前週比較は参考値です</h2>
+                <h2 className="font-bold">前期間比較は参考値です</h2>
                 <p className="mt-1 text-sm">
-                  今週: {report.totalMatches}戦 / 前週: {report.previousTotalMatches}戦。前週のサンプル数が少ない、または母数差が大きいため、前週比を環境変化として断定しないでください。
+                  選択期間: {report.totalMatches}戦 / 前期間: {report.previousTotalMatches}戦。前期間のサンプル数が少ない、または母数差が大きいため、期間比を環境変化として断定しないでください。
                 </p>
               </div>
             </div>
@@ -105,11 +103,11 @@ export default async function AdminWeeklyReportPage({
         ) : null}
 
         <section className="rounded-md border border-slate-200 bg-white p-4">
-          <h2 className="font-bold text-ink">前週からの変化</h2>
+          <h2 className="font-bold text-ink">前期間からの変化</h2>
           <div className="mt-3 grid gap-3 lg:grid-cols-3">
             <ChangeList title={isLowComparisonConfidence ? "遭遇率上昇 参考値" : "遭遇率上昇"} rows={report.changes.encounterShareUp.map((row) => `${row.deckName} ${formatSigned(row.shareChange)}pt${row.comparisonNote ? ` / ${row.comparisonNote}` : ""}`)} />
             <ChangeList title={isLowComparisonConfidence ? "遭遇率下降 参考値" : "遭遇率下降"} rows={report.changes.encounterShareDown.map((row) => `${row.deckName} ${formatSigned(row.shareChange)}pt${row.comparisonNote ? ` / ${row.comparisonNote}` : ""}`)} />
-            <ChangeList title={isLowComparisonConfidence ? "今週確認" : "新規確認"} rows={(isLowComparisonConfidence ? report.opponentDeckRanking.filter((row) => row.previousMatches === 0 && row.matches >= WEEKLY_REPORT_CONFIG.change.minNewDeckMatches).slice(0, 3) : report.changes.newDecks).map((row) => `${row.deckName} ${row.matches}戦 / ${formatPercent(row.share)}${isLowComparisonConfidence ? " / 前週比較は参考値" : ""}`)} />
+            <ChangeList title={isLowComparisonConfidence ? "選択期間確認" : "新規確認"} rows={(isLowComparisonConfidence ? report.opponentDeckRanking.filter((row) => row.previousMatches === 0 && row.matches >= WEEKLY_REPORT_CONFIG.change.minNewDeckMatches).slice(0, 3) : report.changes.newDecks).map((row) => `${row.deckName} ${row.matches}戦 / ${formatPercent(row.share)}${isLowComparisonConfidence ? " / 前期間比較は参考値" : ""}`)} />
             <ChangeList title={isLowComparisonConfidence ? "勝率上昇 参考値" : "勝率上昇"} rows={report.changes.winRateUp.map((row) => `${row.deckName} ${formatSigned(row.winRateChange)}pt${row.comparisonNote ? ` / ${row.comparisonNote}` : ""}`)} />
             <ChangeList title={isLowComparisonConfidence ? "勝率下降 参考値" : "勝率下降"} rows={report.changes.winRateDown.map((row) => `${row.deckName} ${formatSigned(row.winRateChange)}pt${row.comparisonNote ? ` / ${row.comparisonNote}` : ""}`)} />
             <ChangeList title={isLowComparisonConfidence ? "対面変化 参考値" : "対面変化"} rows={report.changes.matchupChanges.map((row) => `${row.deckA} vs ${row.deckB} ${formatSigned(row.deckAWinRateChange)}pt${row.comparisonNote ? ` / ${row.comparisonNote}` : ""}`)} />
@@ -124,6 +122,7 @@ export default async function AdminWeeklyReportPage({
           correlationRows={report.correlation}
           aiJson={report.aiJson}
           startDate={report.period.startDate}
+          endDate={report.period.endDate}
           hasApiKey={Boolean(process.env.OPENAI_API_KEY)}
         />
       </div>

@@ -21,6 +21,7 @@ export function WeeklyReportInteractiveSections({
   correlationRows,
   aiJson,
   startDate,
+  endDate,
   hasApiKey
 }: {
   opponentRows: OpponentDeckRankingRow[];
@@ -30,6 +31,7 @@ export function WeeklyReportInteractiveSections({
   correlationRows: CorrelationEdge[];
   aiJson: WeeklyReportAiJson;
   startDate: string;
+  endDate: string;
   hasApiKey: boolean;
 }) {
   const [tierOverrides, setTierOverrides] = useState<Record<string, TierCandidate>>({});
@@ -55,6 +57,7 @@ export function WeeklyReportInteractiveSections({
       <WeeklyReportAiWorkspace
         aiJson={aiJson}
         startDate={startDate}
+        endDate={endDate}
         hasApiKey={hasApiKey}
         tierOverrides={tierOverrides}
         onTierChange={(deckName, tier) =>
