@@ -65,54 +65,68 @@ export type MatchFilters = {
 export async function getMatches(environmentId?: string, filters: MatchFilters = {}) {
   const supabase = await createSupabaseServerClient();
   const [user, isAdmin] = await Promise.all([getCurrentUser(), filters.includeAllUsers ? getIsAdmin() : false]);
+  const pageSize = 1000;
+  const matches: Match[] = [];
 
   if (!user) {
     return [];
   }
 
-  let query = supabase
-    .from("matches")
-    .select(MATCH_ANALYTICS_COLUMNS)
-    .order("played_at", { ascending: false });
+  for (let from = 0; ; from += pageSize) {
+    let query = supabase
+      .from("matches")
+      .select(MATCH_ANALYTICS_COLUMNS)
+      .order("played_at", { ascending: false })
+      .order("id", { ascending: false })
+      .range(from, from + pageSize - 1);
 
-  if (!filters.includeAllUsers || !isAdmin) {
-    query = query.eq("user_id", user.id);
+    if (!filters.includeAllUsers || !isAdmin) {
+      query = query.eq("user_id", user.id);
+    }
+
+    if (environmentId) {
+      query = query.eq("environment_id", environmentId);
+    }
+
+    if (filters.myDeckId) {
+      query = query.eq(filters.deckIdField === "archetype" ? "my_archetype_id" : "my_deck_id", filters.myDeckId);
+    }
+
+    if (filters.opponentDeckId) {
+      query = query.eq(
+        filters.deckIdField === "archetype" ? "opponent_archetype_id" : "opponent_deck_id",
+        filters.opponentDeckId
+      );
+    }
+
+    if (filters.turnOrder) {
+      query = query.eq("turn_order", filters.turnOrder);
+    }
+
+    if (filters.result) {
+      query = query.eq("result", filters.result);
+    }
+
+    if (filters.playedAtFrom) {
+      query = query.gte("played_at", filters.playedAtFrom);
+    }
+
+    if (filters.playedAtTo) {
+      query = query.lte("played_at", filters.playedAtTo);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    matches.push(...((data ?? []) as Match[]));
+
+    if (!data || data.length < pageSize) {
+      return matches;
+    }
   }
-
-  if (environmentId) {
-    query = query.eq("environment_id", environmentId);
-  }
-
-  if (filters.myDeckId) {
-    query = query.eq(filters.deckIdField === "archetype" ? "my_archetype_id" : "my_deck_id", filters.myDeckId);
-  }
-
-  if (filters.opponentDeckId) {
-    query = query.eq(
-      filters.deckIdField === "archetype" ? "opponent_archetype_id" : "opponent_deck_id",
-      filters.opponentDeckId
-    );
-  }
-
-  if (filters.turnOrder) {
-    query = query.eq("turn_order", filters.turnOrder);
-  }
-
-  if (filters.result) {
-    query = query.eq("result", filters.result);
-  }
-
-  if (filters.playedAtFrom) {
-    query = query.gte("played_at", filters.playedAtFrom);
-  }
-
-  if (filters.playedAtTo) {
-    query = query.lte("played_at", filters.playedAtTo);
-  }
-
-  const { data } = await query;
-
-  return (data ?? []) as Match[];
 }
 
 export async function getRecentMatchesWithRelations(environmentId?: string, limit = 10) {
