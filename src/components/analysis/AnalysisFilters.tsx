@@ -3,6 +3,7 @@ import { Button } from "@/components/Button";
 import { FieldLabel, Input, Select } from "@/components/Field";
 import { RESULT_LABELS, TURN_ORDER_LABELS } from "@/lib/constants";
 import type { DeckLike } from "@/lib/analytics";
+import type { WinRateMode } from "@/lib/match-perspectives";
 import type { Environment, MatchResult, TurnOrder } from "@/types/database";
 
 export type AnalysisFilterValues = {
@@ -14,7 +15,7 @@ export type AnalysisFilterValues = {
   playedFrom: string;
   playedTo: string;
   scope: string;
-  winRateMode?: string;
+  winRateMode: WinRateMode;
 };
 
 export function AnalysisFilters({
@@ -40,8 +41,7 @@ export function AnalysisFilters({
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:items-end">
         <FieldLabel>
           勝率集計
-          <Select name="winRateMode" defaultValue={values.winRateMode ?? "auto"}>
-            <option value="auto">範囲に合わせる（自分: 使用者側 / 全ユーザー: 反転込み）</option>
+          <Select name="winRateMode" defaultValue={values.winRateMode}>
             <option value="direct">使用者側のみ</option>
             <option value="combined">対戦相手反転込み</option>
           </Select>

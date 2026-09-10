@@ -109,7 +109,7 @@ export default async function AnalysisPage({
             playedFrom: selectedPlayedFrom,
             playedTo: selectedPlayedTo,
             scope: selectedScope,
-            winRateMode: params.winRateMode === "direct" || params.winRateMode === "combined" ? params.winRateMode : "auto"
+            winRateMode
           }}
         />
 
