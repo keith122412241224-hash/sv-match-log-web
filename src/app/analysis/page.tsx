@@ -6,6 +6,7 @@ import { SummaryTable } from "@/components/SummaryTable";
 import { buildDeckAnalysisSummaries, buildWinRateMatrix, groupWinRates, turnOrderWinRates } from "@/lib/analytics";
 import { getActiveArchetypes, getDecks, getEnvironments, getIsAdmin, getMatches } from "@/lib/data";
 import { formatPercent, getMostRecentlyCreatedId } from "@/lib/utils";
+import { analysisPerspectives, filterAnalysisPerspectives, resolveWinRateMode } from "@/lib/match-perspectives";
 
 type AnalysisSearchParams = {
   environment?: string;
@@ -16,6 +17,7 @@ type AnalysisSearchParams = {
   playedFrom?: string;
   playedTo?: string;
   scope?: string;
+  winRateMode?: string;
 };
 
 function normalizeDatetimeLocal(value?: string) {
@@ -33,6 +35,7 @@ export default async function AnalysisPage({
 }) {
   const [params, environments, isAdmin] = await Promise.all([searchParams, getEnvironments(), getIsAdmin()]);
   const selectedScope = isAdmin && params.scope === "all" ? "all" : "mine";
+  const winRateMode = resolveWinRateMode(params.winRateMode, selectedScope);
   const selectedEnvironmentId = environments.some((environment) => environment.id === params.environment)
     ? params.environment ?? ""
     : getMostRecentlyCreatedId(environments);
@@ -48,16 +51,22 @@ export default async function AnalysisPage({
   const selectedPlayedFrom = normalizeDatetimeLocal(params.playedFrom);
   const selectedPlayedTo = normalizeDatetimeLocal(params.playedTo);
   const deckIdField = archetypes.length > 0 ? "archetype" : "deck";
-  const filteredMatches = await getMatches(selectedEnvironmentId, {
+  const directionalFilters = {
     myDeckId: selectedMyDeckId,
     opponentDeckId: selectedOpponentDeckId,
     turnOrder: selectedTurnOrder || undefined,
     result: selectedResult || undefined,
+    deckIdField
+  } as const;
+  const sourceMatches = await getMatches(selectedEnvironmentId, {
+    ...(winRateMode === "direct" ? directionalFilters : {}),
     playedAtFrom: selectedPlayedFrom ? toJstIso(selectedPlayedFrom) : undefined,
     playedAtTo: selectedPlayedTo ? toJstIso(selectedPlayedTo, true) : undefined,
     deckIdField,
     includeAllUsers: selectedScope === "all"
   });
+  const filteredMatches = filterAnalysisPerspectives(analysisPerspectives(sourceMatches, winRateMode), directionalFilters);
+  const registeredMatches = new Set(filteredMatches.map((match) => match.id)).size;
 
   const byMyDeck = groupWinRates(filteredMatches, (match) => match.my_archetype_id ?? match.my_deck_id, (id) => deckName.get(id) ?? "不明");
   const byOpponentDeck = groupWinRates(filteredMatches, (match) => match.opponent_archetype_id ?? match.opponent_deck_id, (id) => deckName.get(id) ?? "不明");
@@ -99,25 +108,30 @@ export default async function AnalysisPage({
             result: selectedResult,
             playedFrom: selectedPlayedFrom,
             playedTo: selectedPlayedTo,
-            scope: selectedScope
+            scope: selectedScope,
+            winRateMode: params.winRateMode === "direct" || params.winRateMode === "combined" ? params.winRateMode : "auto"
           }}
         />
 
-        <DeckAnalysisCards summaries={summaries} />
+        <p className="text-sm text-muted">
+          勝率集計: {winRateMode === "combined" ? "対戦相手反転込み" : "使用者側のみ"} / 対象登録戦績: {registeredMatches}件。
+          {winRateMode === "combined" ? "デッキ・先後・勝敗の条件は集計する側の視点に適用します。各デッキの対象件数は視点数で、同デッキ対戦は両側を含みます。" : ""}
+        </p>
+        <DeckAnalysisCards summaries={summaries} combined={winRateMode === "combined"} />
 
         <section className="rounded-md border border-slate-200 bg-white">
-          <h2 className="border-b border-slate-200 px-4 py-3 font-bold text-ink">使用デッキ別の勝率</h2>
-          <SummaryTable rows={byMyDeck} />
+          <h2 className="border-b border-slate-200 px-4 py-3 font-bold text-ink">{winRateMode === "combined" ? "デッキ別の環境勝率" : "使用デッキ別の勝率"}</h2>
+          <SummaryTable countLabel={winRateMode === "combined" ? "対象件数" : "試合数"} rows={byMyDeck} />
         </section>
 
         <section className="rounded-md border border-slate-200 bg-white">
           <h2 className="border-b border-slate-200 px-4 py-3 font-bold text-ink">相手デッキ別の勝率</h2>
-          <SummaryTable rows={byOpponentDeck} />
+          <SummaryTable countLabel={winRateMode === "combined" ? "対象件数" : "試合数"} rows={byOpponentDeck} />
         </section>
 
         <section className="rounded-md border border-slate-200 bg-white">
           <h2 className="border-b border-slate-200 px-4 py-3 font-bold text-ink">先攻/後攻別の勝率</h2>
-          <SummaryTable rows={byTurn} />
+          <SummaryTable countLabel={winRateMode === "combined" ? "対象件数" : "試合数"} rows={byTurn} />
         </section>
 
         <section className="rounded-md border border-slate-200 bg-white">
@@ -128,7 +142,7 @@ export default async function AnalysisPage({
                 <tr>
                   <th className="px-4 py-3">使用デッキ</th>
                   <th className="px-4 py-3">相手デッキ</th>
-                  <th className="px-4 py-3">試合数</th>
+                  <th className="px-4 py-3">{winRateMode === "combined" ? "対象件数" : "試合数"}</th>
                   <th className="px-4 py-3">勝率</th>
                   <th className="px-4 py-3">環境指数</th>
                 </tr>

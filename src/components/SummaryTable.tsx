@@ -1,7 +1,7 @@
 import { formatPercent } from "@/lib/utils";
 import type { WinRateSummary } from "@/lib/analytics";
 
-export function SummaryTable({ rows }: { rows: WinRateSummary[] }) {
+export function SummaryTable({ rows, countLabel = "試合数" }: { rows: WinRateSummary[]; countLabel?: string }) {
   if (rows.length === 0) {
     return <p className="p-4 text-sm text-muted">表示できるデータがありません。</p>;
   }
@@ -12,7 +12,7 @@ export function SummaryTable({ rows }: { rows: WinRateSummary[] }) {
         <thead className="bg-slate-50 text-muted">
           <tr>
             <th className="px-4 py-3">項目</th>
-            <th className="px-4 py-3">試合数</th>
+            <th className="px-4 py-3">{countLabel}</th>
             <th className="px-4 py-3">勝利数</th>
             <th className="px-4 py-3">勝率</th>
           </tr>

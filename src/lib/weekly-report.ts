@@ -9,6 +9,7 @@ import {
   type TierCandidate
 } from "@/lib/weekly-report-config";
 import { calculateWinRate } from "@/lib/analytics";
+import { summarizeDeckPerspectives, type DeckPerspectives } from "@/lib/match-perspectives";
 import type { DeckArchetype, Match } from "@/types/database";
 
 export type WeeklyReportPeriod = {
@@ -34,7 +35,8 @@ export type OpponentDeckRankingRow = {
   comparisonNote: string | null;
 };
 
-export type MyDeckWinRateRow = {
+export type MyDeckWinRateRow = DeckPerspectives & {
+  environmentWinRate: number | null;
   deckId: string;
   deckName: string;
   className: string;
@@ -168,11 +170,6 @@ type DeckInfo = {
   id: string;
   name: string;
   className: string;
-};
-
-type CountStats = {
-  matches: number;
-  wins: number;
 };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -337,16 +334,19 @@ function rankedCountRows(counts: Map<string, number>, totalMatches: number, deck
 }
 
 function buildMyDeckWinRates(matches: WeeklyMatch[], previousMatches: WeeklyMatch[], deckInfo: Map<string, DeckInfo>): MyDeckWinRateRow[] {
-  const current = countWinsBy(matches, getMyDeckId);
-  const previous = countWinsBy(previousMatches, getMyDeckId);
-  const previousWinRate = new Map([...previous.entries()].map(([deckId, value]) => [deckId, calculateWinRate(value.wins, value.matches)]));
+  const current = summarizeDeckPerspectives(matches);
+  const previous = new Map([...summarizeDeckPerspectives(previousMatches)].map(([id, row]) => [id, row.combined]));
+  const previousWinRate = new Map([...previous.entries()].map(([deckId, value]) => [deckId, value.winRate]));
 
   return [...current.entries()]
-    .map(([deckId, value]) => {
+    .map(([deckId, perspectives]) => {
+      const value = perspectives.combined;
       const deck = getDeckInfo(deckInfo, deckId);
       const winRate = calculateWinRate(value.wins, value.matches);
       const prevRate = previousWinRate.get(deckId) ?? null;
       return {
+        ...perspectives,
+        environmentWinRate: winRate,
         deckId: deck.id,
         deckName: deck.name,
         className: deck.className,
@@ -461,15 +461,14 @@ function buildTierCandidates(
       warnings.push("参考値");
     }
 
-    const opponentSideWinRate = estimateOpponentSideDeckWinRate(row.deckId, matchups);
-    if (row.winRate !== null && opponentSideWinRate !== null && Math.abs(row.winRate - opponentSideWinRate) >= WEEKLY_REPORT_CONFIG.tier.holdDivergencePoints) {
+    if (row.direct.winRate !== null && row.reversed.winRate !== null && Math.abs(row.direct.winRate - row.reversed.winRate) >= WEEKLY_REPORT_CONFIG.tier.holdDivergencePoints) {
       warnings.push("データ乖離あり");
     }
 
     const strengthScore = calculateStrengthScore(row, majorMatchupWinRate);
     const metaPresence = getMetaPresence(encounter?.share ?? 0);
     const suggestedTier = suggestTier(row, strengthScore, warnings);
-    reasons.push(`${row.matches}戦で勝率${formatNumber(row.winRate)}%`);
+    reasons.push(`対象${row.matches}件で環境勝率${formatNumber(row.winRate)}%（直接${row.direct.matches}件 / 反転${row.reversed.matches}件）`);
     reasons.push(`遭遇率${formatNumber(encounter?.share ?? 0)}%（${encounter?.matches ?? 0}戦）`);
 
     if (majorMatchupWinRate !== null) {
@@ -559,23 +558,6 @@ function calculateStrengthScore(row: MyDeckWinRateRow, majorMatchupWinRate: numb
     confidenceScore * weights.sampleConfidence +
     trendScore * weights.trend
   );
-}
-
-function estimateOpponentSideDeckWinRate(deckId: string, matchups: UnifiedMatchupRow[]) {
-  let wins = 0;
-  let total = 0;
-
-  for (const matchup of matchups) {
-    if (matchup.deckAId === deckId) {
-      wins += matchup.deckAWins;
-      total += matchup.totalMatches;
-    } else if (matchup.deckBId === deckId) {
-      wins += matchup.deckBWins;
-      total += matchup.totalMatches;
-    }
-  }
-
-  return calculateWinRate(wins, total);
 }
 
 function buildCorrelation(matchups: UnifiedMatchupRow[]): CorrelationEdge[] {
@@ -700,7 +682,9 @@ function buildAiJson(input: {
     correlation: input.correlation.map((row) => roundObject(row)),
     notes: [
       "環境分布は対戦相手デッキを基準に集計しています。",
-      "使用デッキ別勝率は使用者側デッキを基準に集計しています。",
+      "myDeckWinRatesのwinRateとenvironmentWinRateは、direct（使用者側）とreversed（相手側の勝敗反転）を合算したcombinedの環境勝率です。",
+      "デッキ別matchesは勝率の対象視点数です。総登録試合数totalMatchesと遭遇率は元の登録戦績から計算し、反転によって倍増させません。",
+      "同デッキ対戦はデッキ別勝率に直接・反転の両視点を含みます。対面相性と相関図は異なるデッキの対戦を双方の登録方向から一度ずつ集計しています。",
       "個人ユーザーを識別できる情報と生の戦績行は含めていません。",
       "同一試合が双方のユーザーから登録された場合の二重計上は、現在のDB構造だけでは自動判定できません。",
       "AI用JSONは記事生成用に軽量化しており、サンプル不足の大量デッキは除外しています。"
@@ -727,6 +711,10 @@ function omitOpponentDeckId(row: OpponentDeckRankingRow): Omit<OpponentDeckRanki
 
 function omitMyDeckId(row: MyDeckWinRateRow): Omit<MyDeckWinRateRow, "deckId"> {
   return {
+    environmentWinRate: row.environmentWinRate,
+    direct: roundObject(row.direct),
+    reversed: roundObject(row.reversed),
+    combined: roundObject(row.combined),
     deckName: row.deckName,
     className: row.className,
     matches: row.matches,
@@ -798,6 +786,10 @@ Shadowverse: Worlds Beyond の
 
 ・存在しない数値を作らない
 ・勝率には可能な範囲で試合数を併記する
+・デッキ別の主な勝率は環境勝率（使用者側＋対戦相手の勝敗反転）で、winRateとenvironmentWinRateは同じ値です
+・direct / reversed は内訳、combined は合算です。対象視点数を総登録試合数として合計しないでください
+・総試合数と遭遇率は元の登録戦績に基づきます。反転によって2倍にしないでください
+・直接勝率と反転勝率の差は観測データの偏りの可能性があり、原因や対戦相手の属性は推測しないでください
 ・少数試合は断定しない
 ・必要に応じて「有利傾向」と表現する
 ・データと考察を区別する
@@ -868,7 +860,7 @@ ${operatorMemo.trim() || "未入力"}
 
 【有料部分】
 
-## 使用デッキ別勝率
+## デッキ別の環境勝率
 
 ## 前期間から増えた・減ったデッキ
 
@@ -917,20 +909,6 @@ function countBy(matches: WeeklyMatch[], getKey: (match: WeeklyMatch) => string 
   for (const match of matches) {
     const key = getKey(match) ?? "unknown";
     map.set(key, (map.get(key) ?? 0) + 1);
-  }
-
-  return map;
-}
-
-function countWinsBy(matches: WeeklyMatch[], getKey: (match: WeeklyMatch) => string | null) {
-  const map = new Map<string, CountStats>();
-
-  for (const match of matches) {
-    const key = getKey(match) ?? "unknown";
-    const current = map.get(key) ?? { matches: 0, wins: 0 };
-    current.matches += 1;
-    current.wins += match.result === "win" ? 1 : 0;
-    map.set(key, current);
   }
 
   return map;

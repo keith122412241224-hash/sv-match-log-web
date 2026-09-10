@@ -14,6 +14,7 @@ export type AnalysisFilterValues = {
   playedFrom: string;
   playedTo: string;
   scope: string;
+  winRateMode?: string;
 };
 
 export function AnalysisFilters({
@@ -36,7 +37,15 @@ export function AnalysisFilters({
 
   return (
     <form action="/analysis" className="rounded-md border border-slate-200 bg-white p-3">
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-[1fr_1.1fr_1fr_1fr_0.85fr_0.85fr_0.95fr_0.95fr_auto_auto] 2xl:items-end">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:items-end">
+        <FieldLabel>
+          勝率集計
+          <Select name="winRateMode" defaultValue={values.winRateMode ?? "auto"}>
+            <option value="auto">範囲に合わせる（自分: 使用者側 / 全ユーザー: 反転込み）</option>
+            <option value="direct">使用者側のみ</option>
+            <option value="combined">対戦相手反転込み</option>
+          </Select>
+        </FieldLabel>
         {canUseAllUsers ? (
           <FieldLabel>
             集計範囲

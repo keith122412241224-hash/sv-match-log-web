@@ -54,7 +54,7 @@ export function WeeklyReportAiWorkspace({
                 自動Tier候補: {row.suggestedTier}
               </span>
               <span className="text-xs text-muted">
-                {row.matches}戦 / 勝率{formatPercent(row.winRate)}
+                対象{row.matches}件 / 環境勝率{formatPercent(row.winRate)}
               </span>
               <span className="text-xs text-muted">
                 遭遇率{formatPercent(row.encounterShare)}（{row.opponentMatches}戦）

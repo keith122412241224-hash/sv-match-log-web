@@ -1,6 +1,8 @@
 import { LOW_SAMPLE_THRESHOLD } from "@/lib/constants";
 import type { Match, TurnOrder } from "@/types/database";
 
+type AnalyticsMatch = Pick<Match, "my_deck_id" | "opponent_deck_id" | "my_archetype_id" | "opponent_archetype_id" | "result" | "turn_order">;
+
 export type DeckLike = {
   id: string;
   name: string;
@@ -95,7 +97,7 @@ export function winRateFor(matches: Match[]) {
   return calculateWinRate(wins, matches.length);
 }
 
-export function groupWinRates<T extends Match>(
+export function groupWinRates<T extends AnalyticsMatch>(
   matches: T[],
   getKey: (match: T) => string,
   getLabel: (key: string) => string
@@ -120,7 +122,7 @@ export function groupWinRates<T extends Match>(
     .sort((a, b) => b.total - a.total || (b.winRate ?? 0) - (a.winRate ?? 0));
 }
 
-export function turnOrderWinRates(matches: Match[]): WinRateSummary[] {
+export function turnOrderWinRates(matches: AnalyticsMatch[]): WinRateSummary[] {
   const labels: Record<TurnOrder, string> = {
     first: "先攻",
     second: "後攻"
@@ -134,7 +136,7 @@ export function turnOrderWinRates(matches: Match[]): WinRateSummary[] {
 }
 
 export function buildDeckAnalysisSummaries(
-  matches: Match[],
+  matches: AnalyticsMatch[],
   decks: DeckLike[],
   deckIdField: "archetype" | "deck" = "deck"
 ): DeckAnalysisSummary[] {
@@ -234,7 +236,7 @@ export function matrixBand(winRate: number | null): MatrixCell["band"] {
   return "unfavored";
 }
 
-export function buildWinRateMatrix(matches: Match[], myDecks: DeckLike[], opponentDecks: DeckLike[]) {
+export function buildWinRateMatrix(matches: AnalyticsMatch[], myDecks: DeckLike[], opponentDecks: DeckLike[]) {
   const grouped = new Map<string, { total: number; wins: number }>();
 
   for (const match of matches) {

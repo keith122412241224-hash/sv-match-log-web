@@ -3,7 +3,7 @@ import { formatPercent } from "@/lib/utils";
 import { DeckWithClassIcon } from "@/components/ClassIcon";
 import type { DeckAnalysisSummary } from "@/lib/analytics";
 
-export function DeckAnalysisCards({ summaries }: { summaries: DeckAnalysisSummary[] }) {
+export function DeckAnalysisCards({ summaries, combined = false }: { summaries: DeckAnalysisSummary[]; combined?: boolean }) {
   const visible = summaries.filter((summary) => summary.total > 0);
 
   if (visible.length === 0) {
@@ -12,7 +12,7 @@ export function DeckAnalysisCards({ summaries }: { summaries: DeckAnalysisSummar
 
   return (
     <section className="grid gap-3">
-      <h2 className="text-lg font-bold text-ink">使用デッキ別サマリー</h2>
+      <h2 className="text-lg font-bold text-ink">{combined ? "デッキ別サマリー（反転込み）" : "使用デッキ別サマリー"}</h2>
       <div className="grid gap-3 lg:grid-cols-2">
         {visible.map((summary) => {
           const hasMatchups = summary.goodMatchups.length > 0 || summary.badMatchups.length > 0;
@@ -28,8 +28,8 @@ export function DeckAnalysisCards({ summaries }: { summaries: DeckAnalysisSummar
                 {summary.isLowSample ? <span className="rounded bg-amber-100 px-2 py-1 text-xs font-bold text-amber-950">参考値: {LOW_SAMPLE_THRESHOLD - 1}戦以下</span> : null}
               </div>
               <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                <MiniStat label="総試合数" value={`${summary.total}`} />
-                <MiniStat label="勝率" value={formatPercent(summary.winRate)} />
+                <MiniStat label={combined ? "対象件数" : "総試合数"} value={`${summary.total}`} />
+                <MiniStat label={combined ? "環境勝率" : "勝率"} value={formatPercent(summary.winRate)} />
                 <MiniStat label="先攻" value={formatPercent(summary.firstWinRate)} />
                 <MiniStat label="後攻" value={formatPercent(summary.secondWinRate)} />
               </div>
@@ -40,7 +40,7 @@ export function DeckAnalysisCards({ summaries }: { summaries: DeckAnalysisSummar
                 </div>
               ) : null}
               <div className="mt-4">
-                <div className="mb-2 text-xs font-bold text-muted">直近10戦</div>
+                <div className="mb-2 text-xs font-bold text-muted">{combined ? "直近10件（反転込み）" : "直近10戦"}</div>
                 <div className="flex flex-wrap gap-1">
                   {summary.recentResults.map((result, index) => (
                     <span className={result === "win" ? "grid size-7 place-items-center rounded bg-emerald-700 text-xs font-bold text-white" : "grid size-7 place-items-center rounded bg-red-700 text-xs font-bold text-white"} key={`${summary.deck.id}-${index}`}>

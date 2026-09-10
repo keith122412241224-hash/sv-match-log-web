@@ -44,7 +44,7 @@ export function MyDeckWinRateChart({ rows }: { rows: MyDeckWinRateRow[] }) {
   const visible = rows.filter((row) => row.matches > 0).slice(0, 12);
 
   if (visible.length === 0) {
-    return <EmptyReportText>対象期間の使用デッキ戦績がありません。</EmptyReportText>;
+    return <EmptyReportText>対象期間のデッキ戦績がありません。</EmptyReportText>;
   }
 
   return (
@@ -54,8 +54,11 @@ export function MyDeckWinRateChart({ rows }: { rows: MyDeckWinRateRow[] }) {
           <div className="flex items-center justify-between gap-3 text-sm">
             <ReportDeckLabel className={row.className} name={`${row.rank}. ${row.deckName}`} />
             <span className="shrink-0 font-semibold text-muted">
-              {formatPercent(row.winRate)} / {row.matches}戦
+              環境勝率 {formatPercent(row.winRate)} / 対象{row.matches}件
             </span>
+          </div>
+          <div className="text-xs text-muted">
+            直接 {row.direct.matches}件 ({formatPercent(row.direct.winRate)}) / 反転 {row.reversed.matches}件 ({formatPercent(row.reversed.winRate)})
           </div>
           <div className="relative h-8 rounded bg-slate-100">
             <div className="absolute left-1/2 top-0 h-8 w-px bg-slate-500" />
@@ -91,7 +94,8 @@ export function WeeklyReportTables({
         <OpponentRankingChart rows={opponentRows} />
       </ExportableReportBlock>
 
-      <ExportableReportBlock title="使用デッキ別勝率" fileName="period-my-deck-win-rate.png">
+      <ExportableReportBlock title="デッキ別の環境勝率（対戦相手反転込み）" fileName="period-my-deck-win-rate.png">
+        <p className="mb-3 text-xs text-muted">環境勝率 = 使用者側＋対戦相手の勝敗反転。対象件数は視点数で、総登録試合数とは異なります。</p>
         <MyDeckWinRateChart rows={winRateRows} />
       </ExportableReportBlock>
 
@@ -170,7 +174,7 @@ function TierTable({ rows }: { rows: TierCandidateRow[] }) {
                   <div className="text-xs font-semibold text-amber-800">自動Tier候補: {row.suggestedTier}</div>
                 ) : null}
                 <div className="text-xs text-muted">
-                  {row.matches}戦 / 勝率{formatPercent(row.winRate)}
+                  対象{row.matches}件 / 環境勝率{formatPercent(row.winRate)}
                 </div>
                 <div className="text-xs text-muted">
                   遭遇率{formatPercent(row.encounterShare)}（{row.opponentMatches}戦）

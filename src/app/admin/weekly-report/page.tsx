@@ -88,6 +88,11 @@ export default async function AdminWeeklyReportPage({
           <MiniStat label="主要対面" value={`${report.unifiedMatchups.filter((row) => row.totalMatches >= WEEKLY_REPORT_CONFIG.majorMatchupMinMatches).length}`} detail={`${WEEKLY_REPORT_CONFIG.majorMatchupMinMatches}戦以上`} />
         </section>
 
+        <p className="text-sm text-muted">
+          環境勝率は使用者側と対戦相手の勝敗反転を合算しています。総試合数・遭遇率は元の登録戦績で集計します。
+          同デッキ対戦はデッキ別勝率に両視点を含みます。双方から登録された対戦はそれぞれ独立した観測データとして扱います。
+        </p>
+
         {isLowComparisonConfidence ? (
           <section className="rounded-md border border-amber-300 bg-amber-50 p-4 text-amber-950">
             <div className="flex items-start gap-2">
