@@ -1,4 +1,5 @@
 import { DeckAnalysisCards } from "@/components/analysis/DeckAnalysisCards";
+import { ExportableAnalysisBlock } from "@/components/analysis/ExportableAnalysisBlock";
 import { AnalysisFilters, isMatchResult, isTurnOrder } from "@/components/analysis/AnalysisFilters";
 import { AppShell } from "@/components/AppShell";
 import { DeckWithClassIcon } from "@/components/ClassIcon";
@@ -117,25 +118,25 @@ export default async function AnalysisPage({
           勝率集計: {winRateMode === "combined" ? "対戦相手反転込み" : "使用者側のみ"} / 対象登録戦績: {registeredMatches}件。
           {winRateMode === "combined" ? "デッキ・先後・勝敗の条件は集計する側の視点に適用します。各デッキの対象件数は視点数で、同デッキ対戦は両側を含みます。" : ""}
         </p>
-        <DeckAnalysisCards summaries={summaries} combined={winRateMode === "combined"} />
+        <ExportableAnalysisBlock title={winRateMode === "combined" ? "デッキ別サマリー（反転込み）" : "使用デッキ別サマリー"} filename="usage-summary">
+          <div className="p-4">
+            <DeckAnalysisCards summaries={summaries} combined={winRateMode === "combined"} showTitle={false} />
+          </div>
+        </ExportableAnalysisBlock>
 
-        <section className="rounded-md border border-slate-200 bg-white">
-          <h2 className="border-b border-slate-200 px-4 py-3 font-bold text-ink">{winRateMode === "combined" ? "デッキ別の環境勝率" : "使用デッキ別の勝率"}</h2>
+        <ExportableAnalysisBlock title={winRateMode === "combined" ? "デッキ別の環境勝率" : "使用デッキ別の勝率"} filename="deck-winrate">
           <SummaryTable countLabel={winRateMode === "combined" ? "対象件数" : "試合数"} rows={byMyDeck} />
-        </section>
+        </ExportableAnalysisBlock>
 
-        <section className="rounded-md border border-slate-200 bg-white">
-          <h2 className="border-b border-slate-200 px-4 py-3 font-bold text-ink">相手デッキ別の勝率</h2>
+        <ExportableAnalysisBlock title="相手デッキ別の勝率" filename="opponent-winrate">
           <SummaryTable countLabel={winRateMode === "combined" ? "対象件数" : "試合数"} rows={byOpponentDeck} />
-        </section>
+        </ExportableAnalysisBlock>
 
-        <section className="rounded-md border border-slate-200 bg-white">
-          <h2 className="border-b border-slate-200 px-4 py-3 font-bold text-ink">先攻/後攻別の勝率</h2>
+        <ExportableAnalysisBlock title="先攻/後攻別の勝率" filename="turn-order-winrate">
           <SummaryTable countLabel={winRateMode === "combined" ? "対象件数" : "試合数"} rows={byTurn} />
-        </section>
+        </ExportableAnalysisBlock>
 
-        <section className="rounded-md border border-slate-200 bg-white">
-          <h2 className="border-b border-slate-200 px-4 py-3 font-bold text-ink">対面別勝率</h2>
+        <ExportableAnalysisBlock title="対面別勝率" filename="matchup-winrate">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[720px] text-left text-sm">
               <thead className="bg-slate-50 text-muted">
@@ -171,7 +172,7 @@ export default async function AnalysisPage({
               </tbody>
             </table>
           </div>
-        </section>
+        </ExportableAnalysisBlock>
       </div>
     </AppShell>
   );

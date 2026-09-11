@@ -3,7 +3,7 @@ import { formatPercent } from "@/lib/utils";
 import { DeckWithClassIcon } from "@/components/ClassIcon";
 import type { DeckAnalysisSummary } from "@/lib/analytics";
 
-export function DeckAnalysisCards({ summaries, combined = false }: { summaries: DeckAnalysisSummary[]; combined?: boolean }) {
+export function DeckAnalysisCards({ summaries, combined = false, showTitle = true }: { summaries: DeckAnalysisSummary[]; combined?: boolean; showTitle?: boolean }) {
   const visible = summaries.filter((summary) => summary.total > 0);
 
   if (visible.length === 0) {
@@ -12,7 +12,7 @@ export function DeckAnalysisCards({ summaries, combined = false }: { summaries: 
 
   return (
     <section className="grid gap-3">
-      <h2 className="text-lg font-bold text-ink">{combined ? "デッキ別サマリー（反転込み）" : "使用デッキ別サマリー"}</h2>
+      {showTitle ? <h2 className="text-lg font-bold text-ink">{combined ? "デッキ別サマリー（反転込み）" : "使用デッキ別サマリー"}</h2> : null}
       <div className="grid gap-3 lg:grid-cols-2">
         {visible.map((summary) => {
           const hasMatchups = summary.goodMatchups.length > 0 || summary.badMatchups.length > 0;
