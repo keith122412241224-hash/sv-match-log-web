@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 const assert = require('node:assert/strict');
+const { unzipSync } = require('fflate');
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const appPort = 3218;
 const apiPort = 54330;
@@ -89,6 +90,14 @@ const api = http.createServer((req, res) => {
           }),
           images: [...snapshot.querySelectorAll('img')].every(img => img.complete && img.naturalWidth > 0)
         } : null;
+        (window.pageSnapshots ||= []).push(snapshot ? {
+          title: snapshot.querySelector('h2')?.innerText,
+          header: snapshot.querySelector('thead')?.innerText,
+          items: [...snapshot.querySelectorAll(snapshot.querySelector('table') ? 'tbody > tr' : 'article h3')].map(node => node.innerText),
+          counter: snapshot.querySelector('header > span')?.innerText,
+          height: snapshot.getBoundingClientRect().height,
+          clipped: window.lastSnapshot.clipped
+        } : null);
         return window.originalToBlob.apply(this, args);
       };
     });
@@ -173,10 +182,87 @@ const api = http.createServer((req, res) => {
     await page.waitForLoadState('networkidle');
     assert.match(await table.innerText(), /表示できるデータがありません/);
     for (const [title, slug] of blocks) await downloadBlock(title, slug, 'empty');
+
+    // Real large analysis: 576 distinct matchups previously exceeded the 16,000px limit.
+    decks.splice(0, decks.length, ...Array.from({ length: 24 }, (_, i) => ({
+      id: `deck-${i}`, name: `検証デッキ${String(i + 1).padStart(2, '0')}`, class_name: i % 2 ? 'ドラゴン' : 'ネメシス', is_active: true
+    })));
+    records.splice(0, records.length, ...decks.flatMap((mine, i) => decks.map((opponent, j) => ({
+      id: `${i}-${j}`, user_id: user.id, environment_id: 'environment',
+      my_deck_id: mine.id, opponent_deck_id: opponent.id, my_archetype_id: mine.id, opponent_archetype_id: opponent.id,
+      result: i % 2 ? 'win' : 'lose', turn_order: j % 2 ? 'first' : 'second', played_at: '2026-09-05T01:00:00.000Z'
+    }))));
+    await page.goto(`${origin}/analysis`);
+    await page.getByRole('button', { name: '対面別勝率をPNG保存', exact: true }).waitFor();
+    const zipResults = [];
+    async function downloadPages(title, slug, label) {
+      const button = page.getByRole('button', { name: `${title}をPNG保存`, exact: true });
+      const block = page.locator('section').filter({ has: button });
+      const original = await block.evaluate(node => ({
+        items: [...node.querySelectorAll(node.querySelector('table') ? 'tbody > tr' : 'article h3')].map(item => item.innerText),
+        header: node.querySelector('thead')?.innerText, height: node.getBoundingClientRect().height, width: node.getBoundingClientRect().width
+      }));
+      await page.evaluate(() => { window.pageSnapshots = []; });
+      const waiting = page.waitForEvent('download', { timeout: 180000 });
+      await button.click();
+      const download = await waiting;
+      assert.match(download.suggestedFilename(), new RegExp(`^analysis-${slug}-\\d{8}-\\d{6}\\.zip$`));
+      const target = path.join(output, `${label}-${download.suggestedFilename()}`);
+      await download.saveAs(target);
+      const entries = Object.entries(unzipSync(fs.readFileSync(target)));
+      const snapshots = await page.evaluate(() => window.pageSnapshots);
+      assert.ok(entries.length > 1);
+      assert.equal(entries.length, snapshots.length);
+      assert.deepEqual(snapshots.flatMap(s => s.items), original.items, 'Every row/card exactly once, in order');
+      entries.forEach(([name, data], index) => {
+        assert.ok(name.endsWith(`-part-${String(index + 1).padStart(3, '0')}-of-${String(entries.length).padStart(3, '0')}.png`));
+        const png = Buffer.from(data);
+        assert.equal(png.subarray(1, 4).toString(), 'PNG');
+        const width = png.readUInt32BE(16), height = png.readUInt32BE(20);
+        assert.ok(width <= 4096 && height <= 4096 && width * height <= 8000000);
+        assert.equal(snapshots[index].title, title);
+        assert.equal(snapshots[index].header, original.header);
+        assert.equal(snapshots[index].counter, `${index + 1} / ${entries.length}`);
+        assert.ok(snapshots[index].height <= 1600);
+        assert.equal(snapshots[index].clipped, false);
+        if (index === 0 || index === entries.length - 1) fs.writeFileSync(path.join(output, `${label}-${name}`), data);
+      });
+      assert.match(await block.getByRole('status').innerText(), new RegExp(`${entries.length}枚のPNGをZIP`));
+      assert.equal(await page.locator('div[inert] > section').count(), 0);
+      assert.equal(await block.evaluate(node => node.getBoundingClientRect().width), original.width);
+      assert.deepEqual(await block.evaluate(node => [...node.querySelectorAll(node.querySelector('table') ? 'tbody > tr' : 'article h3')].map(item => item.innerText)), original.items);
+      zipResults.push({ label, slug, pages: entries.length, items: original.items.length, originalHeight: original.height });
+    }
+    // Failure on page 2 must not download a partial archive; retry must include everything.
+    await page.evaluate(() => {
+      window.observedToBlob = HTMLCanvasElement.prototype.toBlob;
+      let calls = 0;
+      HTMLCanvasElement.prototype.toBlob = function (...args) {
+        if (++calls === 2) { args[0](null); return; }
+        return window.observedToBlob.apply(this, args);
+      };
+    });
+    let unexpectedDownload = false;
+    const onUnexpectedDownload = () => { unexpectedDownload = true; };
+    page.on('download', onUnexpectedDownload);
+    const matchup = page.locator('section').filter({ has: page.getByRole('heading', { name: '対面別勝率', exact: true }) });
+    await matchup.getByRole('button').click();
+    await matchup.getByRole('alert').waitFor();
+    assert.equal(unexpectedDownload, false);
+    assert.equal(await page.locator('div[inert] > section').count(), 0);
+    page.off('download', onUnexpectedDownload);
+    await page.evaluate(() => { HTMLCanvasElement.prototype.toBlob = window.observedToBlob; });
+    for (const [width, label] of [[1440, 'large-desktop'], [390, 'large-mobile']]) {
+      await page.setViewportSize({ width, height: 1000 });
+      await downloadPages('対面別勝率', 'matchup-winrate', label);
+      await downloadPages('使用デッキ別サマリー', 'usage-summary', label);
+    }
+    fs.writeFileSync(path.join(output, 'pagination-results.json'), JSON.stringify(zipResults, null, 2));
     assert.deepEqual(mutations, []);
     assert.deepEqual(errors, []);
     fs.writeFileSync(path.join(output, 'results.json'), JSON.stringify(results, null, 2));
     console.log(`Passed: ${results.length} PNG downloads; desktop/mobile, Japanese titles/icons, full table width, filters, empty data, failure/retry, opaque pixels, no layout/scroll changes or DB writes.`);
+    console.log('Large ZIP exports passed:', JSON.stringify(zipResults));
   } finally {
     if (browser) await browser.close();
     app.kill();
