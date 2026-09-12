@@ -14,7 +14,7 @@ import { formatJstDateTime, formatPercent, getMostRecentlyCreatedId } from "@/li
 export default async function HomePage({
   searchParams
 }: {
-  searchParams: Promise<{ environment?: string; guest_imported?: string; guest_error?: string }>;
+  searchParams: Promise<{ environment?: string }>;
 }) {
   const user = await getCurrentUser();
 
@@ -26,7 +26,21 @@ export default async function HomePage({
   const selectedEnvironmentId = environments.some((environment) => environment.id === params.environment)
     ? params.environment ?? ""
     : getMostRecentlyCreatedId(environments);
-  const { summary, recent } = await getHomeDashboard(selectedEnvironmentId);
+  let dashboard;
+  try {
+    dashboard = await getHomeDashboard(selectedEnvironmentId);
+  } catch {
+    return (
+      <AppShell>
+        <div className="grid gap-4">
+          <h1 className="text-2xl font-bold text-ink">ホーム</h1>
+          <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">戦績データを取得できませんでした。再度お試しください。</p>
+          <a className="font-semibold text-ink underline" href={selectedEnvironmentId ? `/?environment=${encodeURIComponent(selectedEnvironmentId)}` : "/"}>再読み込み</a>
+        </div>
+      </AppShell>
+    );
+  }
+  const { summary, recent } = dashboard;
   const selectedEnvironmentName = environments.find((environment) => environment.id === selectedEnvironmentId)?.name;
 
   return (
@@ -41,10 +55,7 @@ export default async function HomePage({
 
         <EnvironmentFilter basePath="/" environments={environments} selectedEnvironmentId={selectedEnvironmentId} />
 
-        <GuestImportPrompt
-          importCount={params.guest_imported ? Number(params.guest_imported) : null}
-          importError={params.guest_error}
-        />
+        <GuestImportPrompt />
 
         {summary.total === 0 ? <OnboardingPanel /> : null}
 

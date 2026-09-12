@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import type { StoredGuestMatch } from "@/lib/guest-storage";
+import type { GuestImportResult, StoredGuestMatch } from "@/lib/guest-storage";
 import type { MatchResult, TurnOrder } from "@/types/database";
 
 type CreateMatchResult = {
@@ -170,24 +170,26 @@ export async function createMatchInline(formData: FormData): Promise<CreateMatch
   return saveMatchFromForm(formData, { revalidate: false });
 }
 
-export async function importGuestMatches(formData: FormData) {
+export async function importGuestMatches(formData: FormData): Promise<GuestImportResult> {
   const supabase = await createSupabaseServerClient();
   const user = await requireUser();
   const raw = String(formData.get("guest_matches_json") ?? "");
   const drafts = parseGuestMatches(raw).slice(0, 200);
 
   if (drafts.length === 0) {
-    redirect("/");
+    return { ok: false, importedIds: [], message: "取り込める戦績がありません。端末の戦績は保持しています。" };
   }
 
   const rows = [];
+  const importedIds: string[] = [];
   let skippedCount = 0;
   const environmentIds = Array.from(new Set(drafts.map((draft) => draft.environment_id).filter(Boolean)));
-  const { data: inputEnabledEnvironments } = await supabase
+  const { data: inputEnabledEnvironments, error: environmentError } = await supabase
     .from("environments")
     .select("id")
     .in("id", environmentIds)
     .eq("allow_match_input", true);
+  if (environmentError) return { ok: false, importedIds: [], message: "環境を確認できませんでした。端末の戦績は保持しています。" };
   const inputEnabledEnvironmentIds = new Set((inputEnabledEnvironments ?? []).map((environment) => environment.id));
 
   for (const draft of drafts) {
@@ -218,22 +220,23 @@ export async function importGuestMatches(formData: FormData) {
       opponent_archetype_id: opponentArchetypeId || null,
       turn_order: draft.turn_order,
       result: draft.result,
-      played_at: toValidIsoString(draft.played_at) ?? new Date().toISOString()
+      played_at: toValidIsoString(draft.played_at)!
     });
+    importedIds.push(draft.local_id!);
   }
 
   if (rows.length === 0) {
-    redirect(`/?guest_imported=0&guest_error=${skippedCount > 0 ? "deck_prepare_failed" : "empty"}`);
+    return { ok: false, importedIds: [], message: skippedCount > 0 ? "入力停止中の環境、またはデッキ情報の問題で取り込めません。端末の戦績は保持しています。" : "取り込める戦績がありません。端末の戦績は保持しています。" };
   }
 
   const { error } = await supabase.from("matches").insert(rows);
 
   if (error) {
-    redirect(`/?guest_imported=0&guest_error=${encodeURIComponent(error.message)}`);
+    return { ok: false, importedIds: [], message: "取り込みに失敗しました。端末の戦績は保持しています。" };
   }
 
   revalidatePath("/");
-  redirect(`/?guest_imported=${rows.length}`);
+  return { ok: true, importedIds, message: `${rows.length}件を保存しました。未保存の戦績は端末に保持しています。` };
 }
 
 export async function createDeckSuggestion(formData: FormData) {
@@ -265,17 +268,23 @@ function parseGuestMatches(raw: string): StoredGuestMatch[] {
       return [];
     }
 
+    const seen = new Set<string>();
     return parsed.filter((item): item is StoredGuestMatch => {
-      return (
+      const valid = (
         item &&
         typeof item === "object" &&
         typeof item.environment_id === "string" &&
         typeof item.my_deck_id === "string" &&
         typeof item.opponent_deck_id === "string" &&
-        ["first", "second"].includes(String(item.turn_order)) &&
-        ["win", "lose"].includes(String(item.result)) &&
-        typeof item.played_at === "string"
+        ["first", "second"].includes(item.turn_order) &&
+        ["win", "lose"].includes(item.result) &&
+        typeof item.played_at === "string" && toValidIsoString(item.played_at) !== null &&
+        (item.my_archetype_id == null || typeof item.my_archetype_id === "string") &&
+        (item.opponent_archetype_id == null || typeof item.opponent_archetype_id === "string") &&
+        typeof item.local_id === "string" && item.local_id.length > 0 && !seen.has(item.local_id)
       );
+      if (valid) seen.add(item.local_id);
+      return valid;
     });
   } catch {
     return [];

@@ -216,13 +216,13 @@ test('Tier table and PNG hide Strength Score while adjustment and AI JSON retain
   assert.match(html, /使用側100戦 \/ 相手側100戦/);
   const workspace = renderToStaticMarkup(React.createElement(WeeklyReportAiWorkspace, {
     aiJson: result.aiJson, startDate: period.startDate, endDate: period.endDate,
-    hasApiKey: false, tierOverrides: { A: 'Tier2' }, onTierChange: () => {}
+    hasApiKey: false, tierOverrides: { a: 'Tier2' }, onTierChange: () => {}
   }));
   assert.match(workspace, /Strength Score：97.5/);
   assert.match(workspace, /環境勝率：65%/);
   assert.match(result.aiPrompt, /Tierの前期間比較も両側統合/);
   assert.match(result.aiPrompt, /デッキ評価対象数の合計を総登録試合数にしない/);
-  assert.ok(!('deckId' in payload));
+  assert.equal(payload.deckId, 'a');
 });
 
 test('empty periods remain empty without synthetic candidates', () => {

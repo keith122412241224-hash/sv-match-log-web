@@ -22,14 +22,14 @@ export function WeeklyReportAiWorkspace({
   endDate: string;
   hasApiKey: boolean;
   tierOverrides: Record<string, TierCandidate>;
-  onTierChange: (deckName: string, tier: TierCandidate) => void;
+  onTierChange: (deckId: string, tier: TierCandidate) => void;
 }) {
   const [operatorMemo, setOperatorMemo] = useState("");
 
   const adjustedAiJson = useMemo<WeeklyReportAiJson>(() => {
     const tierCandidates = aiJson.tierCandidates.map((row) => ({
       ...row,
-      finalTier: tierOverrides[row.deckName] ?? row.finalTier
+      finalTier: tierOverrides[row.deckId] ?? row.finalTier
     }));
 
     return {
@@ -48,7 +48,7 @@ export function WeeklyReportAiWorkspace({
         <p className="mt-1 text-sm text-muted">ここで選んだ最終TierはAI用JSONとプロンプトに反映します。DBには保存しません。</p>
         <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
           {aiJson.tierCandidates.map((row) => (
-            <label className="grid gap-1 rounded-md bg-slate-50 p-3 text-sm" key={row.deckName}>
+            <label className="grid gap-1 rounded-md bg-slate-50 p-3 text-sm" key={row.deckId}>
               <span className="font-bold text-ink">{row.deckName}</span>
               <span className="text-xs text-muted">
                 自動Tier候補: {row.suggestedTier}
@@ -70,8 +70,8 @@ export function WeeklyReportAiWorkspace({
               <span className="mt-1 text-xs font-bold text-ink">最終Tier</span>
               <select
                 className="min-h-10 rounded-md border border-slate-300 bg-white px-2"
-                value={tierOverrides[row.deckName] ?? row.finalTier}
-                onChange={(event) => onTierChange(row.deckName, event.target.value as TierCandidate)}
+                value={tierOverrides[row.deckId] ?? row.finalTier}
+                onChange={(event) => onTierChange(row.deckId, event.target.value as TierCandidate)}
               >
                 {tierOptions.map((tier) => (
                   <option key={tier} value={tier}>

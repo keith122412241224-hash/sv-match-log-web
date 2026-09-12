@@ -164,7 +164,7 @@ export type WeeklyReportAiJson = {
   tierCandidates: Array<
     Omit<
       TierCandidateRow,
-      "deckId" | "metaPresence" | "reasons"
+      "metaPresence" | "reasons"
     >
   >;
   matchups: Omit<UnifiedMatchupRow, "deckAId" | "deckBId">[];
@@ -778,8 +778,9 @@ function omitMyDeckId(row: MyDeckWinRateRow): Omit<MyDeckWinRateRow, "deckId"> {
 
 function omitTierInternalFields(
   row: TierCandidateRow
-): Omit<TierCandidateRow, "deckId" | "metaPresence" | "reasons"> {
+): Omit<TierCandidateRow, "metaPresence" | "reasons"> {
   return {
+    deckId: row.deckId,
     deckName: row.deckName,
     className: row.className,
     suggestedTier: row.suggestedTier,

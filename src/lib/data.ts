@@ -151,28 +151,47 @@ export async function getRecentMatchesWithRelations(environmentId?: string, limi
     query = query.eq("environment_id", environmentId);
   }
 
-  const { data } = await query;
-
-  return (data ?? []) as unknown as RecentMatchWithRelations[];
+  const { data, error } = await query;
+  if (error || !Array.isArray(data)) {
+    logHomeDataFailure("recent", error, false);
+    throw new Error("戦績データを取得できませんでした。");
+  }
+  return data as unknown as RecentMatchWithRelations[];
 }
 
 export async function getHomeDashboard(environmentId?: string, limit = 10): Promise<HomeDashboardData> {
   const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase.rpc("get_home_dashboard", {
-    p_environment_id: environmentId || null,
-    p_limit: limit
-  });
-
-  if (!error && isHomeDashboardData(data)) {
-    return data;
+  try {
+    const { data, error } = await supabase.rpc("get_home_dashboard", {
+      p_environment_id: environmentId || null,
+      p_limit: limit
+    });
+    if (!error && isHomeDashboardData(data)) return data;
+    logHomeDataFailure("rpc", error, true);
+  } catch (error) {
+    logHomeDataFailure("rpc", error, true);
   }
 
-  const [summary, recent] = await Promise.all([
-    getMatchSummaryStats(environmentId),
-    getRecentMatchesWithRelations(environmentId, limit)
-  ]);
+  try {
+    const [summary, recent] = await Promise.all([
+      getMatchSummaryStats(environmentId),
+      getRecentMatchesWithRelations(environmentId, limit)
+    ]);
+    return { summary, recent };
+  } catch (error) {
+    logHomeDataFailure("fallback", error, false);
+    throw new Error("戦績データを取得できませんでした。");
+  }
+}
 
-  return { summary, recent };
+function logHomeDataFailure(operation: "rpc" | "count" | "recent" | "fallback", error: unknown, fallback: boolean) {
+  const code = error && typeof error === "object" && "code" in error ? error.code : null;
+  // Never log raw DB messages, query contents, identities, tokens or records.
+  console.warn("[home-dashboard]", {
+    operation,
+    code: typeof code === "string" && /^[A-Z0-9_]{1,32}$/.test(code) ? code : "UNAVAILABLE",
+    outcome: fallback ? "using_fallback" : "fetch_failed"
+  });
 }
 
 export async function getMatchSummaryStats(environmentId?: string): Promise<MatchSummaryStats> {
@@ -206,7 +225,11 @@ export async function getMatchSummaryStats(environmentId?: string): Promise<Matc
     }
 
     const { count, error } = await query;
-    return error ? 0 : count ?? 0;
+    if (error || typeof count !== "number" || !Number.isSafeInteger(count) || count < 0) {
+      logHomeDataFailure("count", error, false);
+      throw new Error("戦績データを取得できませんでした。");
+    }
+    return count;
   }
 
   const [firstTotal, firstWins, secondTotal, secondWins] = await Promise.all([
@@ -233,7 +256,11 @@ function isHomeDashboardData(value: unknown): value is HomeDashboardData {
   }
 
   const dashboard = value as Partial<HomeDashboardData>;
-  return Boolean(dashboard.summary && Array.isArray(dashboard.recent));
+  const summary = dashboard.summary;
+  return Boolean(summary && Array.isArray(dashboard.recent)
+    && Number.isSafeInteger(summary.total) && summary.total >= 0
+    && Number.isSafeInteger(summary.wins) && summary.wins >= 0 && summary.wins <= summary.total
+    && [summary.winRate, summary.firstWinRate, summary.secondWinRate].every(rate => rate === null || (typeof rate === "number" && Number.isFinite(rate) && rate >= 0 && rate <= 100)));
 }
 
 export const getEnvironments = cache(async () => {

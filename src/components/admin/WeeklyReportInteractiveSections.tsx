@@ -39,7 +39,7 @@ export function WeeklyReportInteractiveSections({
     () =>
       tierRows.map((row) => ({
         ...row,
-        finalTier: tierOverrides[row.deckName] ?? row.finalTier
+        finalTier: tierOverrides[row.deckId] ?? row.finalTier
       })),
     [tierOverrides, tierRows]
   );
@@ -60,10 +60,10 @@ export function WeeklyReportInteractiveSections({
         endDate={endDate}
         hasApiKey={hasApiKey}
         tierOverrides={tierOverrides}
-        onTierChange={(deckName, tier) =>
+        onTierChange={(deckId, tier) =>
           setTierOverrides((current) => ({
             ...current,
-            [deckName]: tier
+            [deckId]: tier
           }))
         }
       />

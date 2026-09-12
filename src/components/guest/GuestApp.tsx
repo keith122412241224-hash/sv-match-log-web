@@ -65,7 +65,7 @@ export function GuestApp({
     const createdAt = new Date().toISOString();
     setMatches((current) => {
       const nextMatch = {
-        id: `guest-match-${createdAt}-${current.length}`,
+        id: crypto.randomUUID(),
         user_id: "guest-user",
         environment_id: draft.environment_id,
         my_deck_id: draft.my_deck_id,
@@ -181,6 +181,7 @@ export function GuestApp({
 
 function toStoredGuestMatch(match: Match): StoredGuestMatch {
   return {
+    local_id: match.id,
     environment_id: match.environment_id,
     my_deck_id: match.my_deck_id,
     opponent_deck_id: match.opponent_deck_id,
@@ -192,10 +193,10 @@ function toStoredGuestMatch(match: Match): StoredGuestMatch {
   };
 }
 
-function toGuestMatch(match: StoredGuestMatch, index: number): Match {
+function toGuestMatch(match: StoredGuestMatch): Match {
   const createdAt = new Date().toISOString();
   return {
-    id: `guest-match-restored-${index}`,
+    id: match.local_id || crypto.randomUUID(),
     user_id: "guest-user",
     environment_id: match.environment_id,
     my_deck_id: match.my_deck_id,
