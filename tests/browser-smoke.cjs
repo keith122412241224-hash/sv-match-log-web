@@ -108,8 +108,9 @@ const api = http.createServer((req, res) => {
       assert.match(await area.innerText(), /評価対象：20戦/);
       assert.match(await area.innerText(), /使用側10戦 \/ 相手側10戦/);
       assert.match(await area.innerText(), /環境勝率：60%/);
-      assert.match(await area.innerText(), /Strength Score：81.5/);
     }
+    assert.doesNotMatch(await tierBlock.innerText(), /Strength Score/);
+    assert.match(await adjustment.innerText(), /Strength Score：81.5/);
     assert.match(await page.locator('main').innerText(), /登録試合数\s+20/);
     await page.screenshot({ path: path.join(output, 'report-mobile.png'), fullPage: true });
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));

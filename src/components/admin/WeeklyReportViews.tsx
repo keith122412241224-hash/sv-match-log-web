@@ -104,7 +104,7 @@ export function WeeklyReportTables({
       </ExportableReportBlock>
 
       <ExportableReportBlock title="Tier候補" fileName="period-tier-candidates.png">
-        <p className="mb-3 text-xs text-muted">評価対象は使用側と相手側を統合したデッキ視点の試合数です（ミラー除外）。環境勝率・Strength Scoreも同じ対象から算出します。</p>
+        <p className="mb-3 text-xs text-muted">評価対象は使用側と相手側を統合したデッキ視点の試合数です（ミラー除外）。環境勝率も同じ対象から算出します。</p>
         <TierTable rows={tierRows} />
       </ExportableReportBlock>
 
@@ -188,9 +188,6 @@ function TierTable({ rows }: { rows: TierCandidateRow[] }) {
                 </div>
                 <div className="text-xs text-muted">
                   主要対面勝率{formatPercent(row.weightedMajorMatchupWinRate)}
-                </div>
-                <div className="text-xs font-semibold text-ink">
-                  Strength Score：{(Math.round(row.strengthScore * 10) / 10).toFixed(1)}
                 </div>
                 {row.warnings.length > 0 ? (
                   <div className="mt-1 flex items-center gap-1 text-xs font-semibold text-amber-800">

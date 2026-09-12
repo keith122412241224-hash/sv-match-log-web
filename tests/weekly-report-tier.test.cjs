@@ -200,7 +200,7 @@ test('published environment rankings, encounter counts and shared analytics pres
   assert.equal(matrix[0].cells[1].winRate, 60);
 });
 
-test('UI, PNG content and AI JSON carry integrated counts, rates and Strength Score', () => {
+test('Tier table and PNG hide Strength Score while adjustment and AI JSON retain it', () => {
   const result = report([...games('a', 'b', 100, 60), ...games('b', 'a', 100, 30)]);
   const payload = result.aiJson.tierCandidates.find((row) => row.deckName === 'A');
   assert.deepEqual([payload.matches, payload.directMatches, payload.reversedMatches, payload.winRate, payload.strengthScore], [200, 100, 100, 65, 97.5]);
@@ -212,7 +212,7 @@ test('UI, PNG content and AI JSON carry integrated counts, rates and Strength Sc
   }));
   assert.match(html, /評価対象：200戦/);
   assert.match(html, /環境勝率：65%/);
-  assert.match(html, /Strength Score：97.5/);
+  assert.doesNotMatch(html, /Strength Score/);
   assert.match(html, /使用側100戦 \/ 相手側100戦/);
   const workspace = renderToStaticMarkup(React.createElement(WeeklyReportAiWorkspace, {
     aiJson: result.aiJson, startDate: period.startDate, endDate: period.endDate,
