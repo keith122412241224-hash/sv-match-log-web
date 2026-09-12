@@ -54,7 +54,10 @@ export function WeeklyReportAiWorkspace({
                 自動Tier候補: {row.suggestedTier}
               </span>
               <span className="text-xs text-muted">
-                対象{row.matches}件 / 環境勝率{formatPercent(row.winRate)}
+                評価対象：{row.matches}戦（使用側{row.directMatches}戦 / 相手側{row.reversedMatches}戦・ミラー除外）
+              </span>
+              <span className="text-xs text-muted">
+                環境勝率：{formatPercent(row.winRate)}
               </span>
               <span className="text-xs text-muted">
                 遭遇率{formatPercent(row.encounterShare)}（{row.opponentMatches}戦）
@@ -62,6 +65,7 @@ export function WeeklyReportAiWorkspace({
               <span className="text-xs text-muted">
                 主要対面勝率{formatPercent(row.weightedMajorMatchupWinRate)}
               </span>
+              <span className="text-xs font-semibold text-ink">Strength Score：{(Math.round(row.strengthScore * 10) / 10).toFixed(1)}</span>
               {row.warnings.length > 0 ? <span className="text-xs font-semibold text-amber-800">{row.warnings.join(" / ")}</span> : null}
               <span className="mt-1 text-xs font-bold text-ink">最終Tier</span>
               <select

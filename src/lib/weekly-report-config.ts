@@ -21,6 +21,7 @@ export const WEEKLY_REPORT_CONFIG = {
     tier15WinRate: 53,
     tier2WinRate: 50,
     holdDivergencePoints: 25,
+    divergenceMinMatchesPerSide: 20,
     strengthWeights: {
       winRate: 0.45,
       majorMatchup: 0.35,

@@ -9,7 +9,7 @@ import {
   type TierCandidate
 } from "@/lib/weekly-report-config";
 import { calculateWinRate } from "@/lib/analytics";
-import { summarizeDeckPerspectives, type DeckPerspectives } from "@/lib/match-perspectives";
+import { emptyPerspectiveStats, summarizeDeckPerspectives, type DeckPerspectives } from "@/lib/match-perspectives";
 import type { DeckArchetype, Match } from "@/types/database";
 
 export type WeeklyReportPeriod = {
@@ -82,6 +82,14 @@ export type TierCandidateRow = {
   finalTier: TierCandidate;
   matches: number;
   winRate: number | null;
+  directMatches: number;
+  reversedMatches: number;
+  directWinRate: number | null;
+  reversedWinRate: number | null;
+  previousMatches: number;
+  previousWinRate: number | null;
+  winRateChange: number | null;
+  isWinRateComparisonReliable: boolean;
   opponentMatches: number;
   encounterShare: number;
   majorMatchupWinRate: number | null;
@@ -156,7 +164,7 @@ export type WeeklyReportAiJson = {
   tierCandidates: Array<
     Omit<
       TierCandidateRow,
-      "deckId" | "strengthScore" | "metaPresence" | "reasons"
+      "deckId" | "metaPresence" | "reasons"
     >
   >;
   matchups: Omit<UnifiedMatchupRow, "deckAId" | "deckBId">[];
@@ -223,7 +231,8 @@ export function buildWeeklyReport(matches: WeeklyMatch[], previousMatches: Weekl
   const opponentDeckRanking = buildOpponentDeckRanking(matches, previousMatches, deckInfo, comparisonConfidence);
   const myDeckWinRates = buildMyDeckWinRates(matches, previousMatches, deckInfo);
   const unifiedMatchups = buildUnifiedMatchups(matches, previousMatches, deckInfo);
-  const tierCandidates = buildTierCandidates(myDeckWinRates, opponentDeckRanking, unifiedMatchups);
+  const tierWinRates = buildMyDeckWinRates(matches, previousMatches, deckInfo, true);
+  const tierCandidates = buildTierCandidates(tierWinRates, opponentDeckRanking, unifiedMatchups);
   const correlation = buildCorrelation(unifiedMatchups);
   const changes = buildChanges(opponentDeckRanking, myDeckWinRates, unifiedMatchups, comparisonConfidence);
   const aiJson = buildAiJson({
@@ -333,9 +342,26 @@ function rankedCountRows(counts: Map<string, number>, totalMatches: number, deck
     .map((row, index) => ({ ...row, rank: index + 1 }));
 }
 
-function buildMyDeckWinRates(matches: WeeklyMatch[], previousMatches: WeeklyMatch[], deckInfo: Map<string, DeckInfo>): MyDeckWinRateRow[] {
-  const current = summarizeDeckPerspectives(matches);
-  const previous = new Map([...summarizeDeckPerspectives(previousMatches)].map(([id, row]) => [id, row.combined]));
+function buildMyDeckWinRates(matches: WeeklyMatch[], previousMatches: WeeklyMatch[], deckInfo: Map<string, DeckInfo>, forTier = false): MyDeckWinRateRow[] {
+  // Tier excludes mirrors; the existing environment ranking keeps both mirror
+  // perspectives. The shared reversal implementation itself is unchanged.
+  const eligible = (rows: WeeklyMatch[]) => forTier ? rows.filter((match) => {
+    const myId = getMyDeckId(match);
+    const opponentId = getOpponentDeckId(match);
+    return myId && opponentId && myId !== opponentId;
+  }) : rows;
+  const current = summarizeDeckPerspectives(eligible(matches));
+  const previous = new Map([...summarizeDeckPerspectives(eligible(previousMatches))].map(([id, row]) => [id, row.combined]));
+  if (forTier) {
+    // Keep mirror-only decks visible with zero evaluation samples.
+    for (const match of matches) {
+      for (const id of [getMyDeckId(match), getOpponentDeckId(match)]) {
+        if (id && !current.has(id)) current.set(id, {
+          direct: emptyPerspectiveStats(), reversed: emptyPerspectiveStats(), combined: emptyPerspectiveStats()
+        });
+      }
+    }
+  }
   const previousWinRate = new Map([...previous.entries()].map(([deckId, value]) => [deckId, value.winRate]));
 
   return [...current.entries()]
@@ -461,14 +487,22 @@ function buildTierCandidates(
       warnings.push("参考値");
     }
 
-    if (row.direct.winRate !== null && row.reversed.winRate !== null && Math.abs(row.direct.winRate - row.reversed.winRate) >= WEEKLY_REPORT_CONFIG.tier.holdDivergencePoints) {
+    if (
+      row.direct.matches >= WEEKLY_REPORT_CONFIG.tier.divergenceMinMatchesPerSide &&
+      row.reversed.matches >= WEEKLY_REPORT_CONFIG.tier.divergenceMinMatchesPerSide &&
+      row.direct.winRate !== null && row.reversed.winRate !== null &&
+      // Compare integer win counts to keep the inclusive 25pt boundary exact.
+      Math.abs(row.direct.wins * row.reversed.matches - row.reversed.wins * row.direct.matches) * 100 >=
+        WEEKLY_REPORT_CONFIG.tier.holdDivergencePoints * row.direct.matches * row.reversed.matches
+    ) {
       warnings.push("データ乖離あり");
+      reasons.push(`登録側の偏りに注意: direct ${row.direct.matches}戦・${formatNumber(row.direct.winRate)}% / reversed ${row.reversed.matches}戦・${formatNumber(row.reversed.winRate)}%`);
     }
 
     const strengthScore = calculateStrengthScore(row, majorMatchupWinRate);
     const metaPresence = getMetaPresence(encounter?.share ?? 0);
     const suggestedTier = suggestTier(row, strengthScore, warnings);
-    reasons.push(`対象${row.matches}件で環境勝率${formatNumber(row.winRate)}%（直接${row.direct.matches}件 / 反転${row.reversed.matches}件）`);
+    reasons.push(`評価対象${row.matches}戦（direct ${row.direct.matches}戦 + reversed ${row.reversed.matches}戦・ミラー除外）で環境勝率${formatNumber(row.winRate)}%`);
     reasons.push(`遭遇率${formatNumber(encounter?.share ?? 0)}%（${encounter?.matches ?? 0}戦）`);
 
     if (majorMatchupWinRate !== null) {
@@ -487,6 +521,14 @@ function buildTierCandidates(
       finalTier: suggestedTier,
       matches: row.matches,
       winRate: row.winRate,
+      directMatches: row.direct.matches,
+      reversedMatches: row.reversed.matches,
+      directWinRate: row.direct.winRate,
+      reversedWinRate: row.reversed.winRate,
+      previousMatches: row.previousMatches,
+      previousWinRate: row.previousWinRate,
+      winRateChange: row.winRateChange,
+      isWinRateComparisonReliable: row.isWinRateComparisonReliable,
       opponentMatches: encounter?.matches ?? 0,
       encounterShare: encounter?.share ?? 0,
       majorMatchupWinRate,
@@ -685,6 +727,8 @@ function buildAiJson(input: {
       "myDeckWinRatesのwinRateとenvironmentWinRateは、direct（使用者側）とreversed（相手側の勝敗反転）を合算したcombinedの環境勝率です。",
       "デッキ別matchesは勝率の対象視点数です。総登録試合数totalMatchesと遭遇率は元の登録戦績から計算し、反転によって倍増させません。",
       "同デッキ対戦はデッキ別勝率に直接・反転の両視点を含みます。対面相性と相関図は異なるデッキの対戦を双方の登録方向から一度ずつ集計しています。",
+      "Tier候補の環境勝率・評価対象数・前期間比較は、ミラーを除いたdirect + reversedの統合データです。相手側の勝敗は対象デッキ視点に反転しています。",
+      `データ乖離ありはdirect・reversedがそれぞれ${WEEKLY_REPORT_CONFIG.tier.divergenceMinMatchesPerSide}戦以上かつ勝率差${WEEKLY_REPORT_CONFIG.tier.holdDivergencePoints}ポイント以上の場合です。登録側の偏りを示す注意信号で、データ異常の断定ではありません。`,
       "個人ユーザーを識別できる情報と生の戦績行は含めていません。",
       "同一試合が双方のユーザーから登録された場合の二重計上は、現在のDB構造だけでは自動判定できません。",
       "AI用JSONは記事生成用に軽量化しており、サンプル不足の大量デッキは除外しています。"
@@ -734,7 +778,7 @@ function omitMyDeckId(row: MyDeckWinRateRow): Omit<MyDeckWinRateRow, "deckId"> {
 
 function omitTierInternalFields(
   row: TierCandidateRow
-): Omit<TierCandidateRow, "deckId" | "strengthScore" | "metaPresence" | "reasons"> {
+): Omit<TierCandidateRow, "deckId" | "metaPresence" | "reasons"> {
   return {
     deckName: row.deckName,
     className: row.className,
@@ -742,6 +786,15 @@ function omitTierInternalFields(
     finalTier: row.finalTier,
     matches: row.matches,
     winRate: row.winRate,
+    directMatches: row.directMatches,
+    reversedMatches: row.reversedMatches,
+    directWinRate: row.directWinRate,
+    reversedWinRate: row.reversedWinRate,
+    previousMatches: row.previousMatches,
+    previousWinRate: row.previousWinRate,
+    winRateChange: row.winRateChange,
+    isWinRateComparisonReliable: row.isWinRateComparisonReliable,
+    strengthScore: row.strengthScore,
     opponentMatches: row.opponentMatches,
     encounterShare: row.encounterShare,
     majorMatchupWinRate: row.majorMatchupWinRate,
@@ -807,6 +860,10 @@ Shadowverse: Worlds Beyond の
 【Tier】
 
 ・Tierは自動集計・管理者調整による暫定評価である
+・tierCandidatesのwinRateはミラー除外の両側統合勝率、matchesはそのデッキの評価対象数である
+・Tierの前期間比較も両側統合・ミラー除外基準である。ミラーを含むmyDeckWinRatesと混同しない
+・summary.totalMatchesは元の登録試合数である。デッキ評価対象数の合計を総登録試合数にしない
+・データ乖離ありは登録側の偏りへの注意であり、データ異常と断定しない
 ・遭遇率が高いことだけをデッキの強さの根拠にしない
 ・Tierと環境存在感を区別する
 ・Tierと環境での多さを区別する

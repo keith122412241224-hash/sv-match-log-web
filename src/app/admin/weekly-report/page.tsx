@@ -82,7 +82,7 @@ export default async function AdminWeeklyReportPage({
         </section>
 
         <section className="grid gap-3 md:grid-cols-4">
-          <MiniStat label="総試合数" value={`${report.totalMatches}`} detail={`前期間 ${report.previousTotalMatches}戦`} />
+          <MiniStat label="登録試合数" value={`${report.totalMatches}`} detail={`前期間 ${report.previousTotalMatches}戦`} />
           <MiniStat label="前期間比" value={`${report.totalMatches - report.previousTotalMatches > 0 ? "+" : ""}${report.totalMatches - report.previousTotalMatches}`} detail="試合数差分" />
           <MiniStat label="期間比較信頼度" value={report.comparisonConfidence.toUpperCase()} detail={isLowComparisonConfidence ? "前期間比較は参考値" : "通常比較"} />
           <MiniStat label="主要対面" value={`${report.unifiedMatchups.filter((row) => row.totalMatches >= WEEKLY_REPORT_CONFIG.majorMatchupMinMatches).length}`} detail={`${WEEKLY_REPORT_CONFIG.majorMatchupMinMatches}戦以上`} />
@@ -91,6 +91,7 @@ export default async function AdminWeeklyReportPage({
         <p className="text-sm text-muted">
           環境勝率は使用者側と対戦相手の勝敗反転を合算しています。総試合数・遭遇率は元の登録戦績で集計します。
           同デッキ対戦はデッキ別勝率に両視点を含みます。双方から登録された対戦はそれぞれ独立した観測データとして扱います。
+          Tier評価ではミラーを除外し、今期・前期とも同じ両側統合基準で評価します。
         </p>
 
         {isLowComparisonConfidence ? (

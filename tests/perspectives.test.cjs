@@ -116,7 +116,7 @@ test('empty input, legacy IDs and direct/reversed divergence', () => {
   assert.deepEqual(report([]).myDeckWinRates, []);
   const legacy = summarizeDeckPerspectives([match('A', 'B', 'win', { my_archetype_id: null, opponent_archetype_id: null })]);
   assert.equal(legacy.get('B').reversed.losses, 1);
-  const data = report([...Array.from({ length: 10 }, () => match()), ...Array.from({ length: 10 }, () => match('B', 'A'))]);
+  const data = report([...Array.from({ length: 20 }, () => match()), ...Array.from({ length: 20 }, () => match('B', 'A'))]);
   const tier = data.tierCandidates.find(row => row.deckId === 'A');
   assert.ok(tier.warnings.includes('データ乖離あり'));
   assert.equal(tier.suggestedTier, '評価保留');

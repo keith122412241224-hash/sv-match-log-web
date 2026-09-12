@@ -97,6 +97,20 @@ const api = http.createServer((req, res) => {
     const json = JSON.parse(await page.locator('textarea[readonly]').first().inputValue());
     assert.equal(json.summary.totalMatches, 20);
     assert.equal(json.myDeckWinRates.find(row => row.deckName === 'AFネメシス').environmentWinRate, 60);
+    const tier = json.tierCandidates.find(row => row.deckName === 'AFネメシス');
+    assert.deepEqual([tier.matches, tier.directMatches, tier.reversedMatches, tier.winRate, tier.strengthScore, tier.suggestedTier], [20, 10, 10, 60, 81.5, 'Tier1']);
+    assert.equal(tier.previousMatches, 0);
+    assert.equal(tier.previousWinRate, null);
+    assert.equal(tier.isWinRateComparisonReliable, false);
+    const tierBlock = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Tier候補', exact: true }) });
+    const adjustment = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Tier手動調整', exact: true }) });
+    for (const area of [tierBlock, adjustment]) {
+      assert.match(await area.innerText(), /評価対象：20戦/);
+      assert.match(await area.innerText(), /使用側10戦 \/ 相手側10戦/);
+      assert.match(await area.innerText(), /環境勝率：60%/);
+      assert.match(await area.innerText(), /Strength Score：81.5/);
+    }
+    assert.match(await page.locator('main').innerText(), /登録試合数\s+20/);
     await page.screenshot({ path: path.join(output, 'report-mobile.png'), fullPage: true });
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     await page.setViewportSize({ width: 1440, height: 1000 });
@@ -108,11 +122,24 @@ const api = http.createServer((req, res) => {
     const download = await downloadPromise;
     await download.saveAs(path.join(output, download.suggestedFilename()));
     assert.ok(fs.statSync(path.join(output, download.suggestedFilename())).size > 1000);
+    const control = adjustment.locator('label').filter({ hasText: 'AFネメシス' });
+    await control.locator('select').selectOption('Tier2');
+    assert.match(await tierBlock.innerText(), /自動Tier候補: Tier1/);
+    const adjustedJson = JSON.parse(await page.locator('textarea[readonly]').first().inputValue());
+    assert.equal(adjustedJson.tierCandidates.find(row => row.deckName === 'AFネメシス').finalTier, 'Tier2');
+    const tierDownloadPromise = page.waitForEvent('download');
+    await tierBlock.getByRole('button', { name: 'PNG', exact: true }).click();
+    const tierDownload = await tierDownloadPromise;
+    const tierPath = path.join(output, tierDownload.suggestedFilename());
+    await tierDownload.saveAs(tierPath);
+    assert.ok(fs.statSync(tierPath).size > 1000);
+    assert.equal(fs.readFileSync(tierPath).subarray(1, 4).toString(), 'PNG');
+    await tierBlock.screenshot({ path: path.join(output, 'tier-desktop.png') });
     await page.getByRole('button', { name: 'AI用プロンプトをコピー', exact: true }).click();
     assert.match(await page.evaluate(() => navigator.clipboard.readText()), /総登録試合数として合計しない/);
     assert.deepEqual(mutations, []);
     assert.deepEqual(errors, []);
-    console.log('Browser checks passed: scope/mode/filter, mobile layout, report JSON, PNG download, prompt clipboard; no DB writes or browser errors.');
+    console.log('Browser checks passed: scope/mode/filter, mobile layout, report JSON, Tier counts/rates/score, manual Tier adjustment, actual Tier PNG download, prompt clipboard; no DB writes or browser errors.');
   } finally {
     if (browser) await browser.close();
     app.kill();
