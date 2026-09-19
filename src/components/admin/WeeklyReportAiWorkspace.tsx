@@ -3,12 +3,13 @@
 import { useMemo, useState } from "react";
 import { CopyButton } from "@/components/admin/WeeklyReportClientTools";
 import { WeeklyReportAiForm } from "@/components/admin/WeeklyReportAiForm";
-import { buildWeeklyReportPrompt, type WeeklyReportAiJson } from "@/lib/weekly-report";
+import { buildWeeklyReportPrompt, type TierCandidateRow, type WeeklyReportAiJson } from "@/lib/weekly-report";
 import { formatPercent } from "@/lib/utils";
 import { TIER_OPTIONS, type TierCandidate } from "@/lib/weekly-report-config";
 
 export function WeeklyReportAiWorkspace({
   aiJson,
+  tierRows,
   startDate,
   endDate,
   hasApiKey,
@@ -16,6 +17,7 @@ export function WeeklyReportAiWorkspace({
   onTierChange
 }: {
   aiJson: WeeklyReportAiJson;
+  tierRows: TierCandidateRow[];
   startDate: string;
   endDate: string;
   hasApiKey: boolean;
@@ -46,7 +48,7 @@ export function WeeklyReportAiWorkspace({
         <p className="mt-1 text-sm text-muted">ここで選んだ最終TierはAI用JSONとプロンプトに反映します。DBには保存しません。</p>
         <p className="mt-1 text-sm text-muted">「評価保留」を選ぶとTier候補とPNGには表示されません。データは保持され、Tier1〜Tier4を選ぶと再表示できます。</p>
         <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-          {aiJson.tierCandidates.map((row) => (
+          {tierRows.map((row) => (
             <label className="grid gap-1 rounded-md bg-slate-50 p-3 text-sm" key={row.deckId}>
               <span className="font-bold text-ink">{row.deckName}</span>
               <span className="text-xs text-muted">

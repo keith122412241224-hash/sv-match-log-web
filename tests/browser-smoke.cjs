@@ -77,6 +77,16 @@ const api = http.createServer((req, res) => {
     await page.goto(`${origin}/analysis?scope=all`);
     await page.getByText('勝率集計: 対戦相手反転込み', { exact: false }).waitFor();
     assert.match(await page.locator('main').innerText(), /対象登録戦績: 20件/);
+    assert.equal(await page.getByLabel('開始日時の時刻（日本時間）', { exact: true }).inputValue(), '00:00');
+    assert.equal(await page.getByLabel('終了日時の時刻（日本時間）', { exact: true }).inputValue(), '23:59');
+    await page.getByLabel('開始日時の日付', { exact: true }).fill('2026-09-05');
+    await page.getByLabel('終了日時の日付', { exact: true }).fill('2026-09-05');
+    await Promise.all([page.waitForURL(/playedFrom=/), page.getByRole('button', { name: '表示', exact: true }).click()]);
+    const dateParams = new URL(page.url()).searchParams;
+    assert.equal(dateParams.get('playedFrom'), '2026-09-05T00:00');
+    assert.equal(dateParams.get('playedTo'), '2026-09-05T23:59');
+    await page.waitForLoadState('networkidle');
+    assert.match(await page.locator('main').innerText(), /対象登録戦績: 20件/);
     const card = page.locator('article').filter({ has: page.locator('h3').filter({ hasText: 'AFネメシス' }) });
     assert.match(await card.innerText(), /60%/);
     await page.screenshot({ path: path.join(output, 'analysis-desktop.png'), fullPage: true });
@@ -98,7 +108,8 @@ const api = http.createServer((req, res) => {
     assert.equal(json.summary.totalMatches, 20);
     assert.equal(json.myDeckWinRates.find(row => row.deckName === 'AFネメシス').environmentWinRate, 60);
     const tier = json.tierCandidates.find(row => row.deckName === 'AFネメシス');
-    assert.deepEqual([tier.matches, tier.directMatches, tier.reversedMatches, tier.winRate, tier.strengthScore, tier.suggestedTier], [20, 10, 10, 60, 81.5, 'Tier1']);
+    assert.deepEqual([tier.matches, tier.directMatches, tier.reversedMatches, tier.winRate, tier.suggestedTier], [20, 10, 10, 60, 'Tier1']);
+    assert.doesNotMatch(JSON.stringify(json), /"(?:shareChange|winRateChange|deckAWinRateChange|strengthScore|metaPresence)":/);
     assert.equal(tier.previousMatches, 0);
     assert.equal(tier.previousWinRate, null);
     assert.equal(tier.isWinRateComparisonReliable, false);
@@ -163,6 +174,7 @@ const api = http.createServer((req, res) => {
     await tierBlock.screenshot({ path: path.join(output, 'tier-desktop.png') });
     await page.getByRole('button', { name: 'AI用プロンプトをコピー', exact: true }).click();
     assert.match(await page.evaluate(() => navigator.clipboard.readText()), /総登録試合数として合計しない/);
+    assert.match(await page.evaluate(() => navigator.clipboard.readText()), /ptやポイント差を使わず/);
     assert.deepEqual(mutations, []);
     assert.deepEqual(errors, []);
     console.log('Browser checks passed: scope/mode/filter, mobile layout, report JSON, Tier counts/rates/score, manual Tier adjustment, actual Tier PNG download, prompt clipboard; no DB writes or browser errors.');

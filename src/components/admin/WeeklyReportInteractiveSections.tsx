@@ -56,6 +56,7 @@ export function WeeklyReportInteractiveSections({
 
       <WeeklyReportAiWorkspace
         aiJson={aiJson}
+        tierRows={tierRows}
         startDate={startDate}
         endDate={endDate}
         hasApiKey={hasApiKey}

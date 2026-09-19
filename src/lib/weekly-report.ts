@@ -151,23 +151,23 @@ export type WeeklyReportAiJson = {
     comparisonConfidence: ComparisonConfidence;
     dataQualityWarnings: string[];
   };
-  opponentDeckRanking: Omit<OpponentDeckRankingRow, "deckId">[];
-  myDeckWinRates: Omit<MyDeckWinRateRow, "deckId">[];
+  opponentDeckRanking: Omit<OpponentDeckRankingRow, "deckId" | "shareChange">[];
+  myDeckWinRates: Omit<MyDeckWinRateRow, "deckId" | "winRateChange">[];
   changes: {
-    encounterShareUp: Pick<OpponentDeckRankingRow, "deckName" | "matches" | "share" | "shareChange" | "confidence">[];
-    encounterShareDown: Pick<OpponentDeckRankingRow, "deckName" | "matches" | "share" | "shareChange" | "confidence">[];
-    winRateUp: Pick<MyDeckWinRateRow, "deckName" | "matches" | "winRate" | "winRateChange" | "confidence">[];
-    winRateDown: Pick<MyDeckWinRateRow, "deckName" | "matches" | "winRate" | "winRateChange" | "confidence">[];
+    encounterShareUp: Pick<OpponentDeckRankingRow, "deckName" | "matches" | "share" | "previousMatches" | "previousShare" | "confidence">[];
+    encounterShareDown: Pick<OpponentDeckRankingRow, "deckName" | "matches" | "share" | "previousMatches" | "previousShare" | "confidence">[];
+    winRateUp: Pick<MyDeckWinRateRow, "deckName" | "matches" | "winRate" | "previousMatches" | "previousWinRate" | "confidence">[];
+    winRateDown: Pick<MyDeckWinRateRow, "deckName" | "matches" | "winRate" | "previousMatches" | "previousWinRate" | "confidence">[];
     newDecks: Pick<OpponentDeckRankingRow, "deckName" | "matches" | "share" | "confidence">[];
-    matchupChanges: Pick<UnifiedMatchupRow, "deckA" | "deckB" | "totalMatches" | "deckAWinRate" | "deckAWinRateChange" | "confidence">[];
+    matchupChanges: Pick<UnifiedMatchupRow, "deckA" | "deckB" | "totalMatches" | "deckAWinRate" | "previousTotalMatches" | "previousDeckAWinRate" | "confidence">[];
   };
   tierCandidates: Array<
     Omit<
       TierCandidateRow,
-      "metaPresence" | "reasons"
+      "metaPresence" | "reasons" | "strengthScore" | "winRateChange"
     >
   >;
-  matchups: Omit<UnifiedMatchupRow, "deckAId" | "deckBId">[];
+  matchups: Omit<UnifiedMatchupRow, "deckAId" | "deckBId" | "deckAWinRateChange">[];
   correlation: CorrelationEdge[];
   notes: string[];
 };
@@ -703,17 +703,18 @@ function buildAiJson(input: {
     opponentDeckRanking: input.opponentDeckRanking.slice(0, 12).map((row) => roundObject(omitOpponentDeckId(row))),
     myDeckWinRates: input.myDeckWinRates.filter((row) => row.isRankingEligible).map((row) => roundObject(omitMyDeckId(row))),
     changes: {
-      encounterShareUp: input.changes.encounterShareUp.map(({ deckName, matches, share, shareChange, confidence }) => roundObject({ deckName, matches, share, shareChange, confidence })),
-      encounterShareDown: input.changes.encounterShareDown.map(({ deckName, matches, share, shareChange, confidence }) => roundObject({ deckName, matches, share, shareChange, confidence })),
-      winRateUp: input.changes.winRateUp.map(({ deckName, matches, winRate, winRateChange, confidence }) => roundObject({ deckName, matches, winRate, winRateChange, confidence })),
-      winRateDown: input.changes.winRateDown.map(({ deckName, matches, winRate, winRateChange, confidence }) => roundObject({ deckName, matches, winRate, winRateChange, confidence })),
+      encounterShareUp: input.changes.encounterShareUp.map(({ deckName, matches, share, previousMatches, previousShare, confidence }) => roundObject({ deckName, matches, share, previousMatches, previousShare, confidence })),
+      encounterShareDown: input.changes.encounterShareDown.map(({ deckName, matches, share, previousMatches, previousShare, confidence }) => roundObject({ deckName, matches, share, previousMatches, previousShare, confidence })),
+      winRateUp: input.changes.winRateUp.map(({ deckName, matches, winRate, previousMatches, previousWinRate, confidence }) => roundObject({ deckName, matches, winRate, previousMatches, previousWinRate, confidence })),
+      winRateDown: input.changes.winRateDown.map(({ deckName, matches, winRate, previousMatches, previousWinRate, confidence }) => roundObject({ deckName, matches, winRate, previousMatches, previousWinRate, confidence })),
       newDecks: input.changes.newDecks.map(({ deckName, matches, share, confidence }) => roundObject({ deckName, matches, share, confidence })),
-      matchupChanges: input.changes.matchupChanges.map(({ deckA, deckB, totalMatches, deckAWinRate, deckAWinRateChange, confidence }) => ({
+      matchupChanges: input.changes.matchupChanges.map(({ deckA, deckB, totalMatches, deckAWinRate, previousTotalMatches, previousDeckAWinRate, confidence }) => ({
         deckA,
         deckB,
         totalMatches,
         deckAWinRate: roundNumber(deckAWinRate),
-        deckAWinRateChange: roundNumber(deckAWinRateChange),
+        previousTotalMatches,
+        previousDeckAWinRate: roundNumber(previousDeckAWinRate),
         confidence
       }))
     },
@@ -728,7 +729,8 @@ function buildAiJson(input: {
       "デッキ別matchesは勝率の対象視点数です。総登録試合数totalMatchesと遭遇率は元の登録戦績から計算し、反転によって倍増させません。",
       "同デッキ対戦はデッキ別勝率に直接・反転の両視点を含みます。対面相性と相関図は異なるデッキの対戦を双方の登録方向から一度ずつ集計しています。",
       "Tier候補の環境勝率・評価対象数・前期間比較は、ミラーを除いたdirect + reversedの統合データです。相手側の勝敗は対象デッキ視点に反転しています。",
-      `データ乖離ありはdirect・reversedがそれぞれ${WEEKLY_REPORT_CONFIG.tier.divergenceMinMatchesPerSide}戦以上かつ勝率差${WEEKLY_REPORT_CONFIG.tier.holdDivergencePoints}ポイント以上の場合です。登録側の偏りを示す注意信号で、データ異常の断定ではありません。`,
+      "データ乖離ありは、十分な試合数がある使用側と相手側の勝率に大きな開きがある場合の注意信号です。登録側の偏りを示し、データ異常の断定ではありません。",
+      "記事の本文・見出し・表ではpt・ポイント差・内部スコアを使わず、勝率・遭遇率（%）と試合数で説明してください。期間比較は「前期間50% → 今期間55%」のように両期間の実数を示し、差分をそのまま%に置き換えないでください。",
       "個人ユーザーを識別できる情報と生の戦績行は含めていません。",
       "同一試合が双方のユーザーから登録された場合の二重計上は、現在のDB構造だけでは自動判定できません。",
       "AI用JSONは記事生成用に軽量化しており、サンプル不足の大量デッキは除外しています。"
@@ -736,7 +738,7 @@ function buildAiJson(input: {
   };
 }
 
-function omitOpponentDeckId(row: OpponentDeckRankingRow): Omit<OpponentDeckRankingRow, "deckId"> {
+function omitOpponentDeckId(row: OpponentDeckRankingRow): WeeklyReportAiJson["opponentDeckRanking"][number] {
   return {
     deckName: row.deckName,
     className: row.className,
@@ -746,14 +748,13 @@ function omitOpponentDeckId(row: OpponentDeckRankingRow): Omit<OpponentDeckRanki
     previousMatches: row.previousMatches,
     previousShare: row.previousShare,
     previousRank: row.previousRank,
-    shareChange: row.shareChange,
     rankChange: row.rankChange,
     confidence: row.confidence,
     comparisonNote: row.comparisonNote
   };
 }
 
-function omitMyDeckId(row: MyDeckWinRateRow): Omit<MyDeckWinRateRow, "deckId"> {
+function omitMyDeckId(row: MyDeckWinRateRow): WeeklyReportAiJson["myDeckWinRates"][number] {
   return {
     environmentWinRate: row.environmentWinRate,
     direct: roundObject(row.direct),
@@ -767,7 +768,6 @@ function omitMyDeckId(row: MyDeckWinRateRow): Omit<MyDeckWinRateRow, "deckId"> {
     winRate: row.winRate,
     previousMatches: row.previousMatches,
     previousWinRate: row.previousWinRate,
-    winRateChange: row.winRateChange,
     isWinRateComparisonReliable: row.isWinRateComparisonReliable,
     comparisonNote: row.comparisonNote,
     rank: row.rank,
@@ -778,7 +778,7 @@ function omitMyDeckId(row: MyDeckWinRateRow): Omit<MyDeckWinRateRow, "deckId"> {
 
 function omitTierInternalFields(
   row: TierCandidateRow
-): Omit<TierCandidateRow, "metaPresence" | "reasons"> {
+): WeeklyReportAiJson["tierCandidates"][number] {
   return {
     deckId: row.deckId,
     deckName: row.deckName,
@@ -793,9 +793,7 @@ function omitTierInternalFields(
     reversedWinRate: row.reversedWinRate,
     previousMatches: row.previousMatches,
     previousWinRate: row.previousWinRate,
-    winRateChange: row.winRateChange,
     isWinRateComparisonReliable: row.isWinRateComparisonReliable,
-    strengthScore: row.strengthScore,
     opponentMatches: row.opponentMatches,
     encounterShare: row.encounterShare,
     majorMatchupWinRate: row.majorMatchupWinRate,
@@ -805,7 +803,7 @@ function omitTierInternalFields(
   };
 }
 
-function omitMatchupDeckIds(row: UnifiedMatchupRow): Omit<UnifiedMatchupRow, "deckAId" | "deckBId"> {
+function omitMatchupDeckIds(row: UnifiedMatchupRow): WeeklyReportAiJson["matchups"][number] {
   return {
     deckA: row.deckA,
     deckAClassName: row.deckAClassName,
@@ -818,7 +816,6 @@ function omitMatchupDeckIds(row: UnifiedMatchupRow): Omit<UnifiedMatchupRow, "de
     deckBWinRate: row.deckBWinRate,
     previousTotalMatches: row.previousTotalMatches,
     previousDeckAWinRate: row.previousDeckAWinRate,
-    deckAWinRateChange: row.deckAWinRateChange,
     isComparisonReliable: row.isComparisonReliable,
     comparisonNote: row.comparisonNote,
     confidence: row.confidence
@@ -854,6 +851,8 @@ Shadowverse: Worlds Beyond の
 
 【期間比較】
 
+・本文・見出し・表ではptやポイント差を使わず、「前期間50% → 今期間55%」のように両期間の勝率・遭遇率と試合数で説明する
+・割合の差分をそのまま「%増減」に置き換えない。比較元がない場合は今期間の実数だけを示す
 ・選択期間と前期間のサンプル数に大きな差がある場合、期間比を環境変化として断定しない
 ・comparisonConfidence が low の場合、「参考値」と明記する
 ・前期間0件でも、前期間全体のサンプルが不足している場合は「新規デッキ」と断定しない
@@ -893,6 +892,7 @@ Shadowverse: Worlds Beyond の
 【内部指標について】
 
 ・Strength Score や Meta Presence は内部のTier候補判定用指標です
+・ptや内部スコアはシステム管理用です。運営者の所感に含まれていても、記事の本文・見出し・表には記載しないでください
 ・note記事本文には「Strength 84」「Presence Medium」などの内部指標名・内部スコアを記載しないでください
 ・読者へ説明する場合は、勝率、試合数、遭遇率、対面勝率など実際の戦績データを使ってください
 

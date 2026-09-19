@@ -200,10 +200,11 @@ test('published environment rankings, encounter counts and shared analytics pres
   assert.equal(matrix[0].cells[1].winRate, 60);
 });
 
-test('Tier table and PNG hide Strength Score while adjustment and AI JSON retain it', () => {
+test('Tier adjustment retains Strength Score while reader-facing AI JSON excludes it', () => {
   const result = report([...games('a', 'b', 100, 60), ...games('b', 'a', 100, 30)]);
   const payload = result.aiJson.tierCandidates.find((row) => row.deckName === 'A');
-  assert.deepEqual([payload.matches, payload.directMatches, payload.reversedMatches, payload.winRate, payload.strengthScore], [200, 100, 100, 65, 97.5]);
+  assert.deepEqual([payload.matches, payload.directMatches, payload.reversedMatches, payload.winRate], [200, 100, 100, 65]);
+  assert.ok(!('strengthScore' in payload));
   assert.equal(result.aiJson.myDeckWinRates.find((row) => row.deckName === 'A').winRate, 65);
   const html = renderToStaticMarkup(React.createElement(WeeklyReportTables, {
     contextLabel: '登録試合数200戦', opponentRows: result.opponentDeckRanking,
@@ -215,7 +216,7 @@ test('Tier table and PNG hide Strength Score while adjustment and AI JSON retain
   assert.doesNotMatch(html, /Strength Score/);
   assert.match(html, /使用側100戦 \/ 相手側100戦/);
   const workspace = renderToStaticMarkup(React.createElement(WeeklyReportAiWorkspace, {
-    aiJson: result.aiJson, startDate: period.startDate, endDate: period.endDate,
+    aiJson: result.aiJson, tierRows: result.tierCandidates, startDate: period.startDate, endDate: period.endDate,
     hasApiKey: false, tierOverrides: { a: 'Tier2' }, onTierChange: () => {}
   }));
   assert.match(workspace, /Strength Score：97.5/);
@@ -235,13 +236,34 @@ test('automatically held candidates stay in data and manual controls but not the
   assert.match(html, /表示対象のTier候補がありません/);
   assert.doesNotMatch(html, /評価保留|>A<|>B</);
   const workspace = renderToStaticMarkup(React.createElement(WeeklyReportAiWorkspace, {
-    aiJson: result.aiJson, startDate: period.startDate, endDate: period.endDate,
+    aiJson: result.aiJson, tierRows: result.tierCandidates, startDate: period.startDate, endDate: period.endDate,
     hasApiKey: false, tierOverrides: {}, onTierChange: () => {}
   }));
   assert.match(workspace, /value="評価保留" selected/);
   assert.match(workspace, /value="Tier4"/);
   assert.doesNotMatch(workspace, /Tier1\.5/);
   assert.match(result.aiPrompt, /finalTierが「評価保留」のデッキ.*Tier表には掲載しない/);
+});
+
+test('AI comparisons provide both periods without point deltas or internal scores', () => {
+  const result = report(
+    [...games('a', 'b', 100, 70), ...games('b', 'a', 100, 30)],
+    [...games('a', 'b', 50, 20), ...games('b', 'a', 150, 90)]
+  );
+  assert.doesNotMatch(JSON.stringify(result.aiJson), /"(?:shareChange|winRateChange|deckAWinRateChange|strengthScore|metaPresence)":/);
+  for (const key of ['encounterShareUp', 'encounterShareDown', 'winRateUp', 'winRateDown', 'matchupChanges']) {
+    assert.ok(result.aiJson.changes[key].length > 0, key);
+  }
+  const share = result.aiJson.changes.encounterShareUp[0];
+  assert.deepEqual([share.previousShare, share.share, share.previousMatches, share.matches], [25, 50, 50, 100]);
+  const winRate = result.aiJson.changes.winRateUp[0];
+  assert.deepEqual([winRate.previousWinRate, winRate.winRate, winRate.previousMatches, winRate.matches], [40, 70, 200, 200]);
+  const matchup = result.aiJson.changes.matchupChanges[0];
+  assert.deepEqual([matchup.previousDeckAWinRate, matchup.deckAWinRate, matchup.previousTotalMatches, matchup.totalMatches], [40, 70, 200, 200]);
+  assert.equal(tier(result).winRateChange, 30);
+  assert.equal(typeof tier(result).strengthScore, 'number');
+  assert.match(result.aiPrompt, /ptやポイント差を使わず/);
+  assert.match(result.aiPrompt, /割合の差分をそのまま「%増減」に置き換えない/);
 });
 
 test('empty periods remain empty without synthetic candidates', () => {
