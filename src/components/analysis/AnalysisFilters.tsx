@@ -1,6 +1,7 @@
 import Link from "next/link";
+import { AnalysisDateTimeField } from "@/components/analysis/AnalysisDateTimeField";
 import { Button } from "@/components/Button";
-import { FieldLabel, Input, Select } from "@/components/Field";
+import { FieldLabel, Select } from "@/components/Field";
 import { RESULT_LABELS, TURN_ORDER_LABELS } from "@/lib/constants";
 import type { DeckLike } from "@/lib/analytics";
 import type { Environment, MatchResult, TurnOrder } from "@/types/database";
@@ -36,7 +37,7 @@ export function AnalysisFilters({
 
   return (
     <form action="/analysis" className="rounded-md border border-slate-200 bg-white p-3">
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-[1fr_1.1fr_1fr_1fr_0.85fr_0.85fr_0.95fr_0.95fr_auto_auto] 2xl:items-end">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 xl:items-end">
         {canUseAllUsers ? (
           <FieldLabel>
             集計範囲
@@ -106,15 +107,21 @@ export function AnalysisFilters({
           </Select>
         </FieldLabel>
 
-        <FieldLabel>
-          開始日時
-          <Input name="playedFrom" type="datetime-local" defaultValue={values.playedFrom} />
-        </FieldLabel>
+        <AnalysisDateTimeField
+          key={`playedFrom:${values.playedFrom}`}
+          name="playedFrom"
+          label="開始日時"
+          value={values.playedFrom}
+          defaultTime="00:00"
+        />
 
-        <FieldLabel>
-          終了日時
-          <Input name="playedTo" type="datetime-local" defaultValue={values.playedTo} />
-        </FieldLabel>
+        <AnalysisDateTimeField
+          key={`playedTo:${values.playedTo}`}
+          name="playedTo"
+          label="終了日時"
+          value={values.playedTo}
+          defaultTime="23:59"
+        />
 
         <Button type="submit">表示</Button>
         <Link className="inline-flex min-h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-ink hover:bg-slate-50" href={resetHref}>
