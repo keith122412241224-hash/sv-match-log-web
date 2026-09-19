@@ -30,9 +30,7 @@ export function OpponentRankingChart({ rows }: { rows: OpponentDeckRankingRow[] 
             </span>
           </div>
           <div className="h-8 rounded bg-slate-100">
-            <div className="grid h-8 place-items-end rounded bg-cyan-600 px-2 text-right text-xs font-bold text-white" style={{ width: `${Math.max(4, (row.matches / maxMatches) * 100)}%` }}>
-              {signedPercent(row.shareChange)}
-            </div>
+            <div className="h-8 rounded bg-cyan-600" style={{ width: `${Math.max(4, (row.matches / maxMatches) * 100)}%` }} />
           </div>
         </div>
       ))}
@@ -66,7 +64,7 @@ export function MyDeckWinRateChart({ rows }: { rows: MyDeckWinRateRow[] }) {
               className={cn("grid h-8 place-items-end rounded px-2 text-right text-xs font-bold text-white", row.isRankingEligible ? "bg-emerald-700" : "bg-amber-500")}
               style={{ width: `${Math.max(4, row.winRate ?? 0)}%` }}
             >
-              {row.isRankingEligible ? signedPercent(row.winRateChange) : "少数"}
+              {row.isRankingEligible ? null : "少数"}
             </div>
           </div>
         </div>
@@ -154,8 +152,9 @@ function MatchupTable({ rows }: { rows: UnifiedMatchupRow[] }) {
 
 function TierTable({ rows }: { rows: TierCandidateRow[] }) {
   const tiers = ["Tier1", "Tier1.5", "Tier2", "Tier3", "評価保留"] as const;
+  const visible = rows.filter((row) => row.deckName.trim() !== "不明");
 
-  if (rows.length === 0) {
+  if (visible.length === 0) {
     return <EmptyReportText>Tier候補を作成できるデータがありません。</EmptyReportText>;
   }
 
@@ -165,15 +164,9 @@ function TierTable({ rows }: { rows: TierCandidateRow[] }) {
         <div className="rounded-md border border-slate-200" key={tier}>
           <h3 className="border-b border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-ink">{tier}</h3>
           <div className="grid gap-2 p-3">
-            {rows.filter((row) => row.finalTier === tier).map((row) => (
+            {visible.filter((row) => row.finalTier === tier).map((row) => (
               <div className="rounded bg-white text-sm" key={row.deckId}>
                 <div className="font-bold text-ink">{row.deckName}</div>
-                <div className="text-xs text-muted">
-                  最終Tier: {row.finalTier}
-                </div>
-                {row.finalTier !== row.suggestedTier ? (
-                  <div className="text-xs font-semibold text-amber-800">自動Tier候補: {row.suggestedTier}</div>
-                ) : null}
                 <div className="text-xs text-muted">
                   評価対象：{row.matches}戦
                 </div>
@@ -253,13 +246,4 @@ function ReportDeckLabel({ className, name }: { className: string; name: string 
       <span className="truncate font-semibold">{name}</span>
     </span>
   );
-}
-
-function signedPercent(value: number | null) {
-  if (value === null || Number.isNaN(value)) {
-    return "-";
-  }
-
-  const rounded = Math.round(value * 10) / 10;
-  return `${rounded > 0 ? "+" : ""}${rounded}%pt`;
 }

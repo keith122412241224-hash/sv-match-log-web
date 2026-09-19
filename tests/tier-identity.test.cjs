@@ -39,7 +39,7 @@ for (const unknown of [false, true]) test(`A4: independent ${unknown ? 'unresolv
   const exportBlock = nodes(WeeklyReportTables(tableProps)).find(node => node.props.fileName === 'period-tier-candidates.png');
   const tierTable = nodes(exportBlock).find(node => node.props.rows === tableProps.tierRows);
   const rendered = tierTable.type(tierTable.props);
-  assert.equal(nodes(rendered).filter(node => ['a','b'].includes(node.key)).length, 2);
+  assert.equal(nodes(rendered).filter(node => ['a','b'].includes(node.key)).length, unknown ? 0 : 2);
   const adjusted = nodes(WeeklyReportAiWorkspace(nodes(tree).find(node => node.type === WeeklyReportAiWorkspace).props));
   const json = JSON.parse(adjusted.find(node => node.type === 'textarea' && node.props.readOnly).props.value);
   assert.equal(json.tierCandidates.find(row => row.deckId === 'a').finalTier, 'Tier2');

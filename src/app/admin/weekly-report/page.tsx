@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
 import { WeeklyReportInteractiveSections } from "@/components/admin/WeeklyReportInteractiveSections";
+import { ExportableReportBlock } from "@/components/admin/WeeklyReportClientTools";
 import { WEEKLY_REPORT_CONFIG } from "@/lib/weekly-report-config";
 import { getDefaultWeeklyReportStartDate, getWeeklyReportPeriodDayCount } from "@/lib/weekly-report";
 import { getIsAdmin, getWeeklyReport } from "@/lib/data";
@@ -108,17 +109,20 @@ export default async function AdminWeeklyReportPage({
           </section>
         ) : null}
 
-        <section className="rounded-md border border-slate-200 bg-white p-4">
-          <h2 className="font-bold text-ink">前期間からの変化</h2>
+        <ExportableReportBlock title="前期間からの環境変化" fileName="period-environment-changes.png">
+          <h3 className="mb-2 font-bold text-ink">前期間からの環境変化</h3>
+          <p className="text-xs text-muted">
+            {report.period.startDate} ～ {report.period.endDate} / 前期間: {report.previousPeriod.startDate} ～ {report.previousPeriod.endDate} / {WEEKLY_REPORT_CONFIG.timeZone} / 全ユーザー / 登録試合数{report.totalMatches}戦（前期間{report.previousTotalMatches}戦）
+          </p>
           <div className="mt-3 grid gap-3 lg:grid-cols-3">
-            <ChangeList title={isLowComparisonConfidence ? "遭遇率上昇 参考値" : "遭遇率上昇"} rows={report.changes.encounterShareUp.map((row) => `${row.deckName} ${formatSigned(row.shareChange)}pt${row.comparisonNote ? ` / ${row.comparisonNote}` : ""}`)} />
-            <ChangeList title={isLowComparisonConfidence ? "遭遇率下降 参考値" : "遭遇率下降"} rows={report.changes.encounterShareDown.map((row) => `${row.deckName} ${formatSigned(row.shareChange)}pt${row.comparisonNote ? ` / ${row.comparisonNote}` : ""}`)} />
+            <ChangeList title={isLowComparisonConfidence ? "遭遇率上昇 参考値" : "遭遇率上昇"} rows={report.changes.encounterShareUp.map((row) => `${row.deckName} ${formatSignedPercent(row.shareChange)}${row.comparisonNote ? ` / ${row.comparisonNote}` : ""}`)} />
+            <ChangeList title={isLowComparisonConfidence ? "遭遇率下降 参考値" : "遭遇率下降"} rows={report.changes.encounterShareDown.map((row) => `${row.deckName} ${formatSignedPercent(row.shareChange)}${row.comparisonNote ? ` / ${row.comparisonNote}` : ""}`)} />
             <ChangeList title={isLowComparisonConfidence ? "選択期間確認" : "新規確認"} rows={(isLowComparisonConfidence ? report.opponentDeckRanking.filter((row) => row.previousMatches === 0 && row.matches >= WEEKLY_REPORT_CONFIG.change.minNewDeckMatches).slice(0, 3) : report.changes.newDecks).map((row) => `${row.deckName} ${row.matches}戦 / ${formatPercent(row.share)}${isLowComparisonConfidence ? " / 前期間比較は参考値" : ""}`)} />
-            <ChangeList title={isLowComparisonConfidence ? "勝率上昇 参考値" : "勝率上昇"} rows={report.changes.winRateUp.map((row) => `${row.deckName} ${formatSigned(row.winRateChange)}pt${row.comparisonNote ? ` / ${row.comparisonNote}` : ""}`)} />
-            <ChangeList title={isLowComparisonConfidence ? "勝率下降 参考値" : "勝率下降"} rows={report.changes.winRateDown.map((row) => `${row.deckName} ${formatSigned(row.winRateChange)}pt${row.comparisonNote ? ` / ${row.comparisonNote}` : ""}`)} />
-            <ChangeList title={isLowComparisonConfidence ? "対面変化 参考値" : "対面変化"} rows={report.changes.matchupChanges.map((row) => `${row.deckA} vs ${row.deckB} ${formatSigned(row.deckAWinRateChange)}pt${row.comparisonNote ? ` / ${row.comparisonNote}` : ""}`)} />
+            <ChangeList title={isLowComparisonConfidence ? "勝率上昇 参考値" : "勝率上昇"} rows={report.changes.winRateUp.map((row) => `${row.deckName} ${formatSignedPercent(row.winRateChange)}${row.comparisonNote ? ` / ${row.comparisonNote}` : ""}`)} />
+            <ChangeList title={isLowComparisonConfidence ? "勝率下降 参考値" : "勝率下降"} rows={report.changes.winRateDown.map((row) => `${row.deckName} ${formatSignedPercent(row.winRateChange)}${row.comparisonNote ? ` / ${row.comparisonNote}` : ""}`)} />
+            <ChangeList title={isLowComparisonConfidence ? "対面変化 参考値" : "対面変化"} rows={report.changes.matchupChanges.map((row) => `${row.deckA} vs ${row.deckB} ${formatSignedPercent(row.deckAWinRateChange)}${row.comparisonNote ? ` / ${row.comparisonNote}` : ""}`)} />
           </div>
-        </section>
+        </ExportableReportBlock>
 
         <WeeklyReportInteractiveSections
           opponentRows={report.opponentDeckRanking}
@@ -163,11 +167,11 @@ function ChangeList({ title, rows }: { title: string; rows: string[] }) {
   );
 }
 
-function formatSigned(value: number | null) {
+function formatSignedPercent(value: number | null) {
   if (value === null || Number.isNaN(value)) {
     return "-";
   }
 
   const rounded = Math.round(value * 10) / 10;
-  return `${rounded > 0 ? "+" : ""}${rounded}`;
+  return `${rounded > 0 ? "+" : ""}${rounded}%`;
 }
