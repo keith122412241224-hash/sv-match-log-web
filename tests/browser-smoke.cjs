@@ -144,6 +144,15 @@ const api = http.createServer((req, res) => {
     assert.match(await tier2Column.innerText(), /AFネメシス/);
     const adjustedJson = JSON.parse(await page.locator('textarea[readonly]').first().inputValue());
     assert.equal(adjustedJson.tierCandidates.find(row => row.deckName === 'AFネメシス').finalTier, 'Tier2');
+    assert.deepEqual(await tierBlock.locator('h3').allTextContents(), ['Tier1', 'Tier2', 'Tier3', 'Tier4']);
+    await control.locator('select').selectOption('評価保留');
+    assert.doesNotMatch(await tierBlock.innerText(), /AFネメシス|評価保留/);
+    assert.equal(await control.locator('select').inputValue(), '評価保留');
+    const heldJson = JSON.parse(await page.locator('textarea[readonly]').first().inputValue());
+    assert.deepEqual(heldJson.tierCandidates.find(row => row.deckName === 'AFネメシス'), { ...tier, finalTier: '評価保留' });
+    await control.locator('select').selectOption('Tier4');
+    const tier4Column = tierBlock.locator('div.rounded-md').filter({ has: page.getByRole('heading', { name: 'Tier4', exact: true }) });
+    assert.match(await tier4Column.innerText(), /AFネメシス/);
     const tierDownloadPromise = page.waitForEvent('download');
     await tierBlock.getByRole('button', { name: 'PNG', exact: true }).click();
     const tierDownload = await tierDownloadPromise;

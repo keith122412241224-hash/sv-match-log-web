@@ -2,7 +2,7 @@ import { AlertTriangle } from "lucide-react";
 import Image from "next/image";
 import { classIconSrc, isShadowverseClass } from "@/components/ClassIcon";
 import { ExportableReportBlock } from "@/components/admin/WeeklyReportClientTools";
-import { WEEKLY_REPORT_CONFIG, type DataConfidence } from "@/lib/weekly-report-config";
+import { TIER_LEVELS, WEEKLY_REPORT_CONFIG, type DataConfidence } from "@/lib/weekly-report-config";
 import { cn, formatPercent } from "@/lib/utils";
 import type { CorrelationEdge, MyDeckWinRateRow, OpponentDeckRankingRow, TierCandidateRow, UnifiedMatchupRow } from "@/lib/weekly-report";
 
@@ -151,16 +151,15 @@ function MatchupTable({ rows }: { rows: UnifiedMatchupRow[] }) {
 }
 
 function TierTable({ rows }: { rows: TierCandidateRow[] }) {
-  const tiers = ["Tier1", "Tier1.5", "Tier2", "Tier3", "評価保留"] as const;
-  const visible = rows.filter((row) => row.deckName.trim() !== "不明");
+  const visible = rows.filter((row) => row.deckName.trim() !== "不明" && row.finalTier !== "評価保留");
 
   if (visible.length === 0) {
-    return <EmptyReportText>Tier候補を作成できるデータがありません。</EmptyReportText>;
+    return <EmptyReportText>表示対象のTier候補がありません。</EmptyReportText>;
   }
 
   return (
-    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-      {tiers.map((tier) => (
+    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      {TIER_LEVELS.map((tier) => (
         <div className="rounded-md border border-slate-200" key={tier}>
           <h3 className="border-b border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-ink">{tier}</h3>
           <div className="grid gap-2 p-3">

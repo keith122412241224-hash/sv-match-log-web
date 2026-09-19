@@ -164,17 +164,17 @@ test('registration direction does not affect integrated rates, score, matchup or
   assert.deepEqual(before.correlation, after.correlation);
 });
 
-test('Tier thresholds, weights and absolute evaluation remain unchanged', () => {
-  assert.deepEqual([config.tier.tier1WinRate, config.tier.tier15WinRate, config.tier.tier2WinRate], [56, 53, 50]);
-  assert.deepEqual(config.tier.strengthScore, { tier1: 78, tier15: 66, tier2: 54 });
+test('four Tier levels apply the win-rate and score thresholds in descending order', () => {
+  assert.deepEqual([config.tier.tier1WinRate, config.tier.tier2WinRate, config.tier.tier3WinRate], [56, 53, 50]);
+  assert.deepEqual(config.tier.strengthScore, { tier1: 78, tier2: 66, tier3: 54 });
   assert.deepEqual(config.tier.strengthWeights, { winRate: 0.45, majorMatchup: 0.35, sampleConfidence: 0.15, trend: 0.05 });
-  for (const [wins, score, expected] of [[50, 49.5, 'Tier3'], [53, 59.1, 'Tier2'], [56, 68.7, 'Tier1.5'], [60, 81.5, 'Tier1']]) {
+  for (const [wins, score, expected] of [[50, 49.5, 'Tier4'], [53, 59.1, 'Tier3'], [56, 68.7, 'Tier2'], [60, 81.5, 'Tier1']]) {
     const a = tier(report(games('a', 'b', 100, wins)));
     close(a.strengthScore, score);
     assert.equal(a.suggestedTier, expected);
   }
   const none = report(games('a', 'b', 100, 53));
-  assert.ok(none.tierCandidates.every((row) => !['Tier1', 'Tier1.5'].includes(row.suggestedTier)));
+  assert.ok(none.tierCandidates.every((row) => !['Tier1', 'Tier2'].includes(row.suggestedTier)));
 });
 
 test('archetype IDs take precedence and class fallback IDs continue to work', () => {
@@ -223,6 +223,25 @@ test('Tier table and PNG hide Strength Score while adjustment and AI JSON retain
   assert.match(result.aiPrompt, /Tierの前期間比較も両側統合/);
   assert.match(result.aiPrompt, /デッキ評価対象数の合計を総登録試合数にしない/);
   assert.equal(payload.deckId, 'a');
+});
+
+test('automatically held candidates stay in data and manual controls but not the Tier table', () => {
+  const result = report(games('a', 'b', 9, 9));
+  assert.equal(result.tierCandidates.length, 2);
+  assert.ok(result.aiJson.tierCandidates.every(row => row.finalTier === '評価保留'));
+  const html = renderToStaticMarkup(React.createElement(WeeklyReportTables, {
+    opponentRows: [], winRateRows: [], matchupRows: [], correlationRows: [], tierRows: result.tierCandidates
+  }));
+  assert.match(html, /表示対象のTier候補がありません/);
+  assert.doesNotMatch(html, /評価保留|>A<|>B</);
+  const workspace = renderToStaticMarkup(React.createElement(WeeklyReportAiWorkspace, {
+    aiJson: result.aiJson, startDate: period.startDate, endDate: period.endDate,
+    hasApiKey: false, tierOverrides: {}, onTierChange: () => {}
+  }));
+  assert.match(workspace, /value="評価保留" selected/);
+  assert.match(workspace, /value="Tier4"/);
+  assert.doesNotMatch(workspace, /Tier1\.5/);
+  assert.match(result.aiPrompt, /finalTierが「評価保留」のデッキ.*Tier表には掲載しない/);
 });
 
 test('empty periods remain empty without synthetic candidates', () => {

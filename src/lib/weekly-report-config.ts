@@ -18,8 +18,8 @@ export const WEEKLY_REPORT_CONFIG = {
   tier: {
     minMatches: 10,
     tier1WinRate: 56,
-    tier15WinRate: 53,
-    tier2WinRate: 50,
+    tier2WinRate: 53,
+    tier3WinRate: 50,
     holdDivergencePoints: 25,
     divergenceMinMatchesPerSide: 20,
     strengthWeights: {
@@ -30,8 +30,8 @@ export const WEEKLY_REPORT_CONFIG = {
     },
     strengthScore: {
       tier1: 78,
-      tier15: 66,
-      tier2: 54
+      tier2: 66,
+      tier3: 54
     },
     metaPresence: {
       highShare: 10,
@@ -49,7 +49,9 @@ export const WEEKLY_REPORT_CONFIG = {
 export type DataConfidence = "sufficient" | "reference" | "insufficient";
 export type ComparisonConfidence = "high" | "medium" | "low";
 export type MetaPresence = "High" | "Medium" | "Low";
-export type TierCandidate = "Tier1" | "Tier1.5" | "Tier2" | "Tier3" | "評価保留";
+export const TIER_LEVELS = ["Tier1", "Tier2", "Tier3", "Tier4"] as const;
+export const TIER_OPTIONS = [...TIER_LEVELS, "評価保留"] as const;
+export type TierCandidate = (typeof TIER_OPTIONS)[number];
 
 export function getDataConfidence(matches: number): DataConfidence {
   if (matches <= WEEKLY_REPORT_CONFIG.confidence.insufficientMaxMatches) {

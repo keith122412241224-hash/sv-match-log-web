@@ -551,15 +551,15 @@ function suggestTier(row: MyDeckWinRateRow, strengthScore: number, warnings: str
     return "Tier1";
   }
 
-  if ((row.winRate ?? 0) >= WEEKLY_REPORT_CONFIG.tier.tier15WinRate && strengthScore >= WEEKLY_REPORT_CONFIG.tier.strengthScore.tier15) {
-    return "Tier1.5";
-  }
-
   if ((row.winRate ?? 0) >= WEEKLY_REPORT_CONFIG.tier.tier2WinRate && strengthScore >= WEEKLY_REPORT_CONFIG.tier.strengthScore.tier2) {
     return "Tier2";
   }
 
-  return "Tier3";
+  if ((row.winRate ?? 0) >= WEEKLY_REPORT_CONFIG.tier.tier3WinRate && strengthScore >= WEEKLY_REPORT_CONFIG.tier.strengthScore.tier3) {
+    return "Tier3";
+  }
+
+  return "Tier4";
 }
 
 function weightedMajorMatchupWinRateFor(deckId: string, matchups: UnifiedMatchupRow[]) {
@@ -861,6 +861,8 @@ Shadowverse: Worlds Beyond の
 【Tier】
 
 ・Tierは自動集計・管理者調整による暫定評価である
+・Tier表の分類はTier1、Tier2、Tier3、Tier4のみとし、各デッキのfinalTierを使用する
+・finalTierが「評価保留」のデッキは内部データとして保持しているが、Tier表には掲載しない。suggestedTierによって復帰させない
 ・tierCandidatesのwinRateはミラー除外の両側統合勝率、matchesはそのデッキの評価対象数である
 ・Tierの前期間比較も両側統合・ミラー除外基準である。ミラーを含むmyDeckWinRatesと混同しない
 ・summary.totalMatchesは元の登録試合数である。デッキ評価対象数の合計を総登録試合数にしない

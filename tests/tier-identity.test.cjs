@@ -47,4 +47,19 @@ for (const unknown of [false, true]) test(`A4: independent ${unknown ? 'unresolv
   const prompt = adjusted.find(node => node.props.label === 'AI用プロンプトをコピー').props.text;
   assert.ok(prompt.includes(JSON.stringify(json, null, 2)));
   assert.equal(adjusted.find(node => node.props.prompt).props.prompt, prompt);
+  for (const choice of ['評価保留', 'Tier4']) {
+    nodes(controls.find(node => node.key === 'a')).find(node => node.type === 'select').props.onChange({ target: { value: choice } });
+    const nextTree = WeeklyReportInteractiveSections(input);
+    const nextTableProps = nodes(nextTree).find(node => node.type === WeeklyReportTables).props;
+    const nextExport = nodes(WeeklyReportTables(nextTableProps)).find(node => node.props.fileName === 'period-tier-candidates.png');
+    const nextTable = nodes(nextExport).find(node => node.props.rows === nextTableProps.tierRows);
+    const displayed = nodes(nextTable.type(nextTable.props));
+    assert.equal(displayed.some(node => node.key === 'a'), !unknown && choice !== '評価保留');
+    assert.equal(displayed.some(node => node.key === 'b'), !unknown);
+    const nextWorkspace = nodes(WeeklyReportAiWorkspace(nodes(nextTree).find(node => node.type === WeeklyReportAiWorkspace).props));
+    assert.ok(nextWorkspace.some(node => node.type === 'label' && node.key === 'a'));
+    const nextJson = JSON.parse(nextWorkspace.find(node => node.type === 'textarea' && node.props.readOnly).props.value);
+    assert.deepEqual(nextJson.tierCandidates.find(row => row.deckId === 'a'), { ...report.aiJson.tierCandidates.find(row => row.deckId === 'a'), finalTier: choice });
+    assert.deepEqual(nextJson.tierCandidates.find(row => row.deckId === 'b'), report.aiJson.tierCandidates.find(row => row.deckId === 'b'));
+  }
 });
