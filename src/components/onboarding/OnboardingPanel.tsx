@@ -41,7 +41,7 @@ export function OnboardingPanel() {
             <ListPlus size={18} aria-hidden="true" />
             戦績を入力する
           </Link>
-          <Link className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-ink" href="/analysis">
+          <Link className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-ink" href="/analysis" prefetch={false}>
             <BarChart3 size={18} aria-hidden="true" />
             分析画面を開く
           </Link>

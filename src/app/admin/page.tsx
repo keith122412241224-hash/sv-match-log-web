@@ -74,7 +74,7 @@ export default async function AdminPage({
             <p className="mt-1 text-sm text-muted">標準デッキとユーザー提案を管理します。</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Link className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-ink" href="/admin/weekly-report">
+            <Link className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-ink" href="/admin/weekly-report" prefetch={false}>
               期間レポート
             </Link>
             <Link className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-ink" href="/">

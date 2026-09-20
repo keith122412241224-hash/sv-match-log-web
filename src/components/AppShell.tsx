@@ -52,12 +52,14 @@ export async function AppShell({ children }: { children: ReactNode }) {
         >
           {visibleNavItems.map((item) => {
             const Icon = item.icon;
+            // Fetch full-match aggregates and unpaginated admin lists only on navigation.
+            const prefetch = !["/analysis", "/matrix", "/admin"].includes(item.href);
             return (
               <Link
                 className="inline-flex min-w-0 flex-col items-center justify-center gap-1 rounded-md px-1 py-2 text-[11px] font-semibold leading-none text-muted hover:bg-slate-100 hover:text-ink sm:min-h-10 sm:shrink-0 sm:flex-row sm:gap-2 sm:px-3 sm:text-sm"
                 href={item.href}
                 key={item.href}
-                prefetch
+                prefetch={prefetch}
               >
                 <Icon className="shrink-0" size={17} aria-hidden="true" />
                 <span className="max-w-full truncate">{item.label}</span>

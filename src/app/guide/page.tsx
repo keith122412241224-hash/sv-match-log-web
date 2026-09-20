@@ -234,7 +234,7 @@ function SignedInHeroActions() {
         <ListPlus size={17} aria-hidden="true" />
         戦績入力へ
       </Link>
-      <Link className="inline-flex min-h-11 items-center gap-2 rounded-md border border-slate-300 bg-white px-5 text-sm font-bold text-ink hover:bg-slate-50" href="/analysis">
+      <Link className="inline-flex min-h-11 items-center gap-2 rounded-md border border-slate-300 bg-white px-5 text-sm font-bold text-ink hover:bg-slate-50" href="/analysis" prefetch={false}>
         <BarChart3 size={17} aria-hidden="true" />
         分析を見る
       </Link>
@@ -264,7 +264,7 @@ function SignedInFooterActions() {
         戦績入力へ
         <ArrowRight size={16} aria-hidden="true" />
       </Link>
-      <Link className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-emerald-300 bg-white px-5 text-sm font-bold text-ink hover:bg-emerald-50" href="/matrix">
+      <Link className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-emerald-300 bg-white px-5 text-sm font-bold text-ink hover:bg-emerald-50" href="/matrix" prefetch={false}>
         相性表を見る
       </Link>
     </div>

@@ -191,6 +191,10 @@ export async function importGuestMatches(formData: FormData): Promise<GuestImpor
     .eq("allow_match_input", true);
   if (environmentError) return { ok: false, importedIds: [], message: "環境を確認できませんでした。端末の戦績は保持しています。" };
   const inputEnabledEnvironmentIds = new Set((inputEnabledEnvironments ?? []).map((environment) => environment.id));
+  const archetypeDecks = await ensureCompatDecksForGuestImport(
+    supabase, user.id,
+    drafts.flatMap((draft) => [draft.my_archetype_id, draft.opponent_archetype_id].filter((id): id is string => Boolean(id)))
+  );
 
   for (const draft of drafts) {
     let myDeckId = draft.my_deck_id;
@@ -199,11 +203,11 @@ export async function importGuestMatches(formData: FormData): Promise<GuestImpor
     const opponentArchetypeId = draft.opponent_archetype_id ?? "";
 
     if (myArchetypeId) {
-      myDeckId = await ensureCompatDeckForArchetype(supabase, user.id, myArchetypeId);
+      myDeckId = archetypeDecks.get(myArchetypeId) ?? "";
     }
 
     if (opponentArchetypeId) {
-      opponentDeckId = await ensureCompatDeckForArchetype(supabase, user.id, opponentArchetypeId);
+      opponentDeckId = archetypeDecks.get(opponentArchetypeId) ?? "";
     }
 
     if (!myDeckId || !opponentDeckId || !inputEnabledEnvironmentIds.has(draft.environment_id)) {
@@ -501,47 +505,59 @@ function firstHeaderValue(value: string | null) {
   return value?.split(",")[0]?.trim() || null;
 }
 
-async function ensureCompatDeckForArchetype(
+async function ensureCompatDecksForGuestImport(
   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
   userId: string,
-  archetypeId: string
+  archetypeIds: string[]
 ) {
-  const { data: archetype } = await supabase
-    .from("deck_archetypes")
-    .select("name, class_name")
-    .eq("id", archetypeId)
-    .maybeSingle();
-
-  if (!archetype) {
-    return "";
+  const uniqueIds = [...new Set(archetypeIds)];
+  const deckIds = new Map<string, string>();
+  const archetypesById = new Map<string, { id: string; name: string; class_name: string }>();
+  // Bound IN-query URLs even when all 200 matches use different decks.
+  const batchSize = 100;
+  for (let offset = 0; offset < uniqueIds.length; offset += batchSize) {
+    const { data } = await supabase.from("deck_archetypes")
+      .select("id, name, class_name").in("id", uniqueIds.slice(offset, offset + batchSize));
+    for (const archetype of data ?? []) archetypesById.set(archetype.id, archetype);
   }
 
-  await supabase
-    .from("decks")
-    .upsert(
-      {
-        user_id: userId,
-        name: archetype.name,
-        class_name: archetype.class_name,
-        deck_type: "my_deck",
-        sort_order: 999
-      },
+  // Unlike single-match input, imports retain readable inactive archetypes and
+  // skip only unresolvable matches. Preserve the old first-seen name conflict rule.
+  const archetypesByName = new Map<string, { name: string; class_name: string }>();
+  for (const id of uniqueIds) {
+    const archetype = archetypesById.get(id);
+    if (archetype && !archetypesByName.has(archetype.name)) archetypesByName.set(archetype.name, archetype);
+  }
+  const decksByName = new Map<string, { id: string; name: string; class_name: string }>();
+  async function readDecks(names: string[]) {
+    for (let offset = 0; offset < names.length; offset += batchSize) {
+      const { data, error } = await supabase.from("decks").select("id, name, class_name")
+        .eq("user_id", userId).eq("deck_type", "my_deck").in("name", names.slice(offset, offset + batchSize));
+      if (error) return false;
+      for (const deck of data ?? []) decksByName.set(deck.name, deck);
+    }
+    return true;
+  }
+  if (!(await readDecks([...archetypesByName.keys()]))) return deckIds;
+  const missing = [...archetypesByName.values()].filter((archetype) => !decksByName.has(archetype.name));
+  if (missing.length > 0) {
+    await supabase.from("decks").upsert(
+      missing.map((archetype) => ({
+        user_id: userId, name: archetype.name, class_name: archetype.class_name,
+        deck_type: "my_deck" as const, sort_order: 999
+      })),
       { onConflict: "user_id,deck_type,name", ignoreDuplicates: true }
     );
-
-  const { data: deck } = await supabase
-    .from("decks")
-    .select("id, class_name")
-    .eq("user_id", userId)
-    .eq("deck_type", "my_deck")
-    .eq("name", archetype.name)
-    .maybeSingle();
-
-  if (deck?.class_name !== archetype.class_name) {
-    return "";
+    // Read the persisted IDs, including rows another request created concurrently.
+    // As before, only resolvable matches are imported even if deck creation fails.
+    await readDecks(missing.map((archetype) => archetype.name));
   }
 
-  return (deck?.id as string | undefined) ?? "";
+  for (const [id, archetype] of archetypesById) {
+    const deck = decksByName.get(archetype.name);
+    if (deck && deck.class_name === archetype.class_name) deckIds.set(id, deck.id);
+  }
+  return deckIds;
 }
 
 async function findArchetypeForDeck(
