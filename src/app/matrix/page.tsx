@@ -2,8 +2,9 @@ import { AppShell } from "@/components/AppShell";
 import { EmptyState } from "@/components/EmptyState";
 import { EnvironmentFilter } from "@/components/EnvironmentFilter";
 import { MatchupMatrix } from "@/components/MatchupMatrix";
-import { buildWinRateMatrix } from "@/lib/analytics";
-import { getActiveArchetypes, getDecks, getEnvironments, getIsAdmin, getMatches } from "@/lib/data";
+import { buildWinRateMatrixFromAggregates } from "@/lib/matchup-aggregates";
+import { getMatchupAggregates } from "@/lib/matchup-data";
+import { getActiveArchetypes, getDecks, getEnvironments, getIsAdmin } from "@/lib/data";
 import { getMostRecentlyCreatedId } from "@/lib/utils";
 
 export default async function MatrixPage({
@@ -16,14 +17,14 @@ export default async function MatrixPage({
   const selectedEnvironmentId = environments.some((environment) => environment.id === params.environment)
     ? params.environment ?? ""
     : getMostRecentlyCreatedId(environments);
-  const [decks, archetypes, matches] = await Promise.all([
+  const [decks, archetypes, aggregates] = await Promise.all([
     getDecks(),
     getActiveArchetypes(),
-    getMatches(selectedEnvironmentId, { includeAllUsers: selectedScope === "all" })
+    getMatchupAggregates(selectedEnvironmentId, selectedScope === "all")
   ]);
   const selectedEnvironmentName = environments.find((environment) => environment.id === selectedEnvironmentId)?.name ?? "環境なし";
   const matrixDecks = archetypes.length > 0 ? archetypes : decks;
-  const rows = buildWinRateMatrix(matches, matrixDecks, matrixDecks);
+  const rows = buildWinRateMatrixFromAggregates(aggregates, matrixDecks, matrixDecks);
 
   return (
     <AppShell>
