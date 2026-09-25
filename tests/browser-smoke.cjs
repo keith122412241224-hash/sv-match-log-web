@@ -25,8 +25,14 @@ const records = Array.from({ length: 20 }, (_, i) => ({
 }));
 const user = { id: 'test-user', aud: 'authenticated', role: 'authenticated', email: 'fixture@example.test', app_metadata: {}, user_metadata: {} };
 const mutations = [];
-const api = http.createServer((req, res) => {
+const { analysisFixture } = require('./analysis-browser-fixture.cjs');
+const api = http.createServer(async (req, res) => {
   res.setHeader('Content-Type', 'application/json');
+  if (req.method === 'POST' && req.url === '/rest/v1/rpc/get_analysis_aggregates_v1') {
+    let body = ''; for await (const part of req) body += part;
+    res.end(JSON.stringify(analysisFixture(records, JSON.parse(body))));
+    return;
+  }
   // Existing navigation prefetch calls this read-only dashboard RPC with POST.
   if (req.method === 'POST' && req.url === '/rest/v1/rpc/get_home_dashboard') {
     res.end(JSON.stringify({ summary: { total: 20, wins: 8, winRate: 40, firstWinRate: 40, secondWinRate: null }, recent: [] }));

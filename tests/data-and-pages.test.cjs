@@ -3,6 +3,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const React = require('react');
 const { renderToStaticMarkup } = require('react-dom/server');
+const { analysisFixture } = require('./analysis-browser-fixture.cjs');
 let admin = true;
 let currentUser = { id: 'owner' };
 let records = [];
@@ -15,6 +16,12 @@ function mockModule(relative, exports) {
 }
 const supabase = {
   auth: { getUser: async () => ({ data: { user: currentUser } }) },
+  async rpc(name, args) {
+    assert.equal(name, 'get_analysis_aggregates_v1');
+    calls.push({ rpc: name, args });
+    const scoped = records.filter(row => admin && args.p_include_all_users || row.user_id === currentUser?.id);
+    return { data: analysisFixture(scoped, args), error: null };
+  },
   from(table) {
     const call = { table, filters: [], orders: [] };
     calls.push(call);
@@ -88,8 +95,11 @@ test('actual analysis page defaults to combined for all users; reverse-only filt
   assert.match(html, /対象登録戦績: 1件/);
   assert.match(html, /環境勝率/);
   assert.match(html, /0%/);
-  const query = calls.find(row => row.table === 'matches');
-  assert.ok(!query.filters.some(row => ['my_archetype_id', 'opponent_archetype_id', 'turn_order', 'result'].includes(row[1])));
+  assert.equal(calls.filter(row => row.table === 'matches').length, 0);
+  const rpc = calls.find(row => row.rpc);
+  assert.equal(rpc.args.p_include_reversed, true);
+  assert.equal(rpc.args.p_my_deck_id, 'B');
+  assert.equal(rpc.args.p_turn_order, 'second');
   const mine = renderToStaticMarkup(await AnalysisPage({ searchParams: Promise.resolve({}) }));
   assert.match(mine, /勝率集計: 使用者側のみ/);
   const direct = renderToStaticMarkup(await AnalysisPage({ searchParams: Promise.resolve({ scope: 'all', winRateMode: 'direct', myDeck: 'B' }) }));

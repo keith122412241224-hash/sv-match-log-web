@@ -7,9 +7,11 @@ const path = require('node:path');
 const { spawn } = require('node:child_process');
 const assert = require('node:assert/strict');
 const { unzipSync } = require('fflate');
+const { analysisFixture } = require('./analysis-browser-fixture.cjs');
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const appPort = 3218;
-const apiPort = 54330;
+// Match the URL embedded by the local build and the other browser tests.
+const apiPort = 54329;
 const origin = `http://localhost:${appPort}`;
 const output = path.resolve('build/browser-proof');
 fs.mkdirSync(output, { recursive: true });
@@ -26,8 +28,17 @@ const records = Array.from({ length: 20 }, (_, i) => ({
 }));
 const user = { id: 'test-user', aud: 'authenticated', role: 'authenticated', email: 'fixture@example.test', app_metadata: {}, user_metadata: {} };
 const mutations = [];
-const api = http.createServer((req, res) => {
+const analysisCalls = [];
+let rawMatchReads = 0;
+const api = http.createServer(async (req, res) => {
   res.setHeader('Content-Type', 'application/json');
+  if (req.method === 'POST' && req.url === '/rest/v1/rpc/get_analysis_aggregates_v1') {
+    let body = ''; for await (const part of req) body += part;
+    const args = JSON.parse(body);
+    analysisCalls.push(args);
+    res.end(JSON.stringify(analysisFixture(records, args)));
+    return;
+  }
   // Existing navigation prefetch calls this read-only dashboard RPC with POST.
   if (req.method === 'POST' && req.url === '/rest/v1/rpc/get_home_dashboard') {
     res.end(JSON.stringify({ summary: { total: 20, wins: 8, winRate: 40, firstWinRate: 40, secondWinRate: null }, recent: [] }));
@@ -42,6 +53,7 @@ const api = http.createServer((req, res) => {
   else if (url.pathname.endsWith('/admin_users')) data = { id: 'test-admin', user_id: user.id };
   else if (url.pathname.endsWith('/environments')) data = [{ id: 'environment', name: '動作確認用環境', created_at: '2026-09-01', allow_match_input: true }];
   else if (url.pathname.endsWith('/matches')) {
+    rawMatchReads++;
     data = records.filter(row => [...url.searchParams].every(([key, value]) => {
       if (value.startsWith('eq.')) return row[key] === value.slice(3);
       if (value.startsWith('gte.')) return row[key] >= value.slice(4);
@@ -104,6 +116,8 @@ const api = http.createServer((req, res) => {
     await page.goto(`${origin}/analysis`);
     await page.getByRole('button', { name: '使用デッキ別サマリーをPNG保存', exact: true }).waitFor();
     assert.equal(await page.locator('button[data-png-exclude]').count(), 5);
+    assert.equal(analysisCalls.length, 1, 'Initial analysis must use one RPC');
+    assert.equal(rawMatchReads, 0, 'Analysis must not fetch raw matches');
     const blocks = [
       ['使用デッキ別サマリー', 'usage-summary'], ['使用デッキ別の勝率', 'deck-winrate'],
       ['相手デッキ別の勝率', 'opponent-winrate'], ['先攻/後攻別の勝率', 'turn-order-winrate'],
@@ -111,6 +125,7 @@ const api = http.createServer((req, res) => {
     ];
     const results = [];
     async function downloadBlock(title, slug, label) {
+      const callsBeforeExport = analysisCalls.length;
       const button = page.getByRole('button', { name: `${title}をPNG保存`, exact: true });
       const section = page.locator('section').filter({ has: button });
       const before = await section.evaluate(node => ({ width: node.getBoundingClientRect().width, text: [...node.querySelectorAll('[data-png-exclude]')].reduce((text, excluded) => text.replace(excluded.innerText, ''), node.innerText).replace(/\s+/g, ' ').trim() }));
@@ -147,6 +162,8 @@ const api = http.createServer((req, res) => {
       }, { data: `data:image/png;base64,${png.toString('base64')}`, icons: snapshot.icons });
       assert.equal(pixels.opaque, true); assert.ok(pixels.dark > 100);
       assert.ok(pixels.distinctIcons >= new Set(snapshot.icons.map(icon => icon.src)).size, 'Distinct Next/Image URLs must retain distinct class icons');
+      assert.equal(analysisCalls.length, callsBeforeExport, 'PNG export must not refetch analysis');
+      assert.equal(rawMatchReads, 0);
       results.push({ label, filename, width: png.readUInt32BE(16), height: png.readUInt32BE(20), bytes: png.length });
     }
     for (const [width, label] of [[1440, 'desktop'], [390, 'mobile']]) {
@@ -157,10 +174,13 @@ const api = http.createServer((req, res) => {
     }
     // Real filter navigation must change the captured table, with no extra data fetch on export.
     await page.selectOption('select[name=myDeck]', 'A');
-    await page.locator('input[name=playedFrom]').fill('2026-09-05T00:00');
-    await page.locator('input[name=playedTo]').fill('2026-09-05T23:59');
+    await page.getByLabel('開始日時の日付', { exact: true }).fill('2026-09-05');
+    await page.getByLabel('終了日時の日付', { exact: true }).fill('2026-09-05');
     await Promise.all([page.waitForURL(/myDeck=A/), page.getByRole('button', { name: '表示', exact: true }).click()]);
     await page.waitForLoadState('networkidle');
+    assert.equal(analysisCalls.length, 2, 'Filter navigation must use one additional RPC');
+    assert.equal(analysisCalls.at(-1).p_played_from, '2026-09-04T15:00:00.000Z');
+    assert.equal(analysisCalls.at(-1).p_played_to, '2026-09-05T14:59:59.999Z');
     const table = page.locator('section').filter({ has: page.getByRole('heading', { name: '使用デッキ別の勝率', exact: true }) });
     assert.match(await table.innerText(), /AFネメシス[\s\S]*10[\s\S]*50%/);
     assert.doesNotMatch(await table.innerText(), /ランプドラゴン/);
@@ -173,13 +193,15 @@ const api = http.createServer((req, res) => {
     await table.getByRole('alert').waitFor();
     assert.equal(await retryButton.isEnabled(), true);
     assert.equal(await page.locator('div[inert] > section').count(), 0);
+    assert.equal(analysisCalls.length, 2, 'Failed PNG export must not refetch');
     await page.evaluate(() => { HTMLCanvasElement.prototype.toBlob = window.observedToBlob; });
     await downloadBlock('使用デッキ別の勝率', 'deck-winrate', 'retry');
     assert.equal(await table.getByRole('alert').count(), 0);
-    await page.locator('input[name=playedFrom]').fill('2026-09-06T00:00');
-    await page.locator('input[name=playedTo]').fill('2026-09-06T23:59');
+    await page.getByLabel('開始日時の日付', { exact: true }).fill('2026-09-06');
+    await page.getByLabel('終了日時の日付', { exact: true }).fill('2026-09-06');
     await Promise.all([page.waitForURL(/playedFrom=2026-09-06/), page.getByRole('button', { name: '表示', exact: true }).click()]);
     await page.waitForLoadState('networkidle');
+    assert.equal(analysisCalls.length, 3, 'Empty-range navigation must use one additional RPC');
     assert.match(await table.innerText(), /表示できるデータがありません/);
     for (const [title, slug] of blocks) await downloadBlock(title, slug, 'empty');
 
@@ -194,8 +216,10 @@ const api = http.createServer((req, res) => {
     }))));
     await page.goto(`${origin}/analysis`);
     await page.getByRole('button', { name: '対面別勝率をPNG保存', exact: true }).waitFor();
+    assert.equal(analysisCalls.length, 4, 'Large fixture navigation must use one additional RPC');
     const zipResults = [];
     async function downloadPages(title, slug, label) {
+      const callsBeforeExport = analysisCalls.length;
       const button = page.getByRole('button', { name: `${title}をPNG保存`, exact: true });
       const block = page.locator('section').filter({ has: button });
       const original = await block.evaluate(node => ({
@@ -231,6 +255,8 @@ const api = http.createServer((req, res) => {
       assert.equal(await page.locator('div[inert] > section').count(), 0);
       assert.equal(await block.evaluate(node => node.getBoundingClientRect().width), original.width);
       assert.deepEqual(await block.evaluate(node => [...node.querySelectorAll(node.querySelector('table') ? 'tbody > tr' : 'article h3')].map(item => item.innerText)), original.items);
+      assert.equal(analysisCalls.length, callsBeforeExport, 'ZIP export must not refetch analysis');
+      assert.equal(rawMatchReads, 0);
       zipResults.push({ label, slug, pages: entries.length, items: original.items.length, originalHeight: original.height });
     }
     // Failure on page 2 must not download a partial archive; retry must include everything.
@@ -250,6 +276,7 @@ const api = http.createServer((req, res) => {
     await matchup.getByRole('alert').waitFor();
     assert.equal(unexpectedDownload, false);
     assert.equal(await page.locator('div[inert] > section').count(), 0);
+    assert.equal(analysisCalls.length, 4, 'Failed ZIP export must not refetch');
     page.off('download', onUnexpectedDownload);
     await page.evaluate(() => { HTMLCanvasElement.prototype.toBlob = window.observedToBlob; });
     for (const [width, label] of [[1440, 'large-desktop'], [390, 'large-mobile']]) {
@@ -260,6 +287,12 @@ const api = http.createServer((req, res) => {
     fs.writeFileSync(path.join(output, 'pagination-results.json'), JSON.stringify(zipResults, null, 2));
     assert.deepEqual(mutations, []);
     assert.deepEqual(errors, []);
+    assert.equal(analysisCalls.length, 4, 'Only the four analysis navigations may fetch aggregates');
+    assert.equal(rawMatchReads, 0);
+    fs.writeFileSync(path.join(output, 'png-api-results.json'), JSON.stringify({
+      apiUrl: `http://127.0.0.1:${apiPort}`, analysisRpcCalls: analysisCalls.length,
+      analysisNavigations: 4, exportRefetches: 0, rawMatchReads, mutations, errors
+    }, null, 2));
     fs.writeFileSync(path.join(output, 'results.json'), JSON.stringify(results, null, 2));
     console.log(`Passed: ${results.length} PNG downloads; desktop/mobile, Japanese titles/icons, full table width, filters, empty data, failure/retry, opaque pixels, no layout/scroll changes or DB writes.`);
     console.log('Large ZIP exports passed:', JSON.stringify(zipResults));

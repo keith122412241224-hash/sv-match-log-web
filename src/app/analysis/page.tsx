@@ -4,10 +4,11 @@ import { AnalysisFilters, isMatchResult, isTurnOrder } from "@/components/analys
 import { AppShell } from "@/components/AppShell";
 import { DeckWithClassIcon } from "@/components/ClassIcon";
 import { SummaryTable } from "@/components/SummaryTable";
-import { buildDeckAnalysisSummaries, buildWinRateMatrix, groupWinRates, turnOrderWinRates } from "@/lib/analytics";
-import { getActiveArchetypes, getDecks, getEnvironments, getIsAdmin, getMatches } from "@/lib/data";
+import { buildAnalysisFromAggregates } from "@/lib/analysis-aggregates";
+import { getAnalysisAggregates } from "@/lib/analysis-data";
+import { getActiveArchetypes, getDecks, getEnvironments, getIsAdmin } from "@/lib/data";
 import { formatPercent, getMostRecentlyCreatedId } from "@/lib/utils";
-import { analysisPerspectives, filterAnalysisPerspectives, resolveWinRateMode } from "@/lib/match-perspectives";
+import { resolveWinRateMode } from "@/lib/match-perspectives";
 
 type AnalysisSearchParams = {
   environment?: string;
@@ -43,7 +44,6 @@ export default async function AnalysisPage({
   const [decks, archetypes] = await Promise.all([getDecks(), getActiveArchetypes()]);
   const selectedEnvironmentName = environments.find((environment) => environment.id === selectedEnvironmentId)?.name;
   const matrixDecks = archetypes.length > 0 ? archetypes : decks;
-  const deckName = new Map([...decks, ...archetypes].map((deck) => [deck.id, deck.name]));
   const filterDeckIds = new Set(matrixDecks.map((deck) => deck.id));
   const selectedMyDeckId = params.myDeck && filterDeckIds.has(params.myDeck) ? params.myDeck : "";
   const selectedOpponentDeckId = params.opponentDeck && filterDeckIds.has(params.opponentDeck) ? params.opponentDeck : "";
@@ -59,21 +59,14 @@ export default async function AnalysisPage({
     result: selectedResult || undefined,
     deckIdField
   } as const;
-  const sourceMatches = await getMatches(selectedEnvironmentId, {
-    ...(winRateMode === "direct" ? directionalFilters : {}),
+  const aggregates = await getAnalysisAggregates(selectedEnvironmentId, winRateMode, {
+    ...directionalFilters,
     playedAtFrom: selectedPlayedFrom ? toJstIso(selectedPlayedFrom) : undefined,
     playedAtTo: selectedPlayedTo ? toJstIso(selectedPlayedTo, true) : undefined,
     deckIdField,
     includeAllUsers: selectedScope === "all"
-  });
-  const filteredMatches = filterAnalysisPerspectives(analysisPerspectives(sourceMatches, winRateMode), directionalFilters);
-  const registeredMatches = new Set(filteredMatches.map((match) => match.id)).size;
-
-  const byMyDeck = groupWinRates(filteredMatches, (match) => match.my_archetype_id ?? match.my_deck_id, (id) => deckName.get(id) ?? "不明");
-  const byOpponentDeck = groupWinRates(filteredMatches, (match) => match.opponent_archetype_id ?? match.opponent_deck_id, (id) => deckName.get(id) ?? "不明");
-  const byTurn = turnOrderWinRates(filteredMatches);
-  const matrix = buildWinRateMatrix(filteredMatches, matrixDecks, matrixDecks);
-  const summaries = buildDeckAnalysisSummaries(filteredMatches, matrixDecks, deckIdField);
+  }, matrixDecks.map(deck => deck.id));
+  const { registeredMatches, byMyDeck, byOpponentDeck, byTurn, matrix, summaries } = buildAnalysisFromAggregates(aggregates, decks, archetypes);
 
   return (
     <AppShell>
