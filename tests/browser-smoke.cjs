@@ -26,8 +26,14 @@ const records = Array.from({ length: 20 }, (_, i) => ({
 const user = { id: 'test-user', aud: 'authenticated', role: 'authenticated', email: 'fixture@example.test', app_metadata: {}, user_metadata: {} };
 const mutations = [];
 const { analysisFixture } = require('./analysis-browser-fixture.cjs');
+const { periodFixture } = require('./period-report-fixture.cjs');
 const api = http.createServer(async (req, res) => {
   res.setHeader('Content-Type', 'application/json');
+  if (req.method === 'POST' && req.url === '/rest/v1/rpc/get_period_report_aggregates_v1') {
+    let body = ''; for await (const part of req) body += part;
+    res.end(JSON.stringify(periodFixture(records, JSON.parse(body))));
+    return;
+  }
   if (req.method === 'POST' && req.url === '/rest/v1/rpc/get_analysis_aggregates_v1') {
     let body = ''; for await (const part of req) body += part;
     res.end(JSON.stringify(analysisFixture(records, JSON.parse(body))));

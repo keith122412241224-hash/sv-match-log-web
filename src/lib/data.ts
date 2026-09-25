@@ -1,13 +1,13 @@
 import { cache } from "react";
+import { getPeriodReportAggregates } from "@/lib/period-report-data";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { calculateWinRate } from "@/lib/analytics";
-import { buildWeeklyPeriod, buildWeeklyReport, getPreviousWeeklyReportPeriod } from "@/lib/weekly-report";
+import { buildWeeklyPeriod, buildWeeklyReportFromAggregates, getPreviousWeeklyReportPeriod } from "@/lib/weekly-report";
 import type { DeckArchetype, Environment, Match } from "@/types/database";
 import type { ArchetypeWithAliases, Deck, RecentMatchWithRelations } from "@/types/view-models";
 
 const MATCH_ANALYTICS_COLUMNS =
   "id,user_id,environment_id,my_deck_id,opponent_deck_id,my_user_deck_id,my_archetype_id,opponent_archetype_id,turn_order,result,played_at,created_at";
-const WEEKLY_REPORT_MATCH_COLUMNS = "id,my_deck_id,opponent_deck_id,my_archetype_id,opponent_archetype_id,result,played_at";
 
 const REMOVED_OTHER_ARCHETYPE_NAMES = new Set([
   "その他エルフ",
@@ -342,44 +342,8 @@ export async function getWeeklyReport(startDate: string, endDate?: string) {
   const period = buildWeeklyPeriod(startDate, endDate);
   const previousPeriod = getPreviousWeeklyReportPeriod(period);
 
-  const [currentMatches, previousMatches] = await Promise.all([
-    getWeeklyReportMatchesForPeriod(period.startIso, period.endIso),
-    getWeeklyReportMatchesForPeriod(previousPeriod.startIso, previousPeriod.endIso)
-  ]);
-
-  return buildWeeklyReport(
-    currentMatches,
-    previousMatches,
-    archetypes,
-    period
-  );
-}
-
-async function getWeeklyReportMatchesForPeriod(startIso: string, endIso: string) {
-  const supabase = await createSupabaseServerClient();
-  const pageSize = 1000;
-  const matches: Match[] = [];
-
-  for (let from = 0; ; from += pageSize) {
-    const { data, error } = await supabase
-      .from("matches")
-      .select(WEEKLY_REPORT_MATCH_COLUMNS)
-      .gte("played_at", startIso)
-      .lte("played_at", endIso)
-      .order("played_at", { ascending: false })
-      .order("id", { ascending: false })
-      .range(from, from + pageSize - 1);
-
-    if (error) {
-      throw new Error(error.message);
-    }
-
-    matches.push(...((data ?? []) as Match[]));
-
-    if (!data || data.length < pageSize) {
-      return matches;
-    }
-  }
+  const aggregates = await getPeriodReportAggregates(period, previousPeriod);
+  return buildWeeklyReportFromAggregates(aggregates, archetypes, period);
 }
 
 export const getIsAdmin = cache(async () => {

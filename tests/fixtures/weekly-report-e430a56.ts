@@ -10,7 +10,6 @@ import {
 } from "@/lib/weekly-report-config";
 import { calculateWinRate } from "@/lib/analytics";
 import { emptyPerspectiveStats, summarizeDeckPerspectives, type DeckPerspectives } from "@/lib/match-perspectives";
-import { periodDeckPerspectives, periodOpponentCounts, periodUnifiedCounts, type PeriodReportCounts, type PeriodReportAggregates } from "@/lib/period-report-aggregates";
 import type { DeckArchetype, Match } from "@/types/database";
 
 export type WeeklyReportPeriod = {
@@ -224,22 +223,10 @@ export function getPreviousWeeklyReportPeriod(period: WeeklyReportPeriod) {
   return shiftWeeklyPeriod(period, -getWeeklyReportPeriodDayCount(period));
 }
 
-// Retained raw Production path for compatibility tests and existing callers.
 export function buildWeeklyReport(matches: WeeklyMatch[], previousMatches: WeeklyMatch[], archetypes: DeckArchetype[], period: WeeklyReportPeriod): WeeklyReportData {
-  return buildReport(matches, previousMatches, archetypes, period);
-}
-
-type ReportSource = WeeklyMatch[] | PeriodReportCounts;
-const registrationCount = (source: ReportSource) => Array.isArray(source) ? source.length : source.totalMatches;
-
-export function buildWeeklyReportFromAggregates(aggregates: PeriodReportAggregates, archetypes: DeckArchetype[], period: WeeklyReportPeriod): WeeklyReportData {
-  return buildReport(aggregates.current, aggregates.previous, archetypes, period);
-}
-
-function buildReport(matches: ReportSource, previousMatches: ReportSource, archetypes: DeckArchetype[], period: WeeklyReportPeriod): WeeklyReportData {
   const previousPeriod = getPreviousWeeklyReportPeriod(period);
-  const comparisonConfidence = getComparisonConfidence(registrationCount(matches), registrationCount(previousMatches));
-  const dataQualityWarnings = buildDataQualityWarnings(registrationCount(matches), registrationCount(previousMatches), comparisonConfidence);
+  const comparisonConfidence = getComparisonConfidence(matches.length, previousMatches.length);
+  const dataQualityWarnings = buildDataQualityWarnings(matches.length, previousMatches.length, comparisonConfidence);
   const deckInfo = buildDeckInfo(archetypes);
   const opponentDeckRanking = buildOpponentDeckRanking(matches, previousMatches, deckInfo, comparisonConfidence);
   const myDeckWinRates = buildMyDeckWinRates(matches, previousMatches, deckInfo);
@@ -251,8 +238,8 @@ function buildReport(matches: ReportSource, previousMatches: ReportSource, arche
   const aiJson = buildAiJson({
     period,
     previousPeriod,
-    totalMatches: registrationCount(matches),
-    previousTotalMatches: registrationCount(previousMatches),
+    totalMatches: matches.length,
+    previousTotalMatches: previousMatches.length,
     comparisonConfidence,
     dataQualityWarnings,
     opponentDeckRanking,
@@ -266,8 +253,8 @@ function buildReport(matches: ReportSource, previousMatches: ReportSource, arche
   return {
     period,
     previousPeriod,
-    totalMatches: registrationCount(matches),
-    previousTotalMatches: registrationCount(previousMatches),
+    totalMatches: matches.length,
+    previousTotalMatches: previousMatches.length,
     comparisonConfidence,
     dataQualityWarnings,
     opponentDeckRanking,
@@ -315,19 +302,19 @@ function getOpponentDeckId(match: WeeklyMatch) {
 }
 
 function buildOpponentDeckRanking(
-  matches: ReportSource,
-  previousMatches: ReportSource,
+  matches: WeeklyMatch[],
+  previousMatches: WeeklyMatch[],
   deckInfo: Map<string, DeckInfo>,
   comparisonConfidence: ComparisonConfidence
 ): OpponentDeckRankingRow[] {
-  const current = Array.isArray(matches) ? countBy(matches, getOpponentDeckId) : periodOpponentCounts(matches);
-  const previous = Array.isArray(previousMatches) ? countBy(previousMatches, getOpponentDeckId) : periodOpponentCounts(previousMatches);
-  const previousRows = rankedCountRows(previous, registrationCount(previousMatches), deckInfo);
+  const current = countBy(matches, getOpponentDeckId);
+  const previous = countBy(previousMatches, getOpponentDeckId);
+  const previousRows = rankedCountRows(previous, previousMatches.length, deckInfo);
   const previousRank = new Map(previousRows.map((row) => [row.deckId, row.rank]));
   const previousShare = new Map(previousRows.map((row) => [row.deckId, row.share]));
   const previousCount = new Map(previousRows.map((row) => [row.deckId, row.matches]));
 
-  return rankedCountRows(current, registrationCount(matches), deckInfo).map((row) => ({
+  return rankedCountRows(current, matches.length, deckInfo).map((row) => ({
     ...row,
     previousMatches: previousCount.get(row.deckId) ?? 0,
     previousShare: previousShare.get(row.deckId) ?? 0,
@@ -355,7 +342,7 @@ function rankedCountRows(counts: Map<string, number>, totalMatches: number, deck
     .map((row, index) => ({ ...row, rank: index + 1 }));
 }
 
-function buildMyDeckWinRates(matches: ReportSource, previousMatches: ReportSource, deckInfo: Map<string, DeckInfo>, forTier = false): MyDeckWinRateRow[] {
+function buildMyDeckWinRates(matches: WeeklyMatch[], previousMatches: WeeklyMatch[], deckInfo: Map<string, DeckInfo>, forTier = false): MyDeckWinRateRow[] {
   // Tier excludes mirrors; the existing environment ranking keeps both mirror
   // perspectives. The shared reversal implementation itself is unchanged.
   const eligible = (rows: WeeklyMatch[]) => forTier ? rows.filter((match) => {
@@ -363,9 +350,9 @@ function buildMyDeckWinRates(matches: ReportSource, previousMatches: ReportSourc
     const opponentId = getOpponentDeckId(match);
     return myId && opponentId && myId !== opponentId;
   }) : rows;
-  const current = Array.isArray(matches) ? summarizeDeckPerspectives(eligible(matches)) : periodDeckPerspectives(matches, forTier);
-  const previous = new Map([...(Array.isArray(previousMatches) ? summarizeDeckPerspectives(eligible(previousMatches)) : periodDeckPerspectives(previousMatches, forTier))].map(([id, row]) => [id, row.combined]));
-  if (forTier && Array.isArray(matches)) {
+  const current = summarizeDeckPerspectives(eligible(matches));
+  const previous = new Map([...summarizeDeckPerspectives(eligible(previousMatches))].map(([id, row]) => [id, row.combined]));
+  if (forTier) {
     // Keep mirror-only decks visible with zero evaluation samples.
     for (const match of matches) {
       for (const id of [getMyDeckId(match), getOpponentDeckId(match)]) {
@@ -415,7 +402,7 @@ function buildMyDeckWinRates(matches: ReportSource, previousMatches: ReportSourc
     .map((row, index) => ({ ...row, rank: index + 1 }));
 }
 
-function buildUnifiedMatchups(matches: ReportSource, previousMatches: ReportSource, deckInfo: Map<string, DeckInfo>) {
+function buildUnifiedMatchups(matches: WeeklyMatch[], previousMatches: WeeklyMatch[], deckInfo: Map<string, DeckInfo>) {
   const current = countUnifiedMatchups(matches);
   const previous = countUnifiedMatchups(previousMatches);
 
@@ -455,8 +442,7 @@ function buildUnifiedMatchups(matches: ReportSource, previousMatches: ReportSour
     .sort((a, b) => b.totalMatches - a.totalMatches || a.deckA.localeCompare(b.deckA, "ja") || a.deckB.localeCompare(b.deckB, "ja"));
 }
 
-function countUnifiedMatchups(matches: ReportSource) {
-  if (!Array.isArray(matches)) return periodUnifiedCounts(matches);
+function countUnifiedMatchups(matches: WeeklyMatch[]) {
   const grouped = new Map<string, { totalMatches: number; deckAWins: number }>();
 
   for (const match of matches) {

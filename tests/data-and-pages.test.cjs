@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const React = require('react');
 const { renderToStaticMarkup } = require('react-dom/server');
 const { analysisFixture } = require('./analysis-browser-fixture.cjs');
+const { periodFixture } = require('./period-report-fixture.cjs');
 let admin = true;
 let currentUser = { id: 'owner' };
 let records = [];
@@ -17,6 +18,10 @@ function mockModule(relative, exports) {
 const supabase = {
   auth: { getUser: async () => ({ data: { user: currentUser } }) },
   async rpc(name, args) {
+    if (name === 'get_period_report_aggregates_v1') {
+      calls.push({ rpc: name, args });
+      return { data: periodFixture(records, args), error: null };
+    }
     assert.equal(name, 'get_analysis_aggregates_v1');
     calls.push({ rpc: name, args });
     const scoped = records.filter(row => admin && args.p_include_all_users || row.user_id === currentUser?.id);
@@ -55,14 +60,17 @@ function record(i, extra = {}) {
   return { id: String(i), user_id: 'owner', environment_id: 'environment', my_deck_id: 'A', opponent_deck_id: 'B', my_archetype_id: 'A', opponent_archetype_id: 'B', result: 'win', turn_order: 'first', played_at: '2026-09-05T01:00:00.000Z', ...extra };
 }
 
-test('analysis and report queries retrieve 2,505 rows with stable paging; no mutation queries', async () => {
+test('legacy match paging and one period RPC preserve 2,505 registrations; no mutation queries', async () => {
   records = Array.from({ length: 2505 }, (_, i) => record(i));
   calls = [];
   const matches = await data.getMatches('environment', { includeAllUsers: true });
   assert.equal(matches.length, 2505);
   assert.deepEqual(calls.filter(row => row.table === 'matches').map(row => row.range), [[0, 999], [1000, 1999], [2000, 2999]]);
   assert.deepEqual(calls.find(row => row.table === 'matches').orders.map(row => row[0]), ['played_at', 'id']);
+  calls = [];
   const report = await data.getWeeklyReport('2026-09-05', '2026-09-05');
+  assert.equal(calls.filter(row => row.table === 'matches').length, 0);
+  assert.equal(calls.filter(row => row.rpc === 'get_period_report_aggregates_v1').length, 1);
   assert.equal(report.totalMatches, 2505);
   assert.equal(report.previousTotalMatches, 0);
   assert.equal(report.myDeckWinRates.find(row => row.deckId === 'B').reversed.matches, 2505);
