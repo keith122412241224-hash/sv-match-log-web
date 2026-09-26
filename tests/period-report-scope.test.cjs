@@ -9,13 +9,18 @@ test('frozen oracle, shared evaluation, UI, Phase 2-A/B and unrelated loaders st
   assert.equal(read('tests/fixtures/weekly-report-e430a56.ts'),original('src/lib/weekly-report.ts'));
   const protectedFiles=git(['ls-tree','-r','--name-only',base]).split('\n').filter(file=>
     /^src\/(app\/(analysis|matrix|admin\/weekly-report)\/|lib\/(analysis-|matchup-|match-perspectives|analytics|weekly-report-config)|components\/admin\/WeeklyReport)/.test(file)
-    ||file.startsWith('supabase/')||['src/app/actions.ts','package.json','package-lock.json'].includes(file));
+    ||file.startsWith('supabase/')||['package.json','package-lock.json'].includes(file));
   for(const file of protectedFiles)assert.equal(read(file),original(file),file);
   const functions=source=>{
     const tree=ts.createSourceFile('file.ts',source,ts.ScriptTarget.Latest,true),result=new Map();
     for(const node of tree.statements)if(ts.isFunctionDeclaration(node)&&node.name)result.set(node.name.text,node.getText(tree));
     return result;
   };
+  // R2 intentionally adds rank validation/payloads to two write paths only.
+  const oldActions=functions(original('src/app/actions.ts')),newActions=functions(read('src/app/actions.ts'));
+  assert.deepEqual([...newActions.keys()],[...oldActions.keys()]);
+  for(const [name,body]of oldActions)if(!['saveMatchFromForm','importGuestMatches'].includes(name))
+    assert.equal(newActions.get(name),body,'unchanged action helper '+name);
   const oldFunctions=functions(original('src/lib/weekly-report.ts')),newFunctions=functions(read('src/lib/weekly-report.ts'));
   const adapted=new Set(['buildWeeklyReport','buildOpponentDeckRanking','buildMyDeckWinRates','buildUnifiedMatchups','countUnifiedMatchups']);
   for(const [name,body]of oldFunctions)if(!adapted.has(name))assert.equal(newFunctions.get(name),body,'unchanged evaluation function '+name);

@@ -65,6 +65,9 @@ export function GuestApp({
     const createdAt = new Date().toISOString();
     setMatches((current) => {
       const nextMatch = {
+        rank_tier: draft.rank_tier,
+        master_group: draft.master_group,
+        grandmaster_rating: draft.grandmaster_rating,
         id: crypto.randomUUID(),
         user_id: "guest-user",
         environment_id: draft.environment_id,
@@ -189,6 +192,9 @@ function toStoredGuestMatch(match: Match): StoredGuestMatch {
     opponent_archetype_id: match.opponent_archetype_id,
     turn_order: match.turn_order,
     result: match.result,
+    rank_tier: match.rank_tier ?? null,
+    master_group: match.master_group ?? null,
+    grandmaster_rating: match.grandmaster_rating ?? null,
     played_at: match.played_at
   };
 }
@@ -206,6 +212,9 @@ function toGuestMatch(match: StoredGuestMatch): Match {
     opponent_archetype_id: match.opponent_archetype_id,
     turn_order: match.turn_order,
     result: match.result,
+    rank_tier: match.rank_tier ?? null,
+    master_group: match.master_group ?? null,
+    grandmaster_rating: match.grandmaster_rating ?? null,
     played_at: match.played_at,
     memo: null,
     created_at: createdAt

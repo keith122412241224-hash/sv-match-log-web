@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { validateMatchRank } from "@/lib/match-rank";
 import type { GuestImportResult, StoredGuestMatch } from "@/lib/guest-storage";
 import type { MatchResult, TurnOrder } from "@/types/database";
 
@@ -174,10 +175,12 @@ export async function importGuestMatches(formData: FormData): Promise<GuestImpor
   const supabase = await createSupabaseServerClient();
   const user = await requireUser();
   const raw = String(formData.get("guest_matches_json") ?? "");
-  const drafts = parseGuestMatches(raw).slice(0, 200);
+  const candidates = parseGuestMatches(raw).slice(0, 200);
+  const drafts = candidates.filter(draft => validateMatchRank(draft).ok);
+  const invalidRankCount = candidates.length - drafts.length;
 
   if (drafts.length === 0) {
-    return { ok: false, importedIds: [], message: "取り込める戦績がありません。端末の戦績は保持しています。" };
+    return { ok: false, importedIds: [], message: invalidRankCount ? "ランク情報が不正なため取り込めません。端末の戦績は保持しています。" : "取り込める戦績がありません。端末の戦績は保持しています。" };
   }
 
   const rows = [];
@@ -197,6 +200,8 @@ export async function importGuestMatches(formData: FormData): Promise<GuestImpor
   );
 
   for (const draft of drafts) {
+    const rank = validateMatchRank(draft);
+    if (!rank.ok) { skippedCount += 1; continue; }
     let myDeckId = draft.my_deck_id;
     let opponentDeckId = draft.opponent_deck_id;
     const myArchetypeId = draft.my_archetype_id ?? "";
@@ -216,6 +221,7 @@ export async function importGuestMatches(formData: FormData): Promise<GuestImpor
     }
 
     rows.push({
+      ...rank.value,
       user_id: user.id,
       environment_id: draft.environment_id,
       my_deck_id: myDeckId,
@@ -240,7 +246,7 @@ export async function importGuestMatches(formData: FormData): Promise<GuestImpor
   }
 
   revalidatePath("/");
-  return { ok: true, importedIds, message: `${rows.length}件を保存しました。未保存の戦績は端末に保持しています。` };
+  return { ok: true, importedIds, message: `${rows.length}件を保存しました。未保存の戦績は端末に保持しています。${invalidRankCount ? ` ランク情報が不正な${invalidRankCount}件は取り込んでいません。` : ""}` };
 }
 
 export async function createDeckSuggestion(formData: FormData) {
@@ -356,6 +362,13 @@ async function saveMatchFromForm(
     return { ok: false, message: "入力内容を確認してください。" };
   }
 
+  const rank = validateMatchRank({
+    rank_tier: formData.get("rank_tier"),
+    master_group: formData.get("master_group"),
+    grandmaster_rating: formData.get("grandmaster_rating")
+  });
+  if (!rank.ok) return { ok: false, message: rank.message };
+
   if (!(await isEnvironmentInputEnabled(supabase, environmentId))) {
     return { ok: false, message: "この環境は戦績入力を停止しています。" };
   }
@@ -383,6 +396,7 @@ async function saveMatchFromForm(
   }
 
   const { error } = await supabase.from("matches").insert({
+    ...rank.value,
     user_id: user.id,
     environment_id: environmentId,
     my_deck_id: myDeckId,

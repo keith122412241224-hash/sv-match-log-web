@@ -5,6 +5,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useFormStatus } from "react-dom";
 import type { FormEvent } from "react";
 import { createMatch, createMatchInline } from "@/app/actions";
+import { RankFields } from "@/components/matches/RankFields";
+import { EMPTY_RANK, validateMatchRank, type MatchRank } from "@/lib/match-rank";
 import { Button } from "@/components/Button";
 import { ClassIcon, DeckWithClassIcon } from "@/components/ClassIcon";
 import { FieldLabel, Select } from "@/components/Field";
@@ -22,7 +24,7 @@ type DeckChoice = {
   source: "deck" | "archetype";
 };
 
-export type GuestMatchDraft = {
+export type GuestMatchDraft = MatchRank & {
   environment_id: string;
   my_deck_id: string;
   opponent_deck_id: string;
@@ -70,6 +72,7 @@ export function QuickMatchForm({
   const [turnOrder, setTurnOrder] = useState<TurnOrder>("first");
   const [result, setResult] = useState<MatchResult>("win");
   const [environmentId, setEnvironmentId] = useState(getMostRecentlyCreatedId(environments));
+  const [rank, setRank] = useState<MatchRank>({ ...EMPTY_RANK });
   const [saveState, setSaveState] = useState<"idle" | "saved" | "error">("idle");
   const [saveMessage, setSaveMessage] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -161,7 +164,15 @@ export function QuickMatchForm({
       return;
     }
 
+    const rankResult = validateMatchRank(rank);
+    if (!rankResult.ok) {
+      setSaveState("error");
+      setSaveMessage(rankResult.message);
+      return;
+    }
+    setSaveState("idle");
     onGuestSubmit?.({
+      ...rankResult.value,
       environment_id: environmentId,
       my_deck_id: selectedMyChoice.id,
       opponent_deck_id: selectedOpponentDeckId,
@@ -326,6 +337,8 @@ export function QuickMatchForm({
           ))}
         </div>
       </section>
+
+      <RankFields value={rank} onChange={setRank} />
 
       <div className="grid gap-2 sm:grid-cols-2">
         <MatchSubmitButtons guest={guest} pendingOverride={isSaving} />

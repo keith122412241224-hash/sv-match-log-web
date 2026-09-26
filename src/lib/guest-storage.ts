@@ -1,3 +1,4 @@
+import type { MatchRank } from "@/lib/match-rank";
 import type { Match } from "@/types/database";
 
 export const GUEST_MATCHES_STORAGE_KEY = "svml:guest-matches:v1";
@@ -12,7 +13,7 @@ export type StoredGuestMatch = Pick<
   | "turn_order"
   | "result"
   | "played_at"
-> & { local_id?: string };
+> & Partial<MatchRank> & { local_id?: string };
 
 export type GuestImportResult = { ok: boolean; importedIds: string[]; message: string };
 

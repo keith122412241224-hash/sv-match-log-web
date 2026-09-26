@@ -70,6 +70,7 @@ async function runImport(rows) {
 }
 function expectedRow(row, myId = 'deck-Alpha', opponentId = 'deck-Beta') {
   return {
+    rank_tier: row.rank_tier ?? null, master_group: row.master_group ?? null, grandmaster_rating: row.grandmaster_rating ?? null,
     user_id: 'u', environment_id: row.environment_id,
     my_deck_id: myId, opponent_deck_id: opponentId,
     my_archetype_id: row.my_archetype_id || null, opponent_archetype_id: row.opponent_archetype_id || null,
@@ -232,4 +233,28 @@ test('preserves local records on match INSERT failure', async () => {
   assert.deepEqual(result.importedIds, []);
   assert.deepEqual(saved, []);
   assert.deepEqual(invalidations, []);
+});
+
+const rankCases=[{rank_tier:null,master_group:null,grandmaster_rating:null},...['beginner','d','c','b','a','aa'].map(rank_tier=>({rank_tier,master_group:null,grandmaster_rating:null})),...['emerald','topaz','ruby','sapphire','diamond'].map(master_group=>({rank_tier:'master',master_group,grandmaster_rating:null})),...['none','epic','ultimate','legend','beyond'].map(grandmaster_rating=>({rank_tier:'grandmaster',master_group:null,grandmaster_rating}))];
+for(const rank of rankCases)test('R2 actual actions preserve rank '+JSON.stringify(rank),async()=>{
+ tables.decks=[deck('Alpha','エルフ'),deck('Beta','ロイヤル')];
+ const row=draft('rank',{...rank}),form=new FormData();for(const [k,v]of Object.entries(row))if(v!==null)form.set(k,v);
+ assert.equal((await createMatchInline(form)).ok,true);
+ await assert.rejects(createMatch(form),/^Error: redirect:\/$/);
+ assert.equal((await runImport([row])).ok,true);
+ for(const savedRow of saved)for(const key of Object.keys(rank))assert.equal(savedRow[key],rank[key]);
+ assert.equal(saved.length,3);
+});
+test('R2 invalid ranks never write and mixed imports preserve invalid records',async()=>{
+ for(const rank of [{rank_tier:'master'},{rank_tier:'grandmaster'},{rank_tier:'unknown'},{rank_tier:'aa',grandmaster_rating:'none'},{rank_tier:null,master_group:'ruby'}]){
+ reset();const form=new FormData();for(const [k,v]of Object.entries(draft('bad',rank)))if(v!==null)form.set(k,v);
+ assert.equal((await createMatchInline(form)).ok,false);assert.deepEqual(saved,[]);assert.equal(calls.length,0);
+ assert.equal((await runImport([draft('bad',rank)])).ok,false);assert.deepEqual(saved,[]);
+ }
+ reset();const result=await runImport([draft('old'),draft('invalid',{rank_tier:'master'}),draft('none',{rank_tier:'grandmaster',grandmaster_rating:'none'})]);
+ assert.deepEqual(result.importedIds,['old','none']);assert.match(result.message,/ランク情報が不正/);assert.equal(saved[0].rank_tier,null);assert.equal(saved[1].grandmaster_rating,'none');
+});
+test('R2 invalid rank candidates still count toward the 200-row cap',async()=>{
+ const rows=[draft('bad',{rank_tier:'invalid'}),...Array.from({length:200},(_,i)=>draft('valid-'+i))];
+ const result=await runImport(rows);assert.equal(result.importedIds.length,199);assert.equal(result.importedIds.at(-1),'valid-198');
 });

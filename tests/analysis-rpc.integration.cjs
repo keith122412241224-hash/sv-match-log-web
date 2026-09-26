@@ -65,10 +65,37 @@ async function catalog(){return {
   matchup:(await db.query("select pg_get_functiondef('public.get_matchup_aggregates_v1(uuid,boolean)'::regprocedure) as definition")).rows
 };}
 before(async()=>{
-  for(const file of ['src/lib/analytics.ts','src/lib/data.ts','src/lib/match-perspectives.ts','src/app/matrix/page.tsx','src/lib/matchup-data.ts','src/lib/matchup-aggregates.ts','src/app/actions.ts']){
+  // Keep the pre-RPC oracle at base. Phase 2-C legitimately replaced only the
+  // period-report loader in data.ts; protect the analysis dependencies by name.
+  const dataContracts=['MATCH_ANALYTICS_COLUMNS','REMOVED_OTHER_ARCHETYPE_NAMES','MatchFilters',
+    'getCurrentUser','getDecks','getMatches','getEnvironments','getActiveArchetypes','getIsAdmin'];
+  const declarations=source=>{
+    const tree=ts.createSourceFile('data.ts',source,ts.ScriptTarget.Latest,true),result=new Map();
+    for(const node of tree.statements){
+      if((ts.isFunctionDeclaration(node)||ts.isTypeAliasDeclaration(node))&&node.name)result.set(node.name.text,node.getText(tree));
+      if(ts.isVariableStatement(node))for(const declaration of node.declarationList.declarations)
+        if(ts.isIdentifier(declaration.name))result.set(declaration.name.text,declaration.getText(tree));
+    }
+    return result;
+  };
+  const originalData=declarations(cp.execFileSync('git',['show',`${base}:src/lib/data.ts`],{cwd:root,encoding:'utf8'}).replaceAll('\r\n','\n'));
+  const currentData=declarations(fs.readFileSync(path.join(root,'src/lib/data.ts'),'utf8').replaceAll('\r\n','\n'));
+  for(const name of dataContracts){
+    assert.ok(originalData.has(name)&&currentData.has(name),'analysis dependency must exist: '+name);
+    assert.equal(currentData.get(name),originalData.get(name),'analysis dependency must remain baseline: '+name);
+  }
+  for(const file of ['src/lib/analytics.ts','src/lib/match-perspectives.ts','src/app/matrix/page.tsx','src/lib/matchup-data.ts','src/lib/matchup-aggregates.ts']){
     const original=cp.execFileSync('git',['show',`${base}:${file}`],{cwd:root,encoding:'utf8'});
     assert.equal(fs.readFileSync(path.join(root,file),'utf8').replaceAll('\r\n','\n'),original.replaceAll('\r\n','\n'),file+' must remain baseline');
   }
+  // R2 changes only rank validation/payloads in these two write paths.
+  // Preserve every other action/helper; aggregation oracle and RPC SQL remain frozen.
+  const actionFile='src/app/actions.ts';
+  const oldActions=declarations(cp.execFileSync('git',['show',`${base}:${actionFile}`],{cwd:root,encoding:'utf8'}).replaceAll('\r\n','\n'));
+  const newActions=declarations(fs.readFileSync(path.join(root,actionFile),'utf8').replaceAll('\r\n','\n'));
+  assert.deepEqual([...newActions.keys()],[...oldActions.keys()]);
+  for(const [name,definition] of oldActions)if(!['saveMatchFromForm','importGuestMatches'].includes(name))
+    assert.equal(newActions.get(name),definition,'action dependency must remain baseline: '+name);
   db=await PGlite.create();
   await db.exec(`create role anon nologin;create role authenticated nologin;create role service_role nologin;create schema auth;
     create table auth.users(id uuid primary key,email text,raw_user_meta_data jsonb);

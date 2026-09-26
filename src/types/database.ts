@@ -1,3 +1,5 @@
+import type { MatchRank } from "@/lib/match-rank";
+
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 export type DeckType = "my_deck" | "opponent_deck";
@@ -222,7 +224,7 @@ export type Database = {
         Relationships: [];
       };
       matches: {
-        Row: {
+        Row: MatchRank & {
           id: string;
           user_id: string;
           environment_id: string | null;
@@ -237,7 +239,7 @@ export type Database = {
           memo: string | null;
           created_at: string;
         };
-        Insert: {
+        Insert: Partial<MatchRank> & {
           id?: string;
           user_id: string;
           environment_id?: string | null;
@@ -252,7 +254,7 @@ export type Database = {
           memo?: string | null;
           created_at?: string;
         };
-        Update: {
+        Update: Partial<MatchRank> & {
           environment_id?: string | null;
           my_deck_id?: string;
           opponent_deck_id?: string;
@@ -311,7 +313,8 @@ export type Database = {
 };
 
 export type Deck = Database["public"]["Tables"]["decks"]["Row"];
-export type Match = Database["public"]["Tables"]["matches"]["Row"];
+// Analytics projections and legacy guest rows may omit rank columns.
+export type Match = Omit<Database["public"]["Tables"]["matches"]["Row"], keyof MatchRank> & Partial<MatchRank>;
 export type Environment = Database["public"]["Tables"]["environments"]["Row"];
 export type AdminUser = Database["public"]["Tables"]["admin_users"]["Row"];
 export type DeckArchetype = Database["public"]["Tables"]["deck_archetypes"]["Row"];

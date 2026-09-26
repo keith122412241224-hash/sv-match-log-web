@@ -1,0 +1,69 @@
+﻿/* eslint-disable @typescript-eslint/no-require-imports */
+// R2 browser coverage against only a local synthetic Supabase service.
+const fs=require('node:fs'),path=require('node:path'),http=require('node:http'),assert=require('node:assert/strict'),{spawn}=require('node:child_process');
+const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
+const origin='http://localhost:3235',output=path.resolve('build/rank-input-browser'),storageKey='svml:guest-matches:v1';
+const user={id:'fixture-user',aud:'authenticated',role:'authenticated',email:'fixture@example.test',app_metadata:{},user_metadata:{}};
+const decks=[{id:'a',user_id:user.id,deck_type:'my_deck',name:'Alpha',class_name:'エルフ',is_active:true},{id:'b',user_id:user.id,deck_type:'my_deck',name:'Beta',class_name:'エルフ',is_active:true}];
+const saved=[],unexpected=[],errors=[],calls=[];let hold=false,release;
+const api=http.createServer(async(req,res)=>{
+ res.setHeader('Content-Type','application/json');const url=new URL(req.url,'http://127.0.0.1:54329');calls.push({method:req.method,path:url.pathname});
+ if(req.method==='POST'&&url.pathname==='/rest/v1/rpc/get_home_dashboard'){res.end(JSON.stringify({summary:{total:saved.length,wins:saved.length,winRate:100,firstWinRate:100,secondWinRate:null},recent:[]}));return;}
+ if(req.method==='POST'&&url.pathname==='/rest/v1/matches'){let raw='';for await(const part of req)raw+=part;const body=JSON.parse(raw);if(hold)await new Promise(r=>{release=r;});saved.push(...(Array.isArray(body)?body:[body]));res.writeHead(201);res.end('{}');return;}
+ if(req.method==='POST'&&url.pathname==='/rest/v1/decks'){res.writeHead(201);res.end('{}');return;}
+ if(!['GET','HEAD'].includes(req.method)){unexpected.push(url.pathname);res.writeHead(405);res.end('{}');return;}
+ let data=[];
+ if(url.pathname==='/auth/v1/user')data=user;
+ else if(url.pathname.endsWith('/admin_users'))data={id:'admin',user_id:user.id};
+ else if(url.pathname.endsWith('/environments'))data=[{id:'e',name:'入力検証',created_at:'2026-09-01',allow_match_input:true}];
+ else if(url.pathname.endsWith('/deck_archetypes')||url.pathname.endsWith('/decks'))data=decks;
+ if(Array.isArray(data))data=data.filter(row=>[...url.searchParams].every(([key,value])=>{if(value.startsWith('eq.'))return String(row[key])===value.slice(3);if(value.startsWith('in.('))return value.slice(4,-1).split(',').map(v=>v.replaceAll('"','')).includes(String(row[key]));return true;}));
+ res.end(JSON.stringify(data));
+});
+const nil={rank_tier:null,master_group:null,grandmaster_rating:null};
+const ranks=[nil,...['beginner','d','c','b','a','aa'].map(rank_tier=>({...nil,rank_tier})),...['emerald','topaz','ruby','sapphire','diamond'].map(master_group=>({...nil,rank_tier:'master',master_group})),...['none','epic','ultimate','legend','beyond'].map(grandmaster_rating=>({...nil,rank_tier:'grandmaster',grandmaster_rating}))];
+async function until(check){for(let i=0;i<120;i++){if(await check())return;await new Promise(r=>setTimeout(r,100));}throw new Error('Timed out waiting for local action');}
+(async()=>{
+ fs.mkdirSync(output,{recursive:true});await new Promise(r=>api.listen(54329,'127.0.0.1',r));
+ const log=fs.openSync(path.join(output,'server.log'),'w');const app=spawn(process.execPath,[require.resolve('next/dist/bin/next'),'start','-p','3235'],{windowsHide:true,stdio:['ignore',log,log],env:{...process.env,NEXT_PUBLIC_SUPABASE_URL:'http://127.0.0.1:54329',NEXT_PUBLIC_SUPABASE_ANON_KEY:'test-public-key',OPENAI_API_KEY:''}});let browser, auditPage;
+ try{
+ await until(async()=>{try{return(await fetch(origin+'/privacy')).ok;}catch{return false;}});
+ browser=await chromium.launch({headless:true,...(process.env.CHROME_EXECUTABLE?{executablePath:process.env.CHROME_EXECUTABLE}:{})});const context=await browser.newContext();
+ const token=['eyJhbGciOiJIUzI1NiJ9',Buffer.from(JSON.stringify({sub:user.id,exp:Math.floor(Date.now()/1000)+3600})).toString('base64url'),'fixture'].join('.');
+ await context.addCookies([{name:'sb-127-auth-token',value:'base64-'+Buffer.from(JSON.stringify({access_token:token,refresh_token:'fixture',expires_at:Math.floor(Date.now()/1000)+3600,expires_in:3600,token_type:'bearer',user})).toString('base64url'),url:origin}]);
+ const page=await context.newPage();auditPage=page;page.on('pageerror',e=>errors.push(e.message));
+ const choose=async rank=>{await page.locator('[name="rank_tier"]').selectOption(rank.rank_tier||'');if(rank.master_group)await page.locator('[name="master_group"]').selectOption(rank.master_group);if(rank.grandmaster_rating)await page.locator('[name="grandmaster_rating"]').selectOption(rank.grandmaster_rating);};
+ await page.goto(origin+'/matches',{waitUntil:'networkidle'});
+ for(const rank of ranks){console.log("UI case "+JSON.stringify(rank));await choose(rank);const count=saved.length;await page.getByRole('button',{name:'保存して続ける',exact:true}).click();await until(()=>saved.length===count+1);await page.getByRole('button',{name:'保存して続ける',exact:true}).waitFor();for(const key of Object.keys(nil))assert.equal(saved.at(-1)[key],rank[key]);assert.equal(await page.locator('[name="rank_tier"]').inputValue(),rank.rank_tier||'');}
+ // Consecutive submissions preserve the selected rank and deck.
+ const selected=await page.locator('[name="my_archetype_id"]').inputValue();let count=saved.length;
+ await page.getByRole('button',{name:'保存して続ける',exact:true}).click();await until(()=>saved.length===count+1);await page.getByRole('button',{name:'保存して続ける',exact:true}).waitFor();assert.equal(saved.at(-1).grandmaster_rating,'beyond');assert.equal(await page.locator('[name="my_archetype_id"]').inputValue(),selected);
+ // Switching parents must discard children, including returning to the same parent.
+ await choose({rank_tier:'master',master_group:'ruby'});await page.locator('[name="rank_tier"]').selectOption('grandmaster');assert.equal(await page.locator('[name="master_group"]').count(),0);assert.equal(await page.locator('[name="grandmaster_rating"]').inputValue(),'');
+ count=saved.length;await page.getByRole('button',{name:'保存して続ける',exact:true}).click();await page.waitForTimeout(200);assert.equal(saved.length,count);assert.equal(await page.locator('[name="grandmaster_rating"]').evaluate(e=>e.validity.valueMissing),true);
+ await page.locator('[name="rank_tier"]').selectOption('master');assert.equal(await page.locator('[name="master_group"]').inputValue(),'');await page.getByRole('button',{name:'保存して続ける',exact:true}).click();assert.equal(saved.length,count);
+ await page.locator('[name="rank_tier"]').selectOption('aa');assert.equal(await page.locator('[name="master_group"],[name="grandmaster_rating"]').count(),0);
+ await page.getByRole('button',{name:'保存してホームへ',exact:true}).click();await page.waitForURL(origin+'/');await until(()=>saved.length===count+1);assert.equal(saved.at(-1).rank_tier,'aa');assert.equal(saved.at(-1).master_group,null);assert.equal(saved.at(-1).grandmaster_rating,null);
+ await page.goto(origin+'/matches',{waitUntil:'networkidle'});assert.equal(await page.locator('[name="rank_tier"]').inputValue(),'');
+ // Legacy guest rows survive loading; new guest saves serialize rank metadata.
+ const legacy={local_id:'legacy',environment_id:'e',my_deck_id:'a',opponent_deck_id:'b',my_archetype_id:'a',opponent_archetype_id:'b',result:'win',turn_order:'first',played_at:'2026-09-20T00:00:00Z'};
+ await page.evaluate(([k,row])=>localStorage.setItem(k,JSON.stringify([row])),[storageKey,legacy]);await page.goto(origin+'/guest',{waitUntil:'networkidle'});await page.getByRole('button',{name:'戦績入力',exact:true}).click();
+ for(const rank of [nil,ranks[9],ranks[12]]){await choose(rank);await page.getByRole('button',{name:'入力を試す',exact:true}).click();const rows=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),storageKey);for(const key of Object.keys(nil))assert.equal(rows[0][key],rank[key]);assert.equal(rows.at(-1).local_id,'legacy');assert.equal(rows.at(-1).rank_tier,null);}
+ await page.reload({waitUntil:'networkidle'});await page.getByRole('button',{name:'戦績入力',exact:true}).click();assert.equal(await page.locator('[name="rank_tier"]').inputValue(),'');
+ // Adding after reload must not erase ranks from previously saved guest rows.
+ await page.locator('button[value="continue"]').click();
+ const rows=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),storageKey);assert.equal(rows.length,5);
+ assert.equal(rows.filter(r=>r.grandmaster_rating==='none').length,1);assert.equal(rows.filter(r=>r.master_group==='ruby').length,1);
+ // Real import action: invalid ranks stay local; same-ID rank changes while pending stay local.
+ const invalid={...legacy,local_id:'bad',rank_tier:'master'},noId={...legacy};delete noId.local_id;
+ const input=[...rows,invalid,noId];await page.evaluate(([k,r])=>localStorage.setItem(k,JSON.stringify(r)),[storageKey,input]);await page.goto(origin+'/',{waitUntil:'networkidle'});
+ hold=true;count=saved.length;const importsBefore=calls.filter(c=>c.method==='POST'&&c.path==='/rest/v1/matches').length;
+ await page.getByRole('button',{name:'正式データに取り込む',exact:true}).click();await until(()=>typeof release==='function');assert.equal(await page.getByRole('button',{name:'取り込み中...',exact:true}).isDisabled(),true);
+ await page.getByRole('button',{name:'取り込み中...',exact:true}).evaluate(b=>{b.form.requestSubmit();b.form.requestSubmit();});
+ await page.evaluate(k=>{const r=JSON.parse(localStorage.getItem(k));r[0]={...r[0],rank_tier:'master',master_group:'diamond',grandmaster_rating:null};localStorage.setItem(k,JSON.stringify(r));},storageKey);
+ hold=false;release();release=null;await page.getByRole('status').filter({hasText:'6件を保存しました'}).waitFor();assert.equal(saved.length,count+6);assert.equal(calls.filter(c=>c.method==='POST'&&c.path==='/rest/v1/matches').length,importsBefore+1);
+ const remaining=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),storageKey);assert.equal(remaining.length,2);assert.equal(remaining[0].master_group,'diamond');assert.equal(remaining[1].local_id,'bad');assert.match(await page.getByRole('status').innerText(),/ランク情報が不正/);
+ assert.deepEqual(unexpected,[]);assert.deepEqual(errors,[]);
+ fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,validUiCombinations:17,normalAndContinuous:true,rankRetained:true,childClear:true,incompleteBlocked:true,reloadUnentered:true,guestNewAndLegacy:true,partialImport:true,identityAdded:true,duplicateSubmitBlocked:true,concurrentRankChangePreserved:true,syntheticSaved:saved.length,errors},null,2));console.log('R2 browser passed: 17 combinations, continuous/normal saves, child clearing, guest persistence/import and concurrent edit protection.');
+ }catch(error){fs.writeFileSync(path.join(output,'failure.json'),JSON.stringify({message:error.message,saved,calls,errors,main:auditPage?await auditPage.locator('main').innerText():null},null,2));throw error;}finally{if(release)release();if(browser)await browser.close();app.kill();api.close();fs.closeSync(log);}
+})().catch(e=>{console.error(e);process.exitCode=1;});

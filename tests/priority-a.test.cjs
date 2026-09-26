@@ -64,7 +64,7 @@ for (const [total, saved] of [[10,10],[250,200]]) test(`A2: save ${saved}/${tota
   assert.equal(inserts.length, saved);
   assert.equal(response.importedIds.length, saved);
   assert.deepEqual(JSON.parse(removeImportedGuestMatches(raw, raw, response.importedIds)), JSON.parse(raw).slice(saved));
-  for (const row of inserts) { assert.equal(row.user_id, 'u'); assert.ok(!('local_id' in row)); assert.ok(!('rank_tier' in row)); }
+  for (const row of inserts) { assert.equal(row.user_id, 'u'); assert.ok(!('local_id' in row)); assert.equal(row.rank_tier, null); assert.equal(row.master_group, null); assert.equal(row.grandmaster_rating, null); }
 });
 test('A2: invalid, stopped, unrecognized and unprepared records remain after partial success', async () => {
   const raw = JSON.stringify([draft(0), draft(1, { result: 'invalid' }), draft(2, { environment_id: 'stopped' }), draft(3, { played_at: 'invalid' }), draft(4, { my_archetype_id: 'missing' }), null, { unknown: true }]);
