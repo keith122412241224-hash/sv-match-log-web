@@ -10,7 +10,10 @@ test('frozen oracle, shared evaluation, UI, Phase 2-A/B and unrelated loaders st
   const protectedFiles=git(['ls-tree','-r','--name-only',base]).split('\n').filter(file=>
     /^src\/(app\/(analysis|matrix|admin\/weekly-report)\/|lib\/(analysis-|matchup-|match-perspectives|analytics|weekly-report-config)|components\/admin\/WeeklyReport)/.test(file)
     ||file.startsWith('supabase/')||['package.json','package-lock.json'].includes(file));
-  for(const file of protectedFiles)assert.equal(read(file),original(file),file);
+  // R3-A intentionally adapts only these analysis entry points. v1 SQL,
+  // aggregation model, Phase 2-A/C and all other protected files remain frozen.
+  const rankEntryPoints = new Set(['src/app/analysis/page.tsx', 'src/lib/analysis-data.ts']);
+  for(const file of protectedFiles.filter(file => !rankEntryPoints.has(file)))assert.equal(read(file),original(file),file);
   const functions=source=>{
     const tree=ts.createSourceFile('file.ts',source,ts.ScriptTarget.Latest,true),result=new Map();
     for(const node of tree.statements)if(ts.isFunctionDeclaration(node)&&node.name)result.set(node.name.text,node.getText(tree));

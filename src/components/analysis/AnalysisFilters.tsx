@@ -1,3 +1,4 @@
+import { ANALYSIS_RANK_FILTERS, type AnalysisRankFilter } from "@/lib/analysis-rank-filter";
 import Link from "next/link";
 import { AnalysisDateTimeField } from "@/components/analysis/AnalysisDateTimeField";
 import { Button } from "@/components/Button";
@@ -17,6 +18,7 @@ export type AnalysisFilterValues = {
   playedTo: string;
   scope: string;
   winRateMode: WinRateMode;
+  rankFilter?: AnalysisRankFilter;
 };
 
 export function AnalysisFilters({
@@ -47,6 +49,17 @@ export function AnalysisFilters({
             <option value="combined">対戦相手反転込み</option>
           </Select>
         </FieldLabel>
+        <div>
+          <FieldLabel>
+            登録者のランク
+            <Select key={values.rankFilter ?? "all"} name="rank" defaultValue={values.rankFilter ?? "all"}>
+              {ANALYSIS_RANK_FILTERS.map(option => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </Select>
+          </FieldLabel>
+          <p className="mt-1 text-xs text-muted">登録者の対戦時点のランクで絞ります。反転込みでもランクは変わりません。</p>
+        </div>
         {canUseAllUsers ? (
           <FieldLabel>
             集計範囲

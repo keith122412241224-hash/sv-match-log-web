@@ -1,3 +1,4 @@
+import { parseAnalysisRankFilter } from "@/lib/analysis-rank-filter";
 import { DeckAnalysisCards } from "@/components/analysis/DeckAnalysisCards";
 import { ExportableAnalysisBlock } from "@/components/analysis/ExportableAnalysisBlock";
 import { AnalysisFilters, isMatchResult, isTurnOrder } from "@/components/analysis/AnalysisFilters";
@@ -20,6 +21,7 @@ type AnalysisSearchParams = {
   playedTo?: string;
   scope?: string;
   winRateMode?: string;
+  rank?: string;
 };
 
 function normalizeDatetimeLocal(value?: string) {
@@ -36,6 +38,7 @@ export default async function AnalysisPage({
   searchParams: Promise<AnalysisSearchParams>;
 }) {
   const [params, environments, isAdmin] = await Promise.all([searchParams, getEnvironments(), getIsAdmin()]);
+  const selectedRank = parseAnalysisRankFilter(params.rank);
   const selectedScope = isAdmin && params.scope === "all" ? "all" : "mine";
   const winRateMode = resolveWinRateMode(params.winRateMode, selectedScope);
   const selectedEnvironmentId = environments.some((environment) => environment.id === params.environment)
@@ -65,7 +68,7 @@ export default async function AnalysisPage({
     playedAtTo: selectedPlayedTo ? toJstIso(selectedPlayedTo, true) : undefined,
     deckIdField,
     includeAllUsers: selectedScope === "all"
-  }, matrixDecks.map(deck => deck.id));
+  }, matrixDecks.map(deck => deck.id), selectedRank);
   const { registeredMatches, byMyDeck, byOpponentDeck, byTurn, matrix, summaries } = buildAnalysisFromAggregates(aggregates, decks, archetypes);
 
   return (
@@ -103,7 +106,8 @@ export default async function AnalysisPage({
             playedFrom: selectedPlayedFrom,
             playedTo: selectedPlayedTo,
             scope: selectedScope,
-            winRateMode
+            winRateMode,
+            ...(selectedRank === "all" ? {} : { rankFilter: selectedRank })
           }}
         />
 
