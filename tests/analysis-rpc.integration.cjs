@@ -84,7 +84,9 @@ before(async()=>{
     assert.ok(originalData.has(name)&&currentData.has(name),'analysis dependency must exist: '+name);
     assert.equal(currentData.get(name),originalData.get(name),'analysis dependency must remain baseline: '+name);
   }
-  for(const file of ['src/lib/analytics.ts','src/lib/match-perspectives.ts','src/app/matrix/page.tsx','src/lib/matchup-data.ts','src/lib/matchup-aggregates.ts']){
+  // R3-B intentionally adapts the matrix page/loader only; its scope test
+  // protects all other Production files. Keep the aggregation oracle frozen.
+  for(const file of ['src/lib/analytics.ts','src/lib/match-perspectives.ts','src/lib/matchup-aggregates.ts']){
     const original=cp.execFileSync('git',['show',`${base}:${file}`],{cwd:root,encoding:'utf8'});
     assert.equal(fs.readFileSync(path.join(root,file),'utf8').replaceAll('\r\n','\n'),original.replaceAll('\r\n','\n'),file+' must remain baseline');
   }

@@ -28,9 +28,10 @@ test('v2 changes only source selection; every perspective/group/recent/output SQ
  assert.equal(body(v2),body(v1));assert.equal((v2.match(/create or replace function/g)||[]).length,1);
  assert.doesNotMatch(v2.replace(/--[^\n]*/g,''),/\b(alter|drop|insert|update|delete|truncate|trigger|index|policy)\b/i);
 });
-test('R3-A source changes are confined to four analysis files; R2 and Phase A/C remain byte-identical',()=>{
+// R3-B adapts only matrix entry points; matchup-rank.test.cjs freezes all other Production source.
+test('R3-A and R3-B entry points are isolated; R2 and other Phase A/C code remain byte-identical',()=>{
  const base='27f3dbb4b14706774d63dbd26282803a7ca0e8c4';const git=a=>cp.execFileSync('git',a,{encoding:'utf8',maxBuffer:64e6}).replaceAll('\r\n','\n');
- const allowed=new Set(['src/app/analysis/page.tsx','src/lib/analysis-data.ts','src/components/analysis/AnalysisFilters.tsx']);
+ const allowed=new Set(['src/app/matrix/page.tsx', 'src/lib/matchup-data.ts', 'src/app/analysis/page.tsx','src/lib/analysis-data.ts','src/components/analysis/AnalysisFilters.tsx']);
  for(const file of git(['ls-tree','-r','--name-only',base]).trim().split('\n').filter(f=>f.startsWith('src/')||f.startsWith('supabase/')||f==='tests/fixtures/analysis-aggregates-v1.sql')){
  if(!allowed.has(file))assert.equal(fs.readFileSync(file,'utf8').replaceAll('\r\n','\n'),git(['show',base+':'+file]),file);
  }

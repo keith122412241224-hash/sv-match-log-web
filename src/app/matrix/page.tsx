@@ -1,6 +1,7 @@
 import { AppShell } from "@/components/AppShell";
 import { EmptyState } from "@/components/EmptyState";
-import { EnvironmentFilter } from "@/components/EnvironmentFilter";
+import { MatrixFilters } from "@/components/matrix/MatrixFilters";
+import { parseAnalysisRankFilter } from "@/lib/analysis-rank-filter";
 import { MatchupMatrix } from "@/components/MatchupMatrix";
 import { buildWinRateMatrixFromAggregates } from "@/lib/matchup-aggregates";
 import { getMatchupAggregates } from "@/lib/matchup-data";
@@ -10,9 +11,10 @@ import { getMostRecentlyCreatedId } from "@/lib/utils";
 export default async function MatrixPage({
   searchParams
 }: {
-  searchParams: Promise<{ environment?: string; scope?: string }>;
+  searchParams: Promise<{ environment?: string; scope?: string; rank?: string }>;
 }) {
   const [params, environments, isAdmin] = await Promise.all([searchParams, getEnvironments(), getIsAdmin()]);
+  const selectedRank = parseAnalysisRankFilter(params.rank);
   const selectedScope = isAdmin && params.scope === "all" ? "all" : "mine";
   const selectedEnvironmentId = environments.some((environment) => environment.id === params.environment)
     ? params.environment ?? ""
@@ -20,7 +22,7 @@ export default async function MatrixPage({
   const [decks, archetypes, aggregates] = await Promise.all([
     getDecks(),
     getActiveArchetypes(),
-    getMatchupAggregates(selectedEnvironmentId, selectedScope === "all")
+    getMatchupAggregates(selectedEnvironmentId, selectedScope === "all", selectedRank)
   ]);
   const selectedEnvironmentName = environments.find((environment) => environment.id === selectedEnvironmentId)?.name ?? "環境なし";
   const matrixDecks = archetypes.length > 0 ? archetypes : decks;
@@ -46,8 +48,8 @@ export default async function MatrixPage({
           </section>
         ) : null}
 
-        <EnvironmentFilter
-          basePath="/matrix"
+        <MatrixFilters
+          rank={selectedRank}
           canUseAllUsers={isAdmin}
           environments={environments}
           scope={selectedScope}

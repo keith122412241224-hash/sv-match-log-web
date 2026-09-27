@@ -1,12 +1,15 @@
+import { parseAnalysisRankFilter, type AnalysisRankFilter } from "@/lib/analysis-rank-filter";
 import { getCurrentUser } from "@/lib/data";
 import { parseMatchupAggregates, type MatchupAggregates } from "@/lib/matchup-aggregates";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export async function getMatchupAggregates(environmentId?: string, includeAllUsers = false): Promise<MatchupAggregates> {
+export async function getMatchupAggregates(environmentId?: string, includeAllUsers = false, rankFilter: AnalysisRankFilter = "all"): Promise<MatchupAggregates> {
+  const rank = parseAnalysisRankFilter(rankFilter);
   // Match the old page's anonymous path; AppShell still redirects to login.
   if (!await getCurrentUser()) return { version: 1, totalMatches: 0, groups: [] };
   const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase.rpc("get_matchup_aggregates_v1", {
+  const { data, error } = await supabase.rpc(rank === "all" ? "get_matchup_aggregates_v1" : "get_matchup_aggregates_v2", {
+    ...(rank === "all" ? {} : { p_rank_filter: rank }),
     p_environment_id: environmentId || null,
     p_include_all_users: includeAllUsers
   });

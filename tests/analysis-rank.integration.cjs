@@ -7,7 +7,8 @@ const old=require('../src/lib/analytics');
 const {analysisPerspectives,filterAnalysisPerspectives}=require('../src/lib/match-perspectives');
 const {parseAnalysisAggregates,buildAnalysisFromAggregates}=require('../src/lib/analysis-aggregates');
 const {ANALYSIS_RANK_FILTERS}=require('../src/lib/analysis-rank-filter');
-const migration=fs.readFileSync('supabase/migrations/016_analysis_rank_aggregates_v2.sql','utf8');
+// Windows Git checkouts may use CRLF; the EXPLAIN-only SQL extraction uses LF delimiters.
+const migration=fs.readFileSync('supabase/migrations/016_analysis_rank_aggregates_v2.sql','utf8').replaceAll('\r\n','\n');
 const uuid=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 const OWNER=uuid(1),OTHER=uuid(2),ADMIN=uuid(3),ENV=uuid(10),ENV2=uuid(11),A=uuid(100),B=uuid(101),C=uuid(102);
 const decks=[A,B,C].map(id=>({id,name:id===C?'C':'same name',class_name:'elf'}));
