@@ -28,6 +28,8 @@ export default async function MatrixPage({
   const matrixDecks = archetypes.length > 0 ? archetypes : decks;
   const rows = buildWinRateMatrixFromAggregates(aggregates, matrixDecks, matrixDecks);
 
+  const createdAtLabel = new Date().toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" });
+
   return (
     <AppShell>
       <div className="grid gap-6">
@@ -64,7 +66,7 @@ export default async function MatrixPage({
             action="デッキ管理へ"
           />
         ) : (
-          <MatchupMatrix rows={rows} opponentDecks={matrixDecks} environmentName={selectedEnvironmentName} />
+          <MatchupMatrix rows={rows} opponentDecks={matrixDecks} environmentName={selectedEnvironmentName} createdAtLabel={createdAtLabel} />
         )}
       </div>
     </AppShell>

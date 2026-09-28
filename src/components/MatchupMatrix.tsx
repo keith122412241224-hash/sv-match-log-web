@@ -23,11 +23,13 @@ const bandClasses: Record<MatrixCell["band"], string> = {
 };
 
 export function MatchupMatrix({
+  createdAtLabel,
   rows,
   opponentDecks,
   title = "対面勝率表",
   environmentName = "現在の環境"
 }: {
+  createdAtLabel?: string;
   rows: MatrixRow[];
   opponentDecks: DeckLike[];
   title?: string;
@@ -37,7 +39,10 @@ export function MatchupMatrix({
   const deckIdsKey = deckIds.join(",");
   const [visibleDeckIds, setVisibleDeckIds] = useState<string[]>(deckIds);
   const ref = useRef<HTMLDivElement>(null);
-  const createdAt = useMemo(() => new Date().toLocaleDateString("ja-JP"), []);
+  const createdAt = useMemo(
+    () => createdAtLabel ?? new Date().toLocaleDateString("ja-JP"),
+    [createdAtLabel]
+  );
 
   useEffect(() => {
     setVisibleDeckIds((current) => {
