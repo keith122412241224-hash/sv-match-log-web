@@ -1,3 +1,4 @@
+import { selectInitialEnvironmentId } from "@/lib/environment-selection";
 import { parseAnalysisRankFilter } from "@/lib/analysis-rank-filter";
 import { DeckAnalysisCards } from "@/components/analysis/DeckAnalysisCards";
 import { ExportableAnalysisBlock } from "@/components/analysis/ExportableAnalysisBlock";
@@ -8,7 +9,7 @@ import { SummaryTable } from "@/components/SummaryTable";
 import { buildAnalysisFromAggregates } from "@/lib/analysis-aggregates";
 import { getAnalysisAggregates } from "@/lib/analysis-data";
 import { getActiveArchetypes, getDecks, getEnvironments, getIsAdmin } from "@/lib/data";
-import { formatPercent, getMostRecentlyCreatedId } from "@/lib/utils";
+import { formatPercent } from "@/lib/utils";
 import { resolveWinRateMode } from "@/lib/match-perspectives";
 
 type AnalysisSearchParams = {
@@ -41,9 +42,7 @@ export default async function AnalysisPage({
   const selectedRank = parseAnalysisRankFilter(params.rank);
   const selectedScope = isAdmin && params.scope === "all" ? "all" : "mine";
   const winRateMode = resolveWinRateMode(params.winRateMode, selectedScope);
-  const selectedEnvironmentId = environments.some((environment) => environment.id === params.environment)
-    ? params.environment ?? ""
-    : getMostRecentlyCreatedId(environments);
+  const selectedEnvironmentId = selectInitialEnvironmentId(environments, params.environment);
   const [decks, archetypes] = await Promise.all([getDecks(), getActiveArchetypes()]);
   const selectedEnvironmentName = environments.find((environment) => environment.id === selectedEnvironmentId)?.name;
   const matrixDecks = archetypes.length > 0 ? archetypes : decks;

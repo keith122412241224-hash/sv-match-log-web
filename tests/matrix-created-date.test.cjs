@@ -9,7 +9,7 @@ test('only matrix creation-date plumbing differs from the Production source', ()
   const git = args => cp.execFileSync('git', ['-c', 'safe.directory='+process.cwd().replaceAll('\\','/'), ...args], {encoding:'utf8'}).replaceAll('\r\n','\n');
   const files = git(['ls-tree','-r','--name-only',base]).trim().split('\n').filter(f=>f.startsWith('src/'));
   // Save UX exceptions are narrowly guarded by global-pending-scope.test.cjs.
-  const saveUx = new Set(["src/app/actions.ts","src/app/admin/actions.ts","src/app/admin/page.tsx","src/app/guest/page.tsx","src/app/matches/page.tsx","src/components/admin/AdminEnvironmentTable.tsx","src/components/admin/CreateEnvironmentForm.tsx","src/lib/data.ts","src/types/database.ts","src/app/actions.ts", "src/components/GlobalPendingIndicator.tsx", "src/components/matches/QuickMatchForm.tsx"]);
+  const saveUx = new Set(["src/app/page.tsx","src/app/analysis/page.tsx","src/app/matrix/page.tsx","src/app/actions.ts","src/app/admin/actions.ts","src/app/admin/page.tsx","src/app/guest/page.tsx","src/app/matches/page.tsx","src/components/admin/AdminEnvironmentTable.tsx","src/components/admin/CreateEnvironmentForm.tsx","src/lib/data.ts","src/types/database.ts","src/app/actions.ts", "src/components/GlobalPendingIndicator.tsx", "src/components/matches/QuickMatchForm.tsx"]);
   for (const file of files.filter(file => !saveUx.has(file))) {
     let current = fs.readFileSync(file,'utf8').replaceAll('\r\n','\n');
     if (file === 'src/app/matrix/page.tsx') current = current

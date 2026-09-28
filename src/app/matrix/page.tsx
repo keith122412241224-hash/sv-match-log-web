@@ -1,3 +1,4 @@
+import { selectInitialEnvironmentId } from "@/lib/environment-selection";
 import { AppShell } from "@/components/AppShell";
 import { EmptyState } from "@/components/EmptyState";
 import { MatrixFilters } from "@/components/matrix/MatrixFilters";
@@ -6,7 +7,6 @@ import { MatchupMatrix } from "@/components/MatchupMatrix";
 import { buildWinRateMatrixFromAggregates } from "@/lib/matchup-aggregates";
 import { getMatchupAggregates } from "@/lib/matchup-data";
 import { getActiveArchetypes, getDecks, getEnvironments, getIsAdmin } from "@/lib/data";
-import { getMostRecentlyCreatedId } from "@/lib/utils";
 
 export default async function MatrixPage({
   searchParams
@@ -16,9 +16,7 @@ export default async function MatrixPage({
   const [params, environments, isAdmin] = await Promise.all([searchParams, getEnvironments(), getIsAdmin()]);
   const selectedRank = parseAnalysisRankFilter(params.rank);
   const selectedScope = isAdmin && params.scope === "all" ? "all" : "mine";
-  const selectedEnvironmentId = environments.some((environment) => environment.id === params.environment)
-    ? params.environment ?? ""
-    : getMostRecentlyCreatedId(environments);
+  const selectedEnvironmentId = selectInitialEnvironmentId(environments, params.environment);
   const [decks, archetypes, aggregates] = await Promise.all([
     getDecks(),
     getActiveArchetypes(),

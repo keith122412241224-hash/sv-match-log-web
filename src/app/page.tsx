@@ -1,3 +1,4 @@
+import { selectInitialEnvironmentId } from "@/lib/environment-selection";
 import Link from "next/link";
 import { BarChart3, BookOpen, Grid3X3, ListPlus, LogIn, Swords, Trophy } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
@@ -9,7 +10,7 @@ import { OnboardingPanel } from "@/components/onboarding/OnboardingPanel";
 import { StatCard } from "@/components/StatCard";
 import { RESULT_LABELS, TURN_ORDER_LABELS } from "@/lib/constants";
 import { getCurrentUser, getEnvironments, getHomeDashboard } from "@/lib/data";
-import { formatJstDateTime, formatPercent, getMostRecentlyCreatedId } from "@/lib/utils";
+import { formatJstDateTime, formatPercent } from "@/lib/utils";
 
 export default async function HomePage({
   searchParams
@@ -23,9 +24,7 @@ export default async function HomePage({
   }
 
   const [params, environments] = await Promise.all([searchParams, getEnvironments()]);
-  const selectedEnvironmentId = environments.some((environment) => environment.id === params.environment)
-    ? params.environment ?? ""
-    : getMostRecentlyCreatedId(environments);
+  const selectedEnvironmentId = selectInitialEnvironmentId(environments, params.environment);
   let dashboard;
   try {
     dashboard = await getHomeDashboard(selectedEnvironmentId);

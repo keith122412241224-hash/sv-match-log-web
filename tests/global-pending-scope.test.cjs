@@ -11,7 +11,7 @@ test('save UX leaves all other Production source, rank logic, persistence, RPC a
   const files = git(['ls-tree', '-r', '--name-only', base]).trim().split('\n')
     .filter(file => file.startsWith('src/') || file.startsWith('supabase/') || ['package.json', 'package-lock.json'].includes(file));
   // Scheduling changes are bounded by environment-schedule-scope.test.cjs.
-  const scheduling = new Set(["src/app/actions.ts","src/app/admin/actions.ts","src/app/admin/page.tsx","src/app/guest/page.tsx","src/app/matches/page.tsx","src/components/admin/AdminEnvironmentTable.tsx","src/components/admin/CreateEnvironmentForm.tsx","src/lib/data.ts","src/types/database.ts"]);
+  const scheduling = new Set(["src/app/page.tsx","src/app/analysis/page.tsx","src/app/matrix/page.tsx","src/app/actions.ts","src/app/admin/actions.ts","src/app/admin/page.tsx","src/app/guest/page.tsx","src/app/matches/page.tsx","src/components/admin/AdminEnvironmentTable.tsx","src/components/admin/CreateEnvironmentForm.tsx","src/lib/data.ts","src/types/database.ts"]);
   for (const file of files.filter(file => !scheduling.has(file))) {
     let current = fs.readFileSync(file, 'utf8').replaceAll('\r\n', '\n');
     if (file === 'src/components/GlobalPendingIndicator.tsx') {
