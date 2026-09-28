@@ -1,3 +1,5 @@
+import { type AnalysisRankFilter } from "@/lib/analysis-rank-filter";
+import { withPeriodReportRank } from "@/lib/period-report-rank";
 import { cache } from "react";
 import { getPeriodReportAggregates } from "@/lib/period-report-data";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -332,7 +334,7 @@ export async function getDeckSuggestionsForAdmin() {
   return data ?? [];
 }
 
-export async function getWeeklyReport(startDate: string, endDate?: string) {
+export async function getWeeklyReport(startDate: string, endDate?: string, rank: AnalysisRankFilter = "all") {
   const [isAdmin, archetypes] = await Promise.all([getIsAdmin(), getActiveArchetypes()]);
 
   if (!isAdmin) {
@@ -342,8 +344,8 @@ export async function getWeeklyReport(startDate: string, endDate?: string) {
   const period = buildWeeklyPeriod(startDate, endDate);
   const previousPeriod = getPreviousWeeklyReportPeriod(period);
 
-  const aggregates = await getPeriodReportAggregates(period, previousPeriod);
-  return buildWeeklyReportFromAggregates(aggregates, archetypes, period);
+  const aggregates = await getPeriodReportAggregates(period, previousPeriod, rank);
+  return withPeriodReportRank(buildWeeklyReportFromAggregates(aggregates, archetypes, period), rank);
 }
 
 export const getIsAdmin = cache(async () => {

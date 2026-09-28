@@ -1,7 +1,8 @@
 "use client";
 
 import { Copy, Download } from "lucide-react";
-import { useRef, useState, type ReactNode } from "react";
+import { useContext, useRef, useState, type ReactNode } from "react";
+import { PeriodReportRankContext } from "@/components/admin/PeriodReportRankContext";
 import { Button } from "@/components/Button";
 
 export function CopyButton({ text, label }: { text: string; label: string }) {
@@ -42,6 +43,7 @@ export function MarkdownDownloadButton({ markdown, fileName }: { markdown: strin
 
 export function ExportableReportBlock({ title, fileName, children }: { title: string; fileName: string; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
+  const rankLabel = useContext(PeriodReportRankContext);
 
   async function downloadPng() {
     if (!ref.current) {
@@ -70,6 +72,7 @@ export function ExportableReportBlock({ title, fileName, children }: { title: st
         </Button>
       </div>
       <div ref={ref} className="bg-white p-4">
+        {rankLabel ? <p className="mb-3 text-sm font-semibold text-ink">ランク: {rankLabel}（当期間・前期間共通）</p> : null}
         {children}
       </div>
     </section>

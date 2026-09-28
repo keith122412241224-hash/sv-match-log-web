@@ -1,3 +1,6 @@
+import { ANALYSIS_RANK_FILTERS, parseAnalysisRankFilter } from "@/lib/analysis-rank-filter";
+import { getPeriodReportRankLabel } from "@/lib/period-report-rank";
+import { PeriodReportRankProvider } from "@/components/admin/PeriodReportRankContext";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
@@ -11,7 +14,7 @@ import { formatPercent } from "@/lib/utils";
 export default async function AdminWeeklyReportPage({
   searchParams
 }: {
-  searchParams: Promise<{ start?: string; end?: string }>;
+  searchParams: Promise<{ start?: string; end?: string; rank?: string }>;
 }) {
   const isAdmin = await getIsAdmin();
 
@@ -22,11 +25,13 @@ export default async function AdminWeeklyReportPage({
   const params = await searchParams;
   const selectedStartDate = /^\d{4}-\d{2}-\d{2}$/.test(params.start ?? "") ? params.start! : getDefaultWeeklyReportStartDate();
   const selectedEndDate = /^\d{4}-\d{2}-\d{2}$/.test(params.end ?? "") ? params.end! : undefined;
+  let selectedRank: ReturnType<typeof parseAnalysisRankFilter> = "all";
   let report;
   let fetchError: string | null = null;
 
   try {
-    report = await getWeeklyReport(selectedStartDate, selectedEndDate);
+    selectedRank = parseAnalysisRankFilter(params.rank);
+    report = await getWeeklyReport(selectedStartDate, selectedEndDate, selectedRank);
   } catch (error) {
     fetchError = error instanceof Error ? error.message : "Supabaseから期間レポートを取得できませんでした。";
   }
@@ -43,10 +48,12 @@ export default async function AdminWeeklyReportPage({
     );
   }
 
+  const rankLabel = getPeriodReportRankLabel(selectedRank);
   const periodDayCount = getWeeklyReportPeriodDayCount(report.period);
   const isLowComparisonConfidence = report.comparisonConfidence === "low";
 
   return (
+    <PeriodReportRankProvider label={rankLabel}>
     <main className="min-h-screen bg-surface px-4 py-6">
       <div className="mx-auto grid max-w-7xl gap-6">
         <header className="flex flex-wrap items-center justify-between gap-3">
@@ -67,7 +74,7 @@ export default async function AdminWeeklyReportPage({
         </header>
 
         <section className="rounded-md border border-slate-200 bg-white p-4">
-          <form className="grid gap-3 md:grid-cols-[1fr_1fr_auto]" action="/admin/weekly-report">
+          <form className="grid gap-3 md:grid-cols-[1fr_1fr_220px_auto]" action="/admin/weekly-report">
             <label className="grid gap-1 text-sm font-semibold text-ink">
               開始日
               <input className="min-h-11 rounded-md border border-slate-300 px-3" type="date" name="start" defaultValue={report.period.startDate} />
@@ -76,11 +83,19 @@ export default async function AdminWeeklyReportPage({
               終了日
               <input className="min-h-11 rounded-md border border-slate-300 px-3" type="date" name="end" defaultValue={report.period.endDate} />
             </label>
+            <label className="grid gap-1 text-sm font-semibold text-ink">
+              ランク
+              <select key={selectedRank} name="rank" defaultValue={selectedRank} className="min-h-11 rounded-md border border-slate-300 px-3">
+                {ANALYSIS_RANK_FILTERS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+            </label>
             <button className="min-h-11 self-end rounded-md bg-ink px-4 text-sm font-bold text-white" type="submit">
               表示
             </button>
           </form>
         </section>
+
+        {rankLabel ? <p className="text-sm font-semibold text-ink">ランク: {rankLabel}（当期間・前期間とも登録者本人のランクで絞り込み）</p> : null}
 
         <section className="grid gap-3 md:grid-cols-4">
           <MiniStat label="登録試合数" value={`${report.totalMatches}`} detail={`前期間 ${report.previousTotalMatches}戦`} />
@@ -125,6 +140,7 @@ export default async function AdminWeeklyReportPage({
         </ExportableReportBlock>
 
         <WeeklyReportInteractiveSections
+          key={`${report.period.startDate}:${report.period.endDate}:${selectedRank}`}
           opponentRows={report.opponentDeckRanking}
           winRateRows={report.myDeckWinRates}
           matchupRows={report.unifiedMatchups}
@@ -137,6 +153,7 @@ export default async function AdminWeeklyReportPage({
         />
       </div>
     </main>
+    </PeriodReportRankProvider>
   );
 }
 

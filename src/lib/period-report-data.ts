@@ -1,12 +1,15 @@
+import { parseAnalysisRankFilter, type AnalysisRankFilter } from "@/lib/analysis-rank-filter";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { parsePeriodReportAggregates, PeriodReportDataError } from "@/lib/period-report-aggregates";
 import type { WeeklyReportPeriod } from "@/lib/weekly-report";
 
-export async function getPeriodReportAggregates(current: WeeklyReportPeriod, previous: WeeklyReportPeriod) {
+export async function getPeriodReportAggregates(current: WeeklyReportPeriod, previous: WeeklyReportPeriod, rankFilter: AnalysisRankFilter = "all") {
+  const rank = parseAnalysisRankFilter(rankFilter);
   const supabase = await createSupabaseServerClient();
   let response;
   try {
-    response = await supabase.rpc("get_period_report_aggregates_v1", {
+    response = await supabase.rpc(rank === "all" ? "get_period_report_aggregates_v1" : "get_period_report_aggregates_v2", {
+      ...(rank === "all" ? {} : { p_rank_filter: rank }),
       p_current_start: current.startIso, p_current_end: current.endIso,
       p_previous_start: previous.startIso, p_previous_end: previous.endIso
     });
