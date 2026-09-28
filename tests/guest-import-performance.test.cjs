@@ -178,6 +178,33 @@ test('preserves normal and continuous registration payloads and refresh policy',
   assert.deepEqual(invalidations, ['/', '/analysis', '/matrix']);
 });
 
+test('client home save preserves redirect-save payload and invalidation; continue does not invalidate', async () => {
+  const form = new FormData();
+  for (const [key, value] of Object.entries(draft('one', { rank_tier: 'master', master_group: 'diamond' }))) form.set(key, value);
+  form.set('next_action', 'continue');
+  assert.equal((await createMatchInline(form)).ok, true);
+  assert.deepEqual(invalidations, []);
+  form.set('next_action', 'home');
+  assert.equal((await createMatchInline(form)).ok, true);
+  const homeInvalidations = [...invalidations];
+  invalidations.length = 0;
+  await assert.rejects(createMatch(form), /redirect:\/$/);
+  assert.deepEqual(homeInvalidations, invalidations);
+  assert.ok(homeInvalidations.includes('/'));
+  assert.equal(saved.length, 3);
+  for (const row of saved) assert.deepEqual({ ...row, played_at: saved[0].played_at }, saved[0]);
+});
+
+test('failed client home save returns an error without invalidation or redirect', async () => {
+  failInsert = true;
+  const form = new FormData();
+  for (const [key, value] of Object.entries(draft('one'))) form.set(key, value);
+  form.set('next_action', 'home');
+  assert.deepEqual(await createMatchInline(form), { ok: false, message: 'insert failed' });
+  assert.deepEqual(invalidations, []);
+  assert.deepEqual(saved, []);
+});
+
 test('200 repeated matches require four DB calls with existing decks and six with missing decks', async () => {
   const input = Array.from({ length: 200 }, (_, i) => draft(String(i)));
   tables.decks = [deck('Alpha', 'エルフ'), deck('Beta', 'ロイヤル')];

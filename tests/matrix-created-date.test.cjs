@@ -8,7 +8,9 @@ test('only matrix creation-date plumbing differs from the Production source', ()
   const base = '7b1a7179ad79beea22d933c3c1ad716f93ec6295';
   const git = args => cp.execFileSync('git', ['-c', 'safe.directory='+process.cwd().replaceAll('\\','/'), ...args], {encoding:'utf8'}).replaceAll('\r\n','\n');
   const files = git(['ls-tree','-r','--name-only',base]).trim().split('\n').filter(f=>f.startsWith('src/'));
-  for (const file of files) {
+  // Save UX exceptions are narrowly guarded by global-pending-scope.test.cjs.
+  const saveUx = new Set(["src/app/actions.ts", "src/components/GlobalPendingIndicator.tsx", "src/components/matches/QuickMatchForm.tsx"]);
+  for (const file of files.filter(file => !saveUx.has(file))) {
     let current = fs.readFileSync(file,'utf8').replaceAll('\r\n','\n');
     if (file === 'src/app/matrix/page.tsx') current = current
       .replace('  const createdAtLabel = new Date().toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" });\n\n','')

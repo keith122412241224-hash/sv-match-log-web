@@ -168,7 +168,8 @@ export async function createMatch(formData: FormData) {
 }
 
 export async function createMatchInline(formData: FormData): Promise<CreateMatchResult> {
-  return saveMatchFromForm(formData, { revalidate: false });
+  // Preserve the existing home-save cache invalidation before client navigation.
+  return saveMatchFromForm(formData, { revalidate: formData.get("next_action") === "home" });
 }
 
 export async function importGuestMatches(formData: FormData): Promise<GuestImportResult> {

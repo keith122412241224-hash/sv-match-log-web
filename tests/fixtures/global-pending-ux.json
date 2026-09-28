@@ -1,0 +1,42 @@
+[
+  [
+    "src/components/matches/QuickMatchForm.tsx",
+    "import { useEffect, useMemo, useState } from \"react\";",
+    "import { useEffect, useMemo, useState, useTransition } from \"react\";\nimport { useRouter } from \"next/navigation\";"
+  ],
+  [
+    "src/components/matches/QuickMatchForm.tsx",
+    "import { Button } from \"@/components/Button\";",
+    "import { Button } from \"@/components/Button\";\nimport { notifyNavigationStart } from \"@/components/GlobalPendingIndicator\";"
+  ],
+  [
+    "src/components/matches/QuickMatchForm.tsx",
+    "  const myChoices: DeckChoice[] = useMemo(() => {",
+    "  const router = useRouter();\n  const [isNavigating, startNavigation] = useTransition();\n  const myChoices: DeckChoice[] = useMemo(() => {"
+  ],
+  [
+    "src/components/matches/QuickMatchForm.tsx",
+    "      if (submitter?.value !== \"continue\") {\n        return;\n      }\n\n      event.preventDefault();",
+    "      event.preventDefault();\n      if (isSaving || isNavigating) return;\n      const nextAction = submitter?.value === \"continue\" ? \"continue\" : \"home\";"
+  ],
+  [
+    "src/components/matches/QuickMatchForm.tsx",
+    "        formData.set(\"next_action\", \"continue\");",
+    "        formData.set(\"next_action\", nextAction);"
+  ],
+  [
+    "src/components/matches/QuickMatchForm.tsx",
+    "          setSaveState(\"saved\");",
+    "          if (nextAction === \"home\") {\n            notifyNavigationStart(\"/\");\n            startNavigation(() => router.push(\"/\"));\n          } else {\n            setSaveState(\"saved\");\n          }"
+  ],
+  [
+    "src/components/matches/QuickMatchForm.tsx",
+    "pendingOverride={isSaving}",
+    "pendingOverride={isSaving || isNavigating}"
+  ],
+  [
+    "src/app/actions.ts",
+    "  return saveMatchFromForm(formData, { revalidate: false });",
+    "  // Preserve the existing home-save cache invalidation before client navigation.\n  return saveMatchFromForm(formData, { revalidate: formData.get(\"next_action\") === \"home\" });"
+  ]
+]

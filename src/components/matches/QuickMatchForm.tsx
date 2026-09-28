@@ -1,13 +1,15 @@
 "use client";
 
 import { Loader2, Save } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { useFormStatus } from "react-dom";
 import type { FormEvent } from "react";
 import { createMatch, createMatchInline } from "@/app/actions";
 import { RankFields } from "@/components/matches/RankFields";
 import { EMPTY_RANK, validateMatchRank, type MatchRank } from "@/lib/match-rank";
 import { Button } from "@/components/Button";
+import { notifyNavigationStart } from "@/components/GlobalPendingIndicator";
 import { ClassIcon, DeckWithClassIcon } from "@/components/ClassIcon";
 import { FieldLabel, Select } from "@/components/Field";
 import { RESULT_LABELS, SHADOWVERSE_CLASSES, TURN_ORDER_LABELS } from "@/lib/constants";
@@ -52,6 +54,8 @@ export function QuickMatchForm({
   guest?: boolean;
   onGuestSubmit?: (match: GuestMatchDraft) => void;
 }) {
+  const router = useRouter();
+  const [isNavigating, startNavigation] = useTransition();
   const myChoices: DeckChoice[] = useMemo(() => {
     if (archetypes.length > 0) {
       return archetypes.map((archetype) => ({
@@ -129,22 +133,25 @@ export function QuickMatchForm({
     if (!guest) {
       const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
 
-      if (submitter?.value !== "continue") {
-        return;
-      }
-
       event.preventDefault();
+      if (isSaving || isNavigating) return;
+      const nextAction = submitter?.value === "continue" ? "continue" : "home";
       setIsSaving(true);
       setSaveState("idle");
       setSaveMessage("");
 
       try {
         const formData = new FormData(event.currentTarget);
-        formData.set("next_action", "continue");
+        formData.set("next_action", nextAction);
         const response = await createMatchInline(formData);
 
         if (response.ok) {
-          setSaveState("saved");
+          if (nextAction === "home") {
+            notifyNavigationStart("/");
+            startNavigation(() => router.push("/"));
+          } else {
+            setSaveState("saved");
+          }
         } else {
           setSaveState("error");
           setSaveMessage(response.message ?? "保存できませんでした。");
@@ -341,7 +348,7 @@ export function QuickMatchForm({
       <RankFields value={rank} onChange={setRank} />
 
       <div className="grid gap-2 sm:grid-cols-2">
-        <MatchSubmitButtons guest={guest} pendingOverride={isSaving} />
+        <MatchSubmitButtons guest={guest} pendingOverride={isSaving || isNavigating} />
       </div>
     </form>
   );

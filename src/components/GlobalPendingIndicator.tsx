@@ -1,10 +1,16 @@
 "use client";
 
 import { usePathname, useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 const PENDING_DELAY_MS = 80;
 const SAFETY_TIMEOUT_MS = 8000;
+const NAVIGATION_START_EVENT = "svml:navigation-start";
+
+// Call only when starting a client-side navigation, never when starting a save.
+export function notifyNavigationStart(href: string) {
+  document.dispatchEvent(new CustomEvent(NAVIGATION_START_EVENT, { detail: href }));
+}
 
 export function GlobalPendingIndicator() {
   const pathname = usePathname();
@@ -13,20 +19,26 @@ export function GlobalPendingIndicator() {
   const showTimer = useRef<number | null>(null);
   const safetyTimer = useRef<number | null>(null);
 
-  useEffect(() => {
-    function clearTimers() {
-      if (showTimer.current) {
-        window.clearTimeout(showTimer.current);
-        showTimer.current = null;
-      }
-
-      if (safetyTimer.current) {
-        window.clearTimeout(safetyTimer.current);
-        safetyTimer.current = null;
-      }
+  const clearTimers = useCallback(() => {
+    if (showTimer.current) {
+      window.clearTimeout(showTimer.current);
+      showTimer.current = null;
     }
 
-    function startPending() {
+    if (safetyTimer.current) {
+      window.clearTimeout(safetyTimer.current);
+      safetyTimer.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    function startPending(href: string) {
+      const nextUrl = new URL(href, window.location.href);
+      if (nextUrl.origin !== window.location.origin ||
+          (nextUrl.pathname === window.location.pathname && nextUrl.search === window.location.search)) {
+        return;
+      }
+
       clearTimers();
       showTimer.current = window.setTimeout(() => setPending(true), PENDING_DELAY_MS);
       safetyTimer.current = window.setTimeout(() => setPending(false), SAFETY_TIMEOUT_MS);
@@ -48,43 +60,54 @@ export function GlobalPendingIndicator() {
 
       const href = target.getAttribute("href");
       const targetAttr = target.getAttribute("target");
-      if (!href || href.startsWith("#") || targetAttr === "_blank") {
+      if (!href || href.startsWith("#") || (targetAttr && targetAttr !== "_self") || target.hasAttribute("download")) {
         return;
       }
 
-      const nextUrl = new URL(href, window.location.href);
-      if (nextUrl.origin !== window.location.origin) {
-        return;
-      }
-
-      if (nextUrl.pathname === window.location.pathname && nextUrl.search === window.location.search) {
-        return;
-      }
-
-      startPending();
+      startPending(href);
     }
 
     function handleSubmit(event: SubmitEvent) {
-      if (event.defaultPrevented) {
+      const form = event.target;
+      if (event.defaultPrevented || !(form instanceof HTMLFormElement)) {
         return;
       }
 
-      startPending();
+      // Only native GET forms navigate here. Server Actions must signal navigation
+      // explicitly after saving, rather than treating every submit as navigation.
+      const submitter = event.submitter as HTMLButtonElement | HTMLInputElement | null;
+      const method = submitter?.getAttribute("formmethod") ?? form.method;
+      const target = submitter?.getAttribute("formtarget") ?? form.target;
+      if (method.toLowerCase() !== "get" || (target && target !== "_self")) return;
+      const url = new URL(submitter?.getAttribute("formaction") ?? form.action, window.location.href);
+      const params = new URLSearchParams();
+      for (const [name, value] of new FormData(form, submitter)) {
+        params.append(name, typeof value === "string" ? value : value.name);
+      }
+      url.search = params.toString();
+      startPending(url.href);
+    }
+
+    function handleNavigationStart(event: Event) {
+      startPending((event as CustomEvent<string>).detail);
     }
 
     document.addEventListener("click", handleClick, true);
-    document.addEventListener("submit", handleSubmit, true);
+    document.addEventListener("submit", handleSubmit);
+    document.addEventListener(NAVIGATION_START_EVENT, handleNavigationStart);
 
     return () => {
       clearTimers();
       document.removeEventListener("click", handleClick, true);
-      document.removeEventListener("submit", handleSubmit, true);
+      document.removeEventListener("submit", handleSubmit);
+      document.removeEventListener(NAVIGATION_START_EVENT, handleNavigationStart);
     };
-  }, []);
+  }, [clearTimers]);
 
   useEffect(() => {
+    clearTimers();
     setPending(false);
-  }, [pathname, searchParams]);
+  }, [pathname, searchParams, clearTimers]);
 
   if (!pending) {
     return null;

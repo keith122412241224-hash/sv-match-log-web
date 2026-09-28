@@ -21,10 +21,10 @@ test('frozen oracle, shared evaluation, UI, Phase 2-A/B and unrelated loaders st
     for(const node of tree.statements)if(ts.isFunctionDeclaration(node)&&node.name)result.set(node.name.text,node.getText(tree));
     return result;
   };
-  // R2 intentionally adds rank validation/payloads to two write paths only.
+  // R2 adds rank validation/payloads; createMatchInline UX is guarded by global-pending-scope.test.cjs.
   const oldActions=functions(original('src/app/actions.ts')),newActions=functions(read('src/app/actions.ts'));
   assert.deepEqual([...newActions.keys()],[...oldActions.keys()]);
-  for(const [name,body]of oldActions)if(!['saveMatchFromForm','importGuestMatches'].includes(name))
+  for(const [name,body]of oldActions)if(!['saveMatchFromForm','importGuestMatches','createMatchInline'].includes(name))
     assert.equal(newActions.get(name),body,'unchanged action helper '+name);
   const oldFunctions=functions(original('src/lib/weekly-report.ts')),newFunctions=functions(read('src/lib/weekly-report.ts'));
   const adapted=new Set(['buildWeeklyReport','buildOpponentDeckRanking','buildMyDeckWinRates','buildUnifiedMatchups','countUnifiedMatchups']);
