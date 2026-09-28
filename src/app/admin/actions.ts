@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { readMatchInputWindow } from "@/lib/environment-input";
 import type { SuggestionStatus } from "@/types/database";
 
 export async function createArchetype(formData: FormData) {
@@ -23,7 +24,7 @@ export async function createArchetype(formData: FormData) {
   redirect("/admin?notice=created");
 }
 
-export async function createEnvironment(formData: FormData) {
+export async function createEnvironment(formData: FormData, returnResult = false) {
   const supabase = await requireAdminClient();
   const user = await requireAdminUser();
   const name = String(formData.get("name") ?? "").trim();
@@ -33,24 +34,44 @@ export async function createEnvironment(formData: FormData) {
     return;
   }
 
+  let inputWindow;
+  try {
+    inputWindow = readMatchInputWindow(String(formData.get("match_input_start_at") ?? ""), String(formData.get("match_input_end_at") ?? ""));
+  } catch {
+    return environmentResult(returnResult, "environment_create_failed", "入力日時を日本時間で正しく入力し、終了は開始より後に設定してください。");
+  }
+
   const { error } = await supabase.from("environments").insert({
     user_id: user.id,
     name,
     start_date: startDate || null,
-    allow_match_input: true
+    allow_match_input: formData.get("allow_match_input") === "on",
+    ...inputWindow
   });
 
   if (error) {
-    redirectAdminError("environment_create_failed", error.message);
+    return environmentResult(returnResult, "environment_create_failed", error.message);
   }
 
   revalidateAdminPaths();
-  redirect("/admin?notice=environment_created");
+  return environmentResult(returnResult, "environment_created");
 }
 
-export async function updateEnvironmentsBatch(formData: FormData) {
+export async function updateEnvironmentsBatch(formData: FormData, returnResult = false) {
   const supabase = await requireAdminClient();
   const ids = formData.getAll("environment_ids").map((value) => String(value));
+
+  const inputWindows = new Map<string, ReturnType<typeof readMatchInputWindow>>();
+  try {
+    for (const id of ids) {
+      inputWindows.set(id, readMatchInputWindow(
+        String(formData.get(`match_input_start_at_${id}`) ?? ""),
+        String(formData.get(`match_input_end_at_${id}`) ?? "")
+      ));
+    }
+  } catch {
+    return environmentResult(returnResult, "environments_update_failed", "入力日時を日本時間で正しく入力し、終了は開始より後に設定してください。");
+  }
 
   const updates = ids.flatMap((id) => {
     const name = String(formData.get(`name_${id}`) ?? "").trim();
@@ -65,7 +86,8 @@ export async function updateEnvironmentsBatch(formData: FormData) {
       payload: {
         name,
         start_date: startDate || null,
-        allow_match_input: formData.get(`allow_match_input_${id}`) === "on"
+        allow_match_input: formData.get(`allow_match_input_${id}`) === "on",
+        ...inputWindows.get(id)!
       }
     };
   });
@@ -76,11 +98,11 @@ export async function updateEnvironmentsBatch(formData: FormData) {
   const error = results.find((result) => result.error)?.error;
 
   if (error) {
-    redirectAdminError("environments_update_failed", error.message);
+    return environmentResult(returnResult, "environments_update_failed", error.message);
   }
 
   revalidateAdminPaths();
-  redirect("/admin?notice=environments_updated");
+  return environmentResult(returnResult, "environments_updated");
 }
 
 export async function deleteEnvironment(id: string) {
@@ -290,4 +312,10 @@ function revalidateAdminPaths() {
 
 function redirectAdminError(code: string, message: string) {
   redirect(`/admin?notice=${encodeURIComponent(code)}&error=${encodeURIComponent(message)}`);
+}
+
+function environmentResult(returnResult: boolean, notice: string, error?: string) {
+  if (returnResult) return { notice, error };
+  if (error) redirectAdminError(notice, error);
+  redirect(`/admin?notice=${encodeURIComponent(notice)}`);
 }

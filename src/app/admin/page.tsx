@@ -96,7 +96,7 @@ export default async function AdminPage({
             <p className="mt-1 text-sm text-muted">ユーザーが戦績入力・分析で選ぶ環境を管理します。</p>
           </div>
           <CreateEnvironmentForm />
-          <AdminEnvironmentTable environments={environments} />
+          <AdminEnvironmentTable environments={environments} serverNow={Date.now()} />
         </section>
 
         <section>

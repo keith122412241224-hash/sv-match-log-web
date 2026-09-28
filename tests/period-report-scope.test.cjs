@@ -24,12 +24,12 @@ test('frozen oracle, shared evaluation, UI, Phase 2-A/B and unrelated loaders st
   // R2 adds rank validation/payloads; createMatchInline UX is guarded by global-pending-scope.test.cjs.
   const oldActions=functions(original('src/app/actions.ts')),newActions=functions(read('src/app/actions.ts'));
   assert.deepEqual([...newActions.keys()],[...oldActions.keys()]);
-  for(const [name,body]of oldActions)if(!['saveMatchFromForm','importGuestMatches','createMatchInline'].includes(name))
+  for(const [name,body]of oldActions)if(!['saveMatchFromForm','importGuestMatches','createMatchInline','isEnvironmentInputEnabled'].includes(name))
     assert.equal(newActions.get(name),body,'unchanged action helper '+name);
   const oldFunctions=functions(original('src/lib/weekly-report.ts')),newFunctions=functions(read('src/lib/weekly-report.ts'));
   const adapted=new Set(['buildWeeklyReport','buildOpponentDeckRanking','buildMyDeckWinRates','buildUnifiedMatchups','countUnifiedMatchups']);
   for(const [name,body]of oldFunctions)if(!adapted.has(name))assert.equal(newFunctions.get(name),body,'unchanged evaluation function '+name);
-  const stripReport=s=>s.replace(/import .*period-report-rank.*\n/g,'').replace(/import .*analysis-rank-filter.*\n/g,'').replace(/import .*period-report-data.*\n/g,'').replace(/import .*weekly-report";\n/g,'')
+  const stripReport=s=>s.replace(/import .*environment-input.*\n/g,'').replace(/  const now = Date.now\(\);\n  return environments.filter\(\(environment\) => isEnvironmentInputEnabled\(environment, now\)\);/,'  return environments.filter((environment) => environment.allow_match_input);').replace(/import .*period-report-rank.*\n/g,'').replace(/import .*analysis-rank-filter.*\n/g,'').replace(/import .*period-report-data.*\n/g,'').replace(/import .*weekly-report";\n/g,'')
     .replace(/const WEEKLY_REPORT_MATCH_COLUMNS = .*\n/g,'').replace(/export async function getWeeklyReport\([\s\S]*?(?=export const getIsAdmin)/,'');
   assert.equal(stripReport(read('src/lib/data.ts')),stripReport(original('src/lib/data.ts')),'all non-period data paths');
   const migration=read('supabase/legacy-migrations/pre-baseline/014_period_report_aggregates_v1.sql').replace(/--[^\n]*/g,'');

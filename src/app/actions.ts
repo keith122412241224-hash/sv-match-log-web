@@ -4,9 +4,10 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { isEnvironmentInputEnabled as isInputOpen } from "@/lib/environment-input";
 import { validateMatchRank } from "@/lib/match-rank";
 import type { GuestImportResult, StoredGuestMatch } from "@/lib/guest-storage";
-import type { MatchResult, TurnOrder } from "@/types/database";
+import type { Database, MatchResult, TurnOrder } from "@/types/database";
 
 type CreateMatchResult = {
   ok: boolean;
@@ -184,17 +185,17 @@ export async function importGuestMatches(formData: FormData): Promise<GuestImpor
     return { ok: false, importedIds: [], message: invalidRankCount ? "ランク情報が不正なため取り込めません。端末の戦績は保持しています。" : "取り込める戦績がありません。端末の戦績は保持しています。" };
   }
 
-  const rows = [];
+  const rows: Database["public"]["Tables"]["matches"]["Insert"][] = [];
   const importedIds: string[] = [];
   let skippedCount = 0;
   const environmentIds = Array.from(new Set(drafts.map((draft) => draft.environment_id).filter(Boolean)));
   const { data: inputEnabledEnvironments, error: environmentError } = await supabase
     .from("environments")
-    .select("id")
+    .select("id, allow_match_input, match_input_start_at, match_input_end_at")
     .in("id", environmentIds)
     .eq("allow_match_input", true);
   if (environmentError) return { ok: false, importedIds: [], message: "環境を確認できませんでした。端末の戦績は保持しています。" };
-  const inputEnabledEnvironmentIds = new Set((inputEnabledEnvironments ?? []).map((environment) => environment.id));
+  const inputEnabledEnvironmentIds = new Set((inputEnabledEnvironments ?? []).filter(environment => isInputOpen(environment)).map((environment) => environment.id));
   const archetypeDecks = await ensureCompatDecksForGuestImport(
     supabase, user.id,
     drafts.flatMap((draft) => [draft.my_archetype_id, draft.opponent_archetype_id].filter((id): id is string => Boolean(id)))
@@ -240,14 +241,19 @@ export async function importGuestMatches(formData: FormData): Promise<GuestImpor
     return { ok: false, importedIds: [], message: skippedCount > 0 ? "入力停止中の環境、またはデッキ情報の問題で取り込めません。端末の戦績は保持しています。" : "取り込める戦績がありません。端末の戦績は保持しています。" };
   }
 
-  const { error } = await supabase.from("matches").insert(rows);
+  const now = Date.now();
+  const stillEnabled = new Set((inputEnabledEnvironments ?? []).filter(environment => isInputOpen(environment, now)).map(environment => environment.id));
+  const currentRows = rows.filter(row => stillEnabled.has(row.environment_id));
+  const currentIds = importedIds.filter((_, index) => stillEnabled.has(rows[index].environment_id));
+  if (!currentRows.length) return { ok: false, importedIds: [], message: "入力可能期間が終了しました。端末の戦績は保持しています。" };
+  const { error } = await supabase.from("matches").insert(currentRows);
 
   if (error) {
     return { ok: false, importedIds: [], message: "取り込みに失敗しました。端末の戦績は保持しています。" };
   }
 
   revalidatePath("/");
-  return { ok: true, importedIds, message: `${rows.length}件を保存しました。未保存の戦績は端末に保持しています。${invalidRankCount ? ` ランク情報が不正な${invalidRankCount}件は取り込んでいません。` : ""}` };
+  return { ok: true, importedIds: currentIds, message: `${currentRows.length}件を保存しました。未保存の戦績は端末に保持しています。${invalidRankCount ? ` ランク情報が不正な${invalidRankCount}件は取り込んでいません。` : ""}` };
 }
 
 export async function createDeckSuggestion(formData: FormData) {
@@ -396,6 +402,10 @@ async function saveMatchFromForm(
     return { ok: false, message: "デッキ情報を保存できませんでした。" };
   }
 
+  if (!(await isEnvironmentInputEnabled(supabase, environmentId))) {
+    return { ok: false, message: "この環境は現在戦績を入力できません。入力画面を更新してください。" };
+  }
+
   const { error } = await supabase.from("matches").insert({
     ...rank.value,
     user_id: user.id,
@@ -483,11 +493,11 @@ async function isEnvironmentInputEnabled(
 ) {
   const { data } = await supabase
     .from("environments")
-    .select("allow_match_input")
+    .select("allow_match_input, match_input_start_at, match_input_end_at")
     .eq("id", environmentId)
     .maybeSingle();
 
-  return data?.allow_match_input === true;
+  return data != null && isInputOpen(data);
 }
 
 function revalidateMatchDerivedPaths() {

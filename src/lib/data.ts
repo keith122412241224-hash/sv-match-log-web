@@ -1,6 +1,7 @@
 import { type AnalysisRankFilter } from "@/lib/analysis-rank-filter";
 import { withPeriodReportRank } from "@/lib/period-report-rank";
 import { cache } from "react";
+import { isEnvironmentInputEnabled } from "@/lib/environment-input";
 import { getPeriodReportAggregates } from "@/lib/period-report-data";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { calculateWinRate } from "@/lib/analytics";
@@ -282,7 +283,8 @@ export const getEnvironments = cache(async () => {
 
 export const getInputEnabledEnvironments = cache(async () => {
   const environments = await getEnvironments();
-  return environments.filter((environment) => environment.allow_match_input);
+  const now = Date.now();
+  return environments.filter((environment) => isEnvironmentInputEnabled(environment, now));
 });
 
 export const getActiveArchetypes = cache(async () => {

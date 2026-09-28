@@ -37,6 +37,8 @@ export type Database = {
           name: string;
           start_date: string | null;
           allow_match_input: boolean;
+          match_input_start_at: string | null;
+          match_input_end_at: string | null;
           memo: string | null;
           created_at: string;
         };
@@ -46,6 +48,8 @@ export type Database = {
           name: string;
           start_date?: string | null;
           allow_match_input?: boolean;
+          match_input_start_at?: string | null;
+          match_input_end_at?: string | null;
           memo?: string | null;
           created_at?: string;
         };
@@ -53,6 +57,8 @@ export type Database = {
           name?: string;
           start_date?: string | null;
           allow_match_input?: boolean;
+          match_input_start_at?: string | null;
+          match_input_end_at?: string | null;
           memo?: string | null;
           created_at?: string;
         };

@@ -63,6 +63,32 @@ Module._load = function(request, ...args) {
   return originalLoad.call(this, request, ...args);
 };
 const { importGuestMatches, createMatchInline, createMatch } = require('../src/app/actions.ts');
+const originalNow = Date.now;
+test.afterEach(() => { Date.now = originalNow; });
+
+for (const delta of [-1, 0, 1]) test(`scheduled save/import at 9/29 17:00 JST ${delta}ms`, async () => {
+  const boundary = Date.parse('2026-09-29T08:00:00Z');
+  Date.now = () => boundary + delta;
+  tables.environments = [
+    {id:'old',allow_match_input:true,match_input_end_at:new Date(boundary).toISOString()},
+    {id:'new',allow_match_input:true,match_input_start_at:new Date(boundary).toISOString()}
+  ];
+  for (const id of ['old','new']) {
+    const allowed = id === 'old' ? delta < 0 : delta >= 0;
+    for (const next of ['home','continue']) {
+      const form = new FormData();
+      for (const [k,v] of Object.entries({environment_id:id,my_archetype_id:'a',opponent_archetype_id:'b',turn_order:'first',result:'win',next_action:next,played_at:'2020-01-01T00:00:00Z',client_now:'2020-01-01T00:00:00Z'})) form.set(k,v);
+      const before = saved.length;
+      assert.equal((await createMatchInline(form)).ok,allowed);
+      assert.equal(saved.length,before + Number(allowed));
+      await assert.rejects(createMatch(form), allowed ? (next==='home'?/redirect:\/$/:/redirect:\/matches\?saved=1/) : /redirect:\/matches\?error=/);
+    }
+  }
+  const response=await runImport([draft('old-guest',{environment_id:'old'}),draft('new-guest',{environment_id:'new'})]);
+  assert.deepEqual(response.importedIds,[delta<0?'old-guest':'new-guest']);
+  assert.equal(saved.at(-1).environment_id,delta<0?'old':'new');
+  assert.equal(saved.at(-1).rank_tier,null);
+});
 const draft = (id, extra = {}) => ({ local_id: id, environment_id: 'open', my_deck_id: 'a', opponent_deck_id: 'b', my_archetype_id: 'a', opponent_archetype_id: 'b', result: 'win', turn_order: 'first', played_at: '2026-09-03T01:00:00Z', ...extra });
 async function runImport(rows) {
   const form = new FormData(); form.set('guest_matches_json', JSON.stringify(rows));
