@@ -1,0 +1,3 @@
+# Preserve reviewed migration bytes and SHA-256 across Windows/Linux checkouts.
+supabase/migrations/*.sql -text
+supabase/legacy-migrations/pre-baseline/*.sql -text

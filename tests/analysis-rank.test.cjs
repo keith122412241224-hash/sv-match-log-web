@@ -1,4 +1,5 @@
 ﻿/* eslint-disable @typescript-eslint/no-require-imports */
+const { legacySourcePath } = require('./legacy-source.cjs');
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),cp=require('node:child_process');
 const {ANALYSIS_RANK_FILTERS,parseAnalysisRankFilter}=require('../src/lib/analysis-rank-filter');
 const {MASTER_GROUPS,GRANDMASTER_RATINGS}=require('../src/constants/ranks');
@@ -22,8 +23,8 @@ test('missing or denied v2 does not fall back to all or zero',async()=>{
  for(const code of ['PGRST202','42501','22023']){calls=[];error={code};await assert.rejects(()=>getAnalysisAggregates('','direct',{},[],'master'));assert.equal(calls.length,1);assert.equal(calls[0].name,'get_analysis_aggregates_v2');}error=null;
 });
 test('v2 changes only source selection; every perspective/group/recent/output SQL byte matches v1',()=>{
- const read=f=>fs.readFileSync(f,'utf8').replaceAll('\r\n','\n');
- const v1=read('tests/fixtures/analysis-aggregates-v1.sql'),v2=read('supabase/migrations/016_analysis_rank_aggregates_v2.sql');
+ const read=f=>fs.readFileSync(legacySourcePath(f),'utf8').replaceAll('\r\n','\n');
+ const v1=read('tests/fixtures/analysis-aggregates-v1.sql'),v2=read('supabase/legacy-migrations/pre-baseline/016_analysis_rank_aggregates_v2.sql');
  const body=s=>s.slice(s.indexOf('), perspectives as'),s.indexOf('from ordered'));
  assert.equal(body(v2),body(v1));assert.equal((v2.match(/create or replace function/g)||[]).length,1);
  assert.doesNotMatch(v2.replace(/--[^\n]*/g,''),/\b(alter|drop|insert|update|delete|truncate|trigger|index|policy)\b/i);
@@ -34,6 +35,6 @@ test('R3-A and R3-B entry points are isolated; R2 and other Phase A/C code remai
  // R4 changes only period entry points; period-report-rank.test.cjs protects all other source.
   const allowed=new Set(["src/app/admin/weekly-report/page.tsx","src/components/admin/WeeklyReportClientTools.tsx","src/lib/data.ts","src/lib/period-report-data.ts",'src/app/matrix/page.tsx', 'src/lib/matchup-data.ts', 'src/app/analysis/page.tsx','src/lib/analysis-data.ts','src/components/analysis/AnalysisFilters.tsx']);
  for(const file of git(['ls-tree','-r','--name-only',base]).trim().split('\n').filter(f=>f.startsWith('src/')||f.startsWith('supabase/')||f==='tests/fixtures/analysis-aggregates-v1.sql')){
- if(!allowed.has(file))assert.equal(fs.readFileSync(file,'utf8').replaceAll('\r\n','\n'),git(['show',base+':'+file]),file);
+ if(!allowed.has(file))assert.equal(fs.readFileSync(legacySourcePath(file),'utf8').replaceAll('\r\n','\n'),git(['show',base+':'+file]),file);
  }
 });

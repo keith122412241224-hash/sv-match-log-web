@@ -39,42 +39,19 @@ NEXT_PUBLIC_SITE_URL=http://localhost:3000
 
 `service_role` key はクライアント側・Vercel環境変数に入れないでください。
 
-## Supabase 新規構築
+## Supabase migrations
 
-新しいSupabaseプロジェクトを作る場合は、以下の順でSQL Editorから実行します。
+Production baseline: `20260928010000`. Use CLI **2.118.0**. In an isolated local checkout, run `supabase start` and `supabase db reset --local`.
 
-1. `supabase/schema_production.sql`
-2. `supabase/seeds/admin_user.example.sql`
-3. `supabase/seeds/environments.sql`
-4. `supabase/seeds/deck_archetypes.sql`
+- Active SQL: `supabase/migrations/20260928010000_production_baseline.sql`.
+- Old migrations are preserved in `supabase/legacy-migrations/pre-baseline/`. Never execute legacy SQL.
+- `supabase/schema.sql` and `supabase/schema_production.sql` are historical test fixtures. Their old bootstrap instructions are obsolete; do not use them to build or update databases.
+- Production already has the baseline schema. **Never execute the baseline SQL body on Production.** History synchronization requires separate Step 5 approval.
+- Create incremental migrations with UTC timestamps newer than the baseline. Manage DB changes through migrations; avoid manual SQL Editor DDL.
+- After creating a migration, verify `db reset --local`, schema parity and affected regression tests.
+- Automatic seed is disabled. Provision environment/deck catalogs and administrators separately after review. Never put Production matches into seeds.
 
-注意:
-
-- `admin_user.example.sql` と `environments.sql` の `ADMIN_AUTH_USER_ID` は、実際の `auth.users.id` に置き換えてください。
-- 管理者ユーザーは先にSupabase Authで新規登録しておく必要があります。
-- 標準デッキは管理画面 `/admin` から追加しても構いません。
-- `schema_production.sql` は新規構築用です。既存DBには直接流さないでください。
-
-## Supabase 既存DB更新
-
-既に運用中または検証中のDBを更新する場合は、新規構築用SQLではなく `supabase/migrations/` を使います。
-
-実行順:
-
-1. `supabase/migrations/001_admin_archetypes.sql`
-2. `supabase/migrations/002_admin_environments.sql`
-3. `supabase/migrations/003_guest_public_read.sql`
-4. `supabase/seeds/admin_user.example.sql`
-5. `supabase/seeds/environments.sql`
-6. `supabase/seeds/deck_archetypes.sql`
-7. `supabase/migrations/004_backfill_match_archetype_ids.sql`
-
-注意:
-
-- `DROP TABLE`, `TRUNCATE`, ユーザーデータ削除は含めていません。
-- `drop policy if exists` はRLSポリシー差し替え目的だけで使用しています。
-- `004_backfill_match_archetype_ids.sql` は標準デッキ登録後に実行してください。
-- 既存の `matches` は削除されません。標準デッキIDが未設定の戦績だけ補完します。
+See the [migration operations guide](docs/migration-baseline.md) for verification, history synchronization and rollback.
 
 ## Supabase Auth設定
 

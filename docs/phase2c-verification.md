@@ -1,3 +1,5 @@
+> Historical migration paths below now refer to `supabase/legacy-migrations/pre-baseline/`. For new environments, use the [baseline guide](migration-baseline.md); do not replay these migrations on Production.
+
 # Phase 2-C ローカル実装・検証報告
 
 基準: e430a568dedd847aa38e34b90c7a45e9a63752c8。作業先: build/phase2c-work、ブランチ phase2c-period-report。コミット・push・本番DB変更・デプロイは行っていない。
@@ -49,7 +51,7 @@ JavaScriptの旧raw行走査回数（外側ループ、コードから計数）�
 - `docs/phase2c-production-contract.md`
 - `src/lib/period-report-aggregates.ts`
 - `src/lib/period-report-data.ts`
-- `supabase/migrations/014_period_report_aggregates_v1.sql`
+- `supabase/legacy-migrations/pre-baseline/014_period_report_aggregates_v1.sql`
 - `tests/fixtures/weekly-report-e430a56.ts`
 - `tests/period-report-aggregates.test.cjs`
 - `tests/period-report-data.test.cjs`

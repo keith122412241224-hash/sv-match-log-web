@@ -6,7 +6,7 @@ const old=require('./fixtures/weekly-report-e430a56'),current=require('../src/li
 const {parsePeriodReportAggregates}=require('../src/lib/period-report-aggregates');
 const {withPeriodReportRank}=require('../src/lib/period-report-rank');
 const {ANALYSIS_RANK_FILTERS}=require('../src/lib/analysis-rank-filter');
-const sql1=fs.readFileSync('supabase/migrations/014_period_report_aggregates_v1.sql','utf8').replaceAll('\r\n','\n'),sql2=fs.readFileSync('supabase/migrations/018_period_report_rank_aggregates_v2.sql','utf8').replaceAll('\r\n','\n');
+const sql1=fs.readFileSync('supabase/legacy-migrations/pre-baseline/014_period_report_aggregates_v1.sql','utf8').replaceAll('\r\n','\n'),sql2=fs.readFileSync('supabase/legacy-migrations/pre-baseline/018_period_report_rank_aggregates_v2.sql','utf8').replaceAll('\r\n','\n');
 const uuid=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 const ADMIN=uuid(1),MEMBER=uuid(2),OTHER=uuid(3),A=uuid(101),B=uuid(102),C=uuid(103),INACTIVE=uuid(900),UNKNOWN=uuid(901);
 const decks=Array.from({length:32},(_,i)=>({id:uuid(101+i),name:i<2?'同名':`Deck${i}`,class_name:'エルフ',is_active:true}));
@@ -55,7 +55,7 @@ test('R4 SQL: full old report parity, rank populations, dates, rights and scale'
    create index matches_user_id_played_at_idx on public.matches(user_id,played_at desc);create index matches_archetype_idx on public.matches(user_id,my_archetype_id,opponent_archetype_id);create index matches_my_deck_id_idx on public.matches(my_deck_id);create index matches_opponent_deck_id_idx on public.matches(opponent_deck_id);
    alter default privileges in schema public grant execute on functions to anon,authenticated,service_role;`);
   await db.query('insert into public.admin_users values($1)',[ADMIN]);
-  for(const f of ['supabase/migrations/012_matchup_aggregates_v1.sql','tests/fixtures/analysis-aggregates-v1.sql','supabase/migrations/014_period_report_aggregates_v1.sql','supabase/migrations/015_match_rank_metadata.sql','supabase/migrations/016_analysis_rank_aggregates_v2.sql','supabase/migrations/017_matchup_rank_aggregates_v2.sql'])await db.exec(fs.readFileSync(f,'utf8'));
+  for(const f of ['supabase/legacy-migrations/pre-baseline/012_matchup_aggregates_v1.sql','tests/fixtures/analysis-aggregates-v1.sql','supabase/legacy-migrations/pre-baseline/014_period_report_aggregates_v1.sql','supabase/legacy-migrations/pre-baseline/015_match_rank_metadata.sql','supabase/legacy-migrations/pre-baseline/016_analysis_rank_aggregates_v2.sql','supabase/legacy-migrations/pre-baseline/017_matchup_rank_aggregates_v2.sql'])await db.exec(fs.readFileSync(f,'utf8'));
   const before=await catalog();await db.exec(sql2);assert.deepEqual(await catalog(),before);evidence.existingCatalogUnchanged=true;evidence.postgres=(await db.query('select version()')).rows[0].version;
   const meta=(await db.query(`select prosecdef,provolatile,proconfig,has_function_privilege('anon',oid,'execute') anon,has_function_privilege('authenticated',oid,'execute') authenticated,has_function_privilege('service_role',oid,'execute') service_role,exists(select 1 from aclexplode(coalesce(proacl,acldefault('f',proowner))) a where a.grantee=0 and a.privilege_type='EXECUTE') public_execute from pg_proc where oid=$1::regprocedure`,[signature])).rows[0];
   assert.deepEqual(meta,{prosecdef:false,provolatile:'s',proconfig:['search_path=""'],anon:false,authenticated:true,service_role:true,public_execute:false});evidence.metadata=meta;

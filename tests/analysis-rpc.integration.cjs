@@ -104,8 +104,8 @@ before(async()=>{
     create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;
     grant usage on schema auth to anon,authenticated;`);
   await db.exec(fs.readFileSync(path.join(root,'supabase/schema_production.sql'),'utf8').replace('create extension if not exists "pgcrypto";',''));
-  await db.exec(fs.readFileSync(path.join(root,'supabase/migrations/009_admin_all_matches_analysis.sql'),'utf8'));
-  await db.exec(fs.readFileSync(path.join(root,'supabase/migrations/012_matchup_aggregates_v1.sql'),'utf8'));
+  await db.exec(fs.readFileSync(path.join(root,'supabase/legacy-migrations/pre-baseline/009_admin_all_matches_analysis.sql'),'utf8'));
+  await db.exec(fs.readFileSync(path.join(root,'supabase/legacy-migrations/pre-baseline/012_matchup_aggregates_v1.sql'),'utf8'));
   // Reproduce the real production preflight differences observed in Phase 2-A.
   await db.exec(`alter table public.matches alter column environment_id drop not null;
     drop index public.matches_environment_id_idx;alter function public.is_admin() volatile;

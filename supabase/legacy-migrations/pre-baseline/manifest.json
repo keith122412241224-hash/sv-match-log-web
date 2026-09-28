@@ -1,0 +1,66 @@
+[
+  {
+    "name": "001_admin_archetypes.sql",
+    "sha256": "37ffc8b5cdaa974702b99e58d712468336b42b37df2328916d7538f32f2c847b"
+  },
+  {
+    "name": "002_admin_environments.sql",
+    "sha256": "bddbfbecc3b3b54c142d1144e7d46227996bb539dc550be090b903f94450ff4e"
+  },
+  {
+    "name": "003_guest_public_read.sql",
+    "sha256": "d16af74a7421949833d6d06d39f268962e34d6d559e4cff3fa7c89fc77b04d58"
+  },
+  {
+    "name": "004_backfill_match_archetype_ids.sql",
+    "sha256": "1dfe921dc998b206b94256df61ef213c25eb5f0b93d1c3b232596b906c5f288f"
+  },
+  {
+    "name": "005_authenticated_app_table_grants.sql",
+    "sha256": "36052ac566c6371a21f23120c58e3d985d2d43cbe61960382dc733125f3ac739"
+  },
+  {
+    "name": "006_restore_user_owned_decks_matches_policies.sql",
+    "sha256": "e843202ef7a7ae2e814d480686f9d7e7956ed6caa4a818c223a44965a08d1e54"
+  },
+  {
+    "name": "007_remove_other_archetypes.sql",
+    "sha256": "d52818ea1e44b116c6c50913ed2285e851ce3a2fbbfccfbd0bbebf8525c65811"
+  },
+  {
+    "name": "008_home_dashboard_rpc.sql",
+    "sha256": "eddc12deb736c944f5cfacf234dbc65529df1d9a10e7e4fad353e5826d9a1bc0"
+  },
+  {
+    "name": "009_admin_all_matches_analysis.sql",
+    "sha256": "f3d745a4e33c29eadd24ad97cab036641a73f507fe7f57dc250f72cab562949b"
+  },
+  {
+    "name": "010_environment_match_input_toggle.sql",
+    "sha256": "08778250cef794fe7e227126597bfff78d9d3370581ccf610f25f8a96cd4fd83"
+  },
+  {
+    "name": "012_matchup_aggregates_v1.sql",
+    "sha256": "e87ad52dc1d3a7d2fdff4bcca8f02ead2b98676d56c14da0fec61a04f7ba93c0"
+  },
+  {
+    "name": "014_period_report_aggregates_v1.sql",
+    "sha256": "a6ed20da9045614542d0e4a13991e98e80169e0c6f6aad88fc321a00052d0894"
+  },
+  {
+    "name": "015_match_rank_metadata.sql",
+    "sha256": "bcc1b50809b86de26a0f995fe3128c0c734f1bc6c7f5760ab73af47a9e496bd6"
+  },
+  {
+    "name": "016_analysis_rank_aggregates_v2.sql",
+    "sha256": "0d665832fae42332283b7b0bcff8fd93e70f062028524325e9984a9b5fa19fc9"
+  },
+  {
+    "name": "017_matchup_rank_aggregates_v2.sql",
+    "sha256": "150d439bf76b53f253095238730d6a5909c19a02e24c82261441e8e4b0a1b6b6"
+  },
+  {
+    "name": "018_period_report_rank_aggregates_v2.sql",
+    "sha256": "e26a784375c8a97717dc667346f792fc5828d3f77151baf973ef790c264eb917"
+  }
+]

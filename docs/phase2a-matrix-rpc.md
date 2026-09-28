@@ -1,3 +1,5 @@
+> Historical migration paths below now refer to `supabase/legacy-migrations/pre-baseline/`. For new environments, use the [baseline guide](migration-baseline.md); do not replay these migrations on Production.
+
 # Phase 2-A: 相性表の集計RPC
 
 基準コミット: `35f6ae23051a1c50ef80e4fd180b9eba0b5b0e96`。
@@ -38,7 +40,7 @@
 - `src/app/matrix/page.tsx`: 生戦績取得と旧集計の呼び出しだけをRPC経由へ交換。
 - `src/lib/matchup-data.ts`: 認証済みユーザーについてRPCを1回呼ぶ専用ローダー。
 - `src/lib/matchup-aggregates.ts`: 応答検証と既存ヘルパーを使うセル生成。
-- `supabase/migrations/012_matchup_aggregates_v1.sql`: 相性表だけの関数とEXECUTE権限。
+- `supabase/legacy-migrations/pre-baseline/012_matchup_aggregates_v1.sql`: 相性表だけの関数とEXECUTE権限。
 - `tests/matchup-aggregates.test.cjs`: セル互換性、ページ接続、エラー検証。
 - `tests/matchup-rpc.integration.cjs`: 実PostgreSQLエンジンで旧取得処理・RPC・最終セルを比較。
 - `tests/matchup-rpc.browser.cjs`: ローカルHTTP経由の相性表・表示切替・PNG・エラー確認。

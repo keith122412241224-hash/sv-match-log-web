@@ -1,22 +1,12 @@
-# Supabase Existing DB Migrations
+# Active migrations
 
-These files are for updating an existing SV Match Log Web Supabase project.
+The only initial migration is `20260928010000_production_baseline.sql`.
+It targets an empty application schema on a provisioned Supabase platform.
+Never execute this baseline on existing Production. History synchronization requires a separately approved operation.
 
-Run order:
+Historical SQL is retained under `../legacy-migrations/pre-baseline/`, outside CLI migration discovery. Its manifest preserves audited file hashes. Do not copy those files back here or apply them to Production.
 
-1. `001_admin_archetypes.sql`
-2. `002_admin_environments.sql`
-3. `003_guest_public_read.sql`
-4. `004_backfill_match_archetype_ids.sql`
-5. `005_authenticated_app_table_grants.sql`
-6. `006_restore_user_owned_decks_matches_policies.sql`
-7. `007_remove_other_archetypes.sql`
-8. `008_home_dashboard_rpc.sql`
-9. `009_admin_all_matches_analysis.sql`
-10. `010_environment_match_input_toggle.sql`
+Use a UTC timestamp later than the baseline for subsequent incremental migrations.
+CLI version: `.supabase-cli-version`. See [the migration guide](../../docs/migration-baseline.md) for verification and history synchronization gates.
 
-Notes:
-
-- These migrations avoid `DROP TABLE`, `TRUNCATE`, and user-data deletion.
-- `drop policy if exists` is used only to replace RLS policies safely.
-- Run `004_backfill_match_archetype_ids.sql` after standard deck archetypes are registered.
+Production already has this schema. Do not apply the baseline body there. History synchronization is a separate step. Make DB changes through new UTC timestamp migrations, avoid manual SQL Editor DDL, and verify every migration with `db reset --local` and affected tests.

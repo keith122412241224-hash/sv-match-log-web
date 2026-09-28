@@ -5,7 +5,7 @@ const {performance}=require('node:perf_hooks');
 const {PGlite}=require(process.env.PGLITE_MODULE||'@electric-sql/pglite');
 const old=require('./fixtures/weekly-report-e430a56'),next=require('../src/lib/weekly-report');
 const {parsePeriodReportAggregates}=require('../src/lib/period-report-aggregates');
-const migration=fs.readFileSync(path.resolve('supabase/migrations/014_period_report_aggregates_v1.sql'),'utf8');
+const migration=fs.readFileSync(path.resolve('supabase/legacy-migrations/pre-baseline/014_period_report_aggregates_v1.sql'),'utf8');
 const signature='public.get_period_report_aggregates_v1(timestamptz,timestamptz,timestamptz,timestamptz)';
 const call=`select ${signature.slice(0,signature.indexOf('('))}($1::timestamptz,$2::timestamptz,$3::timestamptz,$4::timestamptz) as data`;
 const uuid=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
@@ -73,7 +73,7 @@ test('real PostgreSQL contract, full Production parity, boundaries, RLS and scal
       create index matches_opponent_deck_id_idx on public.matches(opponent_deck_id);
       alter default privileges in schema public grant execute on functions to anon,authenticated,service_role;`);
     await db.query('insert into public.admin_users values($1)',[ADMIN]);
-    await db.exec(fs.readFileSync('supabase/migrations/012_matchup_aggregates_v1.sql','utf8'));
+    await db.exec(fs.readFileSync('supabase/legacy-migrations/pre-baseline/012_matchup_aggregates_v1.sql','utf8'));
     await db.exec(fs.readFileSync('tests/fixtures/analysis-aggregates-v1.sql','utf8'));
     const before=await catalog();await db.exec(migration);await db.exec(migration);assert.deepEqual(await catalog(),before);
     evidence.catalogUnchanged=true;evidence.existingIndexes=before.filter(r=>r.kind==='index');

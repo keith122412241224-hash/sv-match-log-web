@@ -11,7 +11,7 @@ const { PGlite } = require(process.env.PGLITE_MODULE || '@electric-sql/pglite');
 const { buildWinRateMatrix } = require('../src/lib/analytics');
 const { buildWinRateMatrixFromAggregates, parseMatchupAggregates } = require('../src/lib/matchup-aggregates');
 const root = path.resolve(__dirname, '..');
-const migration = fs.readFileSync(path.join(root, 'supabase/migrations/012_matchup_aggregates_v1.sql'), 'utf8');
+const migration = fs.readFileSync(path.join(root, 'supabase/legacy-migrations/pre-baseline/012_matchup_aggregates_v1.sql'), 'utf8');
 const uuid = n => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const OWNER = uuid(1), OTHER = uuid(2), ADMIN = uuid(3), ENV = uuid(10), ENV2 = uuid(11);
 const A = uuid(100), B = uuid(101), C = uuid(102), INACTIVE = uuid(103), REMOVED = uuid(104);
@@ -109,7 +109,7 @@ before(async () => {
   const schema = fs.readFileSync(path.join(root, 'supabase/schema_production.sql'), 'utf8')
     .replace('create extension if not exists "pgcrypto";', '');
   await db.exec(schema);
-  await db.exec(fs.readFileSync(path.join(root, 'supabase/migrations/009_admin_all_matches_analysis.sql'), 'utf8'));
+  await db.exec(fs.readFileSync(path.join(root, 'supabase/legacy-migrations/pre-baseline/009_admin_all_matches_analysis.sql'), 'utf8'));
   const originalCatalog = await catalog();
   await db.exec(migration);
   await db.exec(migration); // safe rerun of this function migration

@@ -40,7 +40,7 @@ test('R2 actual authenticated actions, CHECK and rank-independent Phase 2-A/B/C 
  create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;
  grant usage on schema auth to authenticated,anon,service_role;`);
  await db.exec(fs.readFileSync(path.join(cwd,'supabase/schema_production.sql'),'utf8').replace('create extension if not exists "pgcrypto";',''));
- for(const file of ['005_authenticated_app_table_grants.sql','008_home_dashboard_rpc.sql','009_admin_all_matches_analysis.sql','012_matchup_aggregates_v1.sql','014_period_report_aggregates_v1.sql','015_match_rank_metadata.sql'])await db.exec(fs.readFileSync(path.join(cwd,'supabase/migrations',file),'utf8'));
+ for(const file of ['005_authenticated_app_table_grants.sql','008_home_dashboard_rpc.sql','009_admin_all_matches_analysis.sql','012_matchup_aggregates_v1.sql','014_period_report_aggregates_v1.sql','015_match_rank_metadata.sql'])await db.exec(fs.readFileSync(path.join(cwd,'supabase/legacy-migrations/pre-baseline',file),'utf8'));
  await db.exec(fs.readFileSync(path.join(cwd,'tests/fixtures/analysis-aggregates-v1.sql'),'utf8'));
  await db.query('insert into auth.users(id,email) values($1,$2)',[user.id,'synthetic@example.test']);
  await db.query('insert into public.admin_users(user_id) values($1)',[user.id]);

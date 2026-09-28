@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
+const { legacySourcePath } = require('./legacy-source.cjs');
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),cp=require('node:child_process');
 const {ANALYSIS_RANK_FILTERS}=require('../src/lib/analysis-rank-filter');
 const mock=(p,exports)=>{const id=require.resolve(p);require.cache[id]={id,filename:id,loaded:true,exports};};
@@ -19,6 +20,6 @@ test('R3-B preserves every existing Production source/schema file except two mat
  const base='8eac48bca95c6f0dd74e55e590694f03b7fde0dc',git=a=>cp.execFileSync('git',['-c','safe.directory='+process.cwd().replaceAll('\\','/'),...a],{encoding:'utf8',maxBuffer:64e6}).replaceAll('\r\n','\n');
  // R4 changes only period entry points; period-report-rank.test.cjs protects all other source.
   const allowed=new Set(["src/app/admin/weekly-report/page.tsx","src/components/admin/WeeklyReportClientTools.tsx","src/lib/data.ts","src/lib/period-report-data.ts",'src/app/matrix/page.tsx','src/lib/matchup-data.ts']);
- for(const file of git(['ls-tree','-r','--name-only',base]).trim().split('\n').filter(f=>f.startsWith('src/')||f.startsWith('supabase/')||['package.json','package-lock.json'].includes(f)))if(!allowed.has(file))assert.equal(fs.readFileSync(file,'utf8').replaceAll('\r\n','\n'),git(['show',base+':'+file]),file);
- const sql=fs.readFileSync('supabase/migrations/017_matchup_rank_aggregates_v2.sql','utf8').replace(/--[^\n]*/g,'');assert.equal((sql.match(/create or replace function/g)||[]).length,1);assert.doesNotMatch(sql,/\b(alter|drop|insert|update|delete|truncate|trigger|index|policy)\b/i);
+ for(const file of git(['ls-tree','-r','--name-only',base]).trim().split('\n').filter(f=>f.startsWith('src/')||f.startsWith('supabase/')||['package.json','package-lock.json'].includes(f)))if(!allowed.has(file))assert.equal(fs.readFileSync(legacySourcePath(file),'utf8').replaceAll('\r\n','\n'),git(['show',base+':'+file]),file);
+ const sql=fs.readFileSync('supabase/legacy-migrations/pre-baseline/017_matchup_rank_aggregates_v2.sql','utf8').replace(/--[^\n]*/g,'');assert.equal((sql.match(/create or replace function/g)||[]).length,1);assert.doesNotMatch(sql,/\b(alter|drop|insert|update|delete|truncate|trigger|index|policy)\b/i);
 });
