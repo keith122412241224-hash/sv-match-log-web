@@ -20,3 +20,12 @@ test('rescue preserves all current main source outside the explicit display/gues
  }
  const a=read('src/app/actions.ts');assert.equal(a,git(['show',base+':src/app/actions.ts']));
 });
+test('E audit adds a catalog-only SELECT, separate from migrations, without mutation or execution statements',()=>{
+ const sql=read('supabase/checks/staging_schema_audit.sql').replace(/--[^\n]*/g,'');
+ assert.match(sql,/^\s*with\b/i);
+ assert.doesNotMatch(sql,/\b(insert|update|delete|truncate|alter|drop|create|grant|revoke|do|call|copy|set_config|dblink|pg_read_file)\b/i);
+ assert.doesNotMatch(sql,/\bfrom\s+public\./i);
+ assert.equal((sql.match(/;/g)||[]).length,1);
+ assert.ok(!fs.existsSync('supabase/staging/prepare_rank_testing.sql'));
+ assert.ok(!fs.existsSync('docs/staging-setup.md'));
+});
