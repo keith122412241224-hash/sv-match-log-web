@@ -1,5 +1,6 @@
 "use client";
 
+import { appendGuestMatch, displayGuestMatches, readGuestRecords } from "@/lib/guest-records";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { DeckAnalysisCards } from "@/components/analysis/DeckAnalysisCards";
@@ -25,20 +26,14 @@ export function GuestApp({
   const [tab, setTab] = useState<Tab>("home");
   const [matches, setMatches] = useState<Match[]>([]);
   const [savedCount, setSavedCount] = useState(0);
+  const [storageError, setStorageError] = useState("");
 
   useEffect(() => {
-    const raw = window.localStorage.getItem(GUEST_MATCHES_STORAGE_KEY);
-    if (!raw) {
-      return;
-    }
-
     try {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        setMatches(parsed.map(toGuestMatch));
-      }
+      const records = readGuestRecords(window.localStorage.getItem(GUEST_MATCHES_STORAGE_KEY) ?? "[]");
+      setMatches(displayGuestMatches(records).map(toGuestMatch));
     } catch {
-      window.localStorage.removeItem(GUEST_MATCHES_STORAGE_KEY);
+      setStorageError("端末の戦績を読み込めません。既存データは削除していません。保存設定とデータ形式を確認してください。");
     }
   }, []);
 
@@ -62,31 +57,22 @@ export function GuestApp({
   const canInput = archetypes.length > 0 && environments.length > 0;
 
   function addGuestMatch(draft: GuestMatchDraft) {
-    const createdAt = new Date().toISOString();
-    setMatches((current) => {
-      const nextMatch = {
-        rank_tier: draft.rank_tier,
-        master_group: draft.master_group,
-        grandmaster_rating: draft.grandmaster_rating,
-        id: crypto.randomUUID(),
-        user_id: "guest-user",
-        environment_id: draft.environment_id,
-        my_deck_id: draft.my_deck_id,
-        opponent_deck_id: draft.opponent_deck_id,
-        my_user_deck_id: null,
-        my_archetype_id: draft.my_archetype_id,
-        opponent_archetype_id: draft.opponent_archetype_id,
-        turn_order: draft.turn_order,
-        result: draft.result,
-        played_at: draft.played_at,
-        memo: null,
-        created_at: createdAt
+    try {
+      const createdAt = new Date().toISOString();
+      const nextMatch: Match = {
+        ...draft, id: crypto.randomUUID(), user_id: "guest-user",
+        my_user_deck_id: null, memo: null, created_at: createdAt
       };
-      const next = [nextMatch, ...current];
-      window.localStorage.setItem(GUEST_MATCHES_STORAGE_KEY, JSON.stringify(next.map(toStoredGuestMatch)));
-      return next;
-    });
-    setSavedCount((count) => count + 1);
+      // Read immediately before saving so another tab's additions and unknown
+      // fields survive. Update React state only after persistence succeeds.
+      const next = appendGuestMatch(window.localStorage, toStoredGuestMatch(nextMatch));
+      setMatches(next.map(toGuestMatch));
+      setSavedCount(count => count + 1);
+      setStorageError("");
+    } catch {
+      setSavedCount(0);
+      setStorageError("端末に保存できませんでした。保存設定・容量を確認してください。既存データは削除していません。");
+    }
   }
 
   return (
@@ -116,6 +102,8 @@ export function GuestApp({
         <p className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-950">
           ゲスト入力はこの端末に一時保存されます。正式に残すにはログイン後に取り込んでください。
         </p>
+
+        {storageError ? <p role="alert" className="text-sm font-semibold text-red-700">{storageError}</p> : null}
 
         {tab === "home" ? (
           <>

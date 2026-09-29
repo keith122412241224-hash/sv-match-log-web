@@ -9,6 +9,8 @@ export function GuestImportPrompt() {
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState("");
   const busy = useRef(false);
+  const importBlocked = useRef(false);
+  const [storageFailed, setStorageFailed] = useState(false);
 
   useEffect(() => {
     try {
@@ -22,7 +24,7 @@ export function GuestImportPrompt() {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (busy.current) return;
+    if (busy.current || importBlocked.current) return;
     busy.current = true;
     setPending(true);
     setMessage("");
@@ -33,10 +35,18 @@ export function GuestImportPrompt() {
       form.set("guest_matches_json", submitted);
       const result = await importGuestMatches(form);
       if (result.ok && result.importedIds.length > 0) {
-        const latest = window.localStorage.getItem(GUEST_MATCHES_STORAGE_KEY) ?? "[]";
-        const remaining = removeImportedGuestMatches(latest, submitted, result.importedIds);
-        window.localStorage.setItem(GUEST_MATCHES_STORAGE_KEY, remaining);
-        setCount(JSON.parse(remaining).length);
+        importBlocked.current = true;
+        try {
+          const latest = window.localStorage.getItem(GUEST_MATCHES_STORAGE_KEY) ?? "[]";
+          const remaining = removeImportedGuestMatches(latest, submitted, result.importedIds);
+          window.localStorage.setItem(GUEST_MATCHES_STORAGE_KEY, remaining);
+          setCount(JSON.parse(remaining).length);
+          importBlocked.current = false;
+        } catch {
+          setStorageFailed(true);
+          setMessage("DBへの取り込みは完了しましたが、端末の取り込み済み情報を更新できませんでした。重複を避けるため、この画面からの再取り込みを停止しました。再読み込みや再試行の前にホームの保存済み戦績と端末データを確認してください。");
+          return;
+        }
       }
       setMessage(result.message);
     } catch {
@@ -59,12 +69,15 @@ export function GuestImportPrompt() {
         </div>
         <div className="flex flex-wrap gap-2">
           <form onSubmit={submit}>
-            <button className="min-h-11 rounded-md bg-ink px-4 text-sm font-bold text-white" disabled={pending} type="submit">
+            <button className="min-h-11 rounded-md bg-ink px-4 text-sm font-bold text-white" disabled={pending || storageFailed} type="submit">
               {pending ? "取り込み中..." : "正式データに取り込む"}
             </button>
           </form>
-          <button className="min-h-11 rounded-md border border-amber-300 bg-white px-4 text-sm font-bold text-amber-950" disabled={pending} type="button"
-            onClick={() => { window.localStorage.removeItem(GUEST_MATCHES_STORAGE_KEY); setCount(0); setMessage(""); }}>
+          <button className="min-h-11 rounded-md border border-amber-300 bg-white px-4 text-sm font-bold text-amber-950" disabled={pending || storageFailed} type="button"
+            onClick={() => {
+              try { window.localStorage.removeItem(GUEST_MATCHES_STORAGE_KEY); setCount(0); setMessage(""); }
+              catch { setMessage("端末の戦績を更新できませんでした。保存設定を確認してください。"); }
+            }}>
             破棄
           </button>
         </div>
