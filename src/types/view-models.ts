@@ -2,7 +2,7 @@ import type { Deck, DeckArchetype, Environment, Match } from "@/types/database";
 
 export type { Deck, Match };
 
-export type RecentMatchWithRelations = Pick<Match, "id" | "played_at" | "result" | "turn_order"> & {
+export type RecentMatchWithRelations = Pick<Match, "id" | "played_at" | "result" | "turn_order" | "rank_tier" | "master_group" | "grandmaster_rating"> & {
   my_deck: Pick<Deck, "name" | "class_name"> | null;
   opponent_deck: Pick<Deck, "name" | "class_name"> | null;
   environment?: Pick<Environment, "name"> | null;

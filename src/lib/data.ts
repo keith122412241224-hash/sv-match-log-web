@@ -143,7 +143,7 @@ export async function getRecentMatchesWithRelations(environmentId?: string, limi
   let query = supabase
     .from("matches")
     .select(
-      "id,played_at,result,turn_order,environment:environments(name),my_deck:decks!matches_my_deck_id_fkey(name,class_name),opponent_deck:decks!matches_opponent_deck_id_fkey(name,class_name)"
+      "id,played_at,result,turn_order,rank_tier,master_group,grandmaster_rating,environment:environments(name),my_deck:decks!matches_my_deck_id_fkey(name,class_name),opponent_deck:decks!matches_opponent_deck_id_fkey(name,class_name)"
     )
     .order("played_at", { ascending: false })
     .limit(limit);
@@ -169,7 +169,7 @@ export async function getHomeDashboard(environmentId?: string, limit = 10): Prom
       p_environment_id: environmentId || null,
       p_limit: limit
     });
-    if (!error && isHomeDashboardData(data)) return data;
+    if (!error && isHomeDashboardData(data)) return await attachHomeRecentRanks(supabase, data);
     logHomeDataFailure("rpc", error, true);
   } catch (error) {
     logHomeDataFailure("rpc", error, true);
@@ -187,7 +187,43 @@ export async function getHomeDashboard(environmentId?: string, limit = 10): Prom
   }
 }
 
-function logHomeDataFailure(operation: "rpc" | "count" | "recent" | "fallback", error: unknown, fallback: boolean) {
+// The Production RPC still owns summary, ordering and recent IDs. Enrich only
+// its bounded recent list, never page matches or recompute the summary.
+async function attachHomeRecentRanks(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  dashboard: HomeDashboardData
+): Promise<HomeDashboardData> {
+  const needsRank = dashboard.recent.filter(row =>
+    row.rank_tier === undefined || row.master_group === undefined || row.grandmaster_rating === undefined
+  );
+  if (!needsRank.length) return dashboard;
+  try {
+    const user = await getCurrentUser();
+    if (!user) return dashboard;
+    const ids = [...new Set(needsRank.map(row => row.id))].slice(0, 50);
+    const { data, error } = await supabase.from("matches")
+      .select("id,rank_tier,master_group,grandmaster_rating")
+      .eq("user_id", user.id).in("id", ids).limit(50);
+    if (error || !Array.isArray(data)) {
+      logHomeDataFailure("rank", error, false);
+      return dashboard;
+    }
+    const ranks = new Map(data.map(row => [row.id, row]));
+    return {
+      ...dashboard,
+      recent: dashboard.recent.map(row => {
+        const rank = ranks.get(row.id);
+        return rank ? { ...row, rank_tier: rank.rank_tier, master_group: rank.master_group, grandmaster_rating: rank.grandmaster_rating } : row;
+      })
+    };
+  } catch (error) {
+    // A supplementary label failure must not hide valid Production statistics.
+    logHomeDataFailure("rank", error, false);
+    return dashboard;
+  }
+}
+
+function logHomeDataFailure(operation: "rpc" | "count" | "recent" | "fallback" | "rank", error: unknown, fallback: boolean) {
   const code = error && typeof error === "object" && "code" in error ? error.code : null;
   // Never log raw DB messages, query contents, identities, tokens or records.
   console.warn("[home-dashboard]", {

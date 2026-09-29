@@ -1,3 +1,4 @@
+import { RankBadge } from "@/components/RankBadge";
 import { selectInitialEnvironmentId } from "@/lib/environment-selection";
 import Link from "next/link";
 import { BarChart3, BookOpen, Grid3X3, ListPlus, LogIn, Swords, Trophy } from "lucide-react";
@@ -99,6 +100,7 @@ export default async function HomePage({
                         {match.opponent_deck ? <DeckWithClassIcon className={match.opponent_deck.class_name} name={match.opponent_deck.name} /> : "-"}
                       </div>
                     </div>
+                    <div className="mt-2"><RankBadge rank={match} /></div>
                     <div className="mt-2 text-xs font-semibold text-muted">{TURN_ORDER_LABELS[match.turn_order]}</div>
                   </article>
                 ))}
@@ -111,6 +113,7 @@ export default async function HomePage({
                       <th className="px-4 py-3">環境</th>
                       <th className="px-4 py-3">使用デッキ</th>
                       <th className="px-4 py-3">相手デッキ</th>
+                      <th className="px-4 py-3">自分のランク</th>
                       <th className="px-4 py-3">先後</th>
                       <th className="px-4 py-3">結果</th>
                     </tr>
@@ -126,6 +129,7 @@ export default async function HomePage({
                         <td className="px-4 py-3">
                           {match.opponent_deck ? <DeckWithClassIcon className={match.opponent_deck.class_name} name={match.opponent_deck.name} /> : "-"}
                         </td>
+                        <td className="px-4 py-3"><RankBadge rank={match} /></td>
                         <td className="px-4 py-3">{TURN_ORDER_LABELS[match.turn_order]}</td>
                         <td className="px-4 py-3">
                           <span className={match.result === "win" ? "font-bold text-emerald-700" : "font-bold text-red-700"}>

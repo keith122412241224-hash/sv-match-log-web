@@ -14,7 +14,7 @@ test('frozen oracle, shared evaluation, UI, Phase 2-A/B and unrelated loaders st
   // R3-A/B intentionally adapt analysis/matrix entry points. v1 SQL,
   // aggregation models and all other protected files remain frozen.
   // R4 changes only period entry points; period-report-rank.test.cjs protects all other source.
-  const rankEntryPoints = new Set(["src/app/admin/weekly-report/page.tsx","src/components/admin/WeeklyReportClientTools.tsx","src/lib/data.ts","src/lib/period-report-data.ts",'src/app/matrix/page.tsx', 'src/lib/matchup-data.ts', 'src/app/analysis/page.tsx', 'src/lib/analysis-data.ts']);
+  const rankEntryPoints = new Set([...require('./rescue-scope.cjs').rescueSources,"src/app/admin/weekly-report/page.tsx","src/components/admin/WeeklyReportClientTools.tsx","src/lib/data.ts","src/lib/period-report-data.ts",'src/app/matrix/page.tsx', 'src/lib/matchup-data.ts', 'src/app/analysis/page.tsx', 'src/lib/analysis-data.ts']);
   for(const file of protectedFiles.filter(file => !rankEntryPoints.has(file)))assert.equal(read(file),original(file),file);
   const functions=source=>{
     const tree=ts.createSourceFile('file.ts',source,ts.ScriptTarget.Latest,true),result=new Map();
@@ -31,7 +31,11 @@ test('frozen oracle, shared evaluation, UI, Phase 2-A/B and unrelated loaders st
   for(const [name,body]of oldFunctions)if(!adapted.has(name))assert.equal(newFunctions.get(name),body,'unchanged evaluation function '+name);
   const stripReport=s=>s.replace(/import .*environment-input.*\n/g,'').replace(/  const now = Date.now\(\);\n  return environments.filter\(\(environment\) => isEnvironmentInputEnabled\(environment, now\)\);/,'  return environments.filter((environment) => environment.allow_match_input);').replace(/import .*period-report-rank.*\n/g,'').replace(/import .*analysis-rank-filter.*\n/g,'').replace(/import .*period-report-data.*\n/g,'').replace(/import .*weekly-report";\n/g,'')
     .replace(/const WEEKLY_REPORT_MATCH_COLUMNS = .*\n/g,'').replace(/export async function getWeeklyReport\([\s\S]*?(?=export const getIsAdmin)/,'');
-  assert.equal(stripReport(read('src/lib/data.ts')),stripReport(original('src/lib/data.ts')),'all non-period data paths');
+  const stripRescue = source => {
+    const tree = ts.createSourceFile('data.ts', stripReport(source), ts.ScriptTarget.Latest, true);
+    return tree.statements.filter(node => !require('./rescue-scope.cjs').rankLoaders.includes(node.name?.text)).map(node => node.getText(tree));
+  };
+  assert.deepEqual(stripRescue(read('src/lib/data.ts')), stripRescue(original('src/lib/data.ts')), 'all non-period, non-home-rank data paths');
   const migration=read('supabase/legacy-migrations/pre-baseline/014_period_report_aggregates_v1.sql').replace(/--[^\n]*/g,'');
   assert.doesNotMatch(migration,/\b(create\s+(?:table|index|policy|type)|alter\s+(?:table|policy)|drop|insert|update|delete|truncate)\b/i);
   assert.equal((migration.match(/create or replace function/g)||[]).length,1);
