@@ -82,6 +82,15 @@ const delay = ms => new Promise(r=>setTimeout(r,ms));
             results.push({tz,route,serverTime,clientTime,errors});
           } else {
             assert.ok(html.includes(expected),'JST label in server HTML');
+            const body = await page.locator('main').innerText();
+            assert.ok(body.includes(route.includes('scope=all') ? '全ユーザー / ランク:' : '自分のみ / ランク:'));
+            assert.ok(body.includes('対象登録戦績: '+(route.includes('scope=all') ? 4 : 2)+'件'));
+            if (results.length === 0) {
+              const waiting = page.waitForEvent('download');
+              await page.getByRole('button', {name: /PNG/}).click();
+              const download = await waiting;
+              await download.saveAs(path.join(output, 'matrix-context.png'));
+            }
             assert.equal(await label(),expected);
             await page.reload({waitUntil:'networkidle'});assert.equal(await label(),expected);
             const marker=await page.evaluate(()=>window.__matrixDocumentId);

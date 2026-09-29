@@ -1,6 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useContext, useMemo, useState } from "react";
+import { PeriodReportRankContext } from "@/components/admin/PeriodReportRankContext";
+import { reportDisplayContext } from "@/lib/report-display-context";
 import { CopyButton } from "@/components/admin/WeeklyReportClientTools";
 import { WeeklyReportAiForm } from "@/components/admin/WeeklyReportAiForm";
 import { buildWeeklyReportPrompt, type TierCandidateRow, type WeeklyReportAiJson } from "@/lib/weekly-report";
@@ -25,6 +27,8 @@ export function WeeklyReportAiWorkspace({
   onTierChange: (deckId: string, tier: TierCandidate) => void;
 }) {
   const [operatorMemo, setOperatorMemo] = useState("");
+  const rankLabel = useContext(PeriodReportRankContext);
+  const contextLabel = reportDisplayContext(aiJson, rankLabel);
 
   const adjustedAiJson = useMemo<WeeklyReportAiJson>(() => {
     const tierCandidates = aiJson.tierCandidates.map((row) => ({
@@ -118,7 +122,7 @@ export function WeeklyReportAiWorkspace({
           </p>
         </div>
         <div className="mt-3">
-          <WeeklyReportAiForm prompt={prompt} startDate={startDate} endDate={endDate} hasApiKey={hasApiKey} />
+          <WeeklyReportAiForm key={JSON.stringify([prompt, contextLabel])} contextLabel={contextLabel} prompt={prompt} startDate={startDate} endDate={endDate} hasApiKey={hasApiKey} />
         </div>
       </section>
     </div>

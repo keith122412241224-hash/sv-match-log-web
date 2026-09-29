@@ -27,12 +27,14 @@ export function MatchupMatrix({
   rows,
   opponentDecks,
   title = "対面勝率表",
+  populationLabel,
   environmentName = "現在の環境"
 }: {
   createdAtLabel?: string;
   rows: MatrixRow[];
   opponentDecks: DeckLike[];
   title?: string;
+  populationLabel?: string;
   environmentName?: string;
 }) {
   const deckIds = useMemo(() => opponentDecks.map((deck) => deck.id), [opponentDecks]);
@@ -159,6 +161,7 @@ export function MatchupMatrix({
             <header className="mb-3 flex items-end justify-between gap-4">
               <div>
                 <h2 className="text-xl font-bold text-ink">{title}</h2>
+                {populationLabel ? <p className="text-xs text-muted">{populationLabel}</p> : null}
                 <p className="text-xs text-muted">
                   {environmentName} / 作成日 {createdAt} / 参考値: {LOW_SAMPLE_THRESHOLD - 1}戦以下
                 </p>

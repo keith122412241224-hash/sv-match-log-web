@@ -1,3 +1,3 @@
 // Superseding rescue changes are bounded against current main in rescue-scope.test.cjs.
-exports.rescueSources = new Set(["src/app/page.tsx", "src/components/guest/GuestApp.tsx", "src/components/guest/GuestImportPrompt.tsx", "src/constants/ranks.ts", "src/lib/data.ts", "src/types/view-models.ts"]);
+exports.rescueSources = new Set(["src/app/page.tsx", "src/app/matrix/page.tsx", "src/app/admin/weekly-report/page.tsx", "src/components/guest/GuestApp.tsx", "src/components/guest/GuestImportPrompt.tsx", "src/components/MatchupMatrix.tsx", "src/components/admin/WeeklyReportAiForm.tsx", "src/components/admin/WeeklyReportAiWorkspace.tsx", "src/components/admin/WeeklyReportClientTools.tsx", "src/components/admin/PeriodReportRankContext.tsx", "src/constants/ranks.ts", "src/lib/data.ts", "src/types/view-models.ts"]);
 exports.rankLoaders = ['getHomeDashboard', 'getRecentMatchesWithRelations', 'attachHomeRecentRanks', 'logHomeDataFailure'];

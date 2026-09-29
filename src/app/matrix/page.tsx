@@ -2,7 +2,7 @@ import { selectInitialEnvironmentId } from "@/lib/environment-selection";
 import { AppShell } from "@/components/AppShell";
 import { EmptyState } from "@/components/EmptyState";
 import { MatrixFilters } from "@/components/matrix/MatrixFilters";
-import { parseAnalysisRankFilter } from "@/lib/analysis-rank-filter";
+import { ANALYSIS_RANK_FILTERS, parseAnalysisRankFilter } from "@/lib/analysis-rank-filter";
 import { MatchupMatrix } from "@/components/MatchupMatrix";
 import { buildWinRateMatrixFromAggregates } from "@/lib/matchup-aggregates";
 import { getMatchupAggregates } from "@/lib/matchup-data";
@@ -26,6 +26,8 @@ export default async function MatrixPage({
   const matrixDecks = archetypes.length > 0 ? archetypes : decks;
   const rows = buildWinRateMatrixFromAggregates(aggregates, matrixDecks, matrixDecks);
 
+  const rankLabel = ANALYSIS_RANK_FILTERS.find(option => option.value === selectedRank)!.label;
+  const populationLabel = `${selectedScope === "all" ? "全ユーザー" : "自分のみ"} / ランク: ${rankLabel} / 対象登録戦績: ${aggregates.totalMatches}件（表示デッキの選択前）。ランクは登録者本人の対戦時点の値です。`;
   const createdAtLabel = new Date().toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" });
 
   return (
@@ -64,7 +66,7 @@ export default async function MatrixPage({
             action="デッキ管理へ"
           />
         ) : (
-          <MatchupMatrix rows={rows} opponentDecks={matrixDecks} environmentName={selectedEnvironmentName} createdAtLabel={createdAtLabel} />
+          <MatchupMatrix rows={rows} opponentDecks={matrixDecks} environmentName={selectedEnvironmentName} createdAtLabel={createdAtLabel} populationLabel={populationLabel} />
         )}
       </div>
     </AppShell>

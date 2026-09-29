@@ -1,5 +1,6 @@
 "use client";
 
+import { reportMarkdown } from "@/lib/report-display-context";
 import { Sparkles } from "lucide-react";
 import { useActionState } from "react";
 import { SubmitButton } from "@/components/SubmitButton";
@@ -22,19 +23,22 @@ export function WeeklyReportAiForm({
   prompt,
   startDate,
   endDate,
-  hasApiKey
+  hasApiKey,
+  contextLabel
 }: {
   prompt: string;
   startDate: string;
   endDate: string;
   hasApiKey: boolean;
+  contextLabel: string;
 }) {
   const [state, formAction] = useActionState(generateWeeklyReportMarkdown, initialState);
-  const markdown = state.markdown;
+  const markdown = reportMarkdown(state.markdown, contextLabel);
   const fileDate = startDate === endDate ? startDate : `${startDate}_${endDate}`;
 
   return (
     <div className="grid gap-3">
+      <p className="text-xs text-muted">{contextLabel}</p>
       <form action={formAction} className="flex flex-wrap gap-2">
         <input type="hidden" name="prompt" value={prompt} />
         <SubmitButton disabled={!hasApiKey} pendingLabel="生成中..." type="submit">

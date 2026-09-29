@@ -1,3 +1,4 @@
+import { reportDisplayContext } from "@/lib/report-display-context";
 import { ANALYSIS_RANK_FILTERS, parseAnalysisRankFilter } from "@/lib/analysis-rank-filter";
 import { getPeriodReportRankLabel } from "@/lib/period-report-rank";
 import { PeriodReportRankProvider } from "@/components/admin/PeriodReportRankContext";
@@ -53,7 +54,7 @@ export default async function AdminWeeklyReportPage({
   const isLowComparisonConfidence = report.comparisonConfidence === "low";
 
   return (
-    <PeriodReportRankProvider label={rankLabel}>
+    <PeriodReportRankProvider label={rankLabel} description={reportDisplayContext(report.aiJson, rankLabel)}>
     <main className="min-h-screen bg-surface px-4 py-6">
       <div className="mx-auto grid max-w-7xl gap-6">
         <header className="flex flex-wrap items-center justify-between gap-3">

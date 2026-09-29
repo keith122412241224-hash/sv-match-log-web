@@ -6,7 +6,7 @@ const React = require('react');
 let state;
 const load = Module._load;
 Module._load = function (name, ...args) {
-  if (name === 'react') return { ...React, useMemo: fn => fn(), useState: initial => typeof initial === 'string' ? [initial, () => {}] : [state ?? initial, update => { state = typeof update === 'function' ? update(state ?? initial) : update; }] };
+  if (name === 'react') return { ...React, useContext: () => undefined, useMemo: fn => fn(), useState: initial => typeof initial === 'string' ? [initial, () => {}] : [state ?? initial, update => { state = typeof update === 'function' ? update(state ?? initial) : update; }] };
   return load.call(this, name, ...args);
 };
 const { buildWeeklyReport, buildWeeklyPeriod } = require('../src/lib/weekly-report');
