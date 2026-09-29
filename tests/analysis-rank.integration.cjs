@@ -6,9 +6,9 @@ const {PGlite}=require(process.env.PGLITE_MODULE||'@electric-sql/pglite');
 const old=require('../src/lib/analytics');
 const {analysisPerspectives,filterAnalysisPerspectives}=require('../src/lib/match-perspectives');
 const {parseAnalysisAggregates,buildAnalysisFromAggregates}=require('../src/lib/analysis-aggregates');
-const {ANALYSIS_RANK_FILTERS}=require('../src/lib/analysis-rank-filter');
+const {ANALYSIS_PAGE_RANK_FILTERS:ANALYSIS_RANK_FILTERS}=require('../src/lib/analysis-page-rank-filter');
 // Windows Git checkouts may use CRLF; the EXPLAIN-only SQL extraction uses LF delimiters.
-const migration=fs.readFileSync('supabase/legacy-migrations/pre-baseline/016_analysis_rank_aggregates_v2.sql','utf8').replaceAll('\r\n','\n');
+const migration=fs.readFileSync('supabase/migrations/20260929053719_analysis_rank_tiers.sql','utf8').replaceAll('\r\n','\n');
 const uuid=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 const OWNER=uuid(1),OTHER=uuid(2),ADMIN=uuid(3),ENV=uuid(10),ENV2=uuid(11),A=uuid(100),B=uuid(101),C=uuid(102);
 const decks=[A,B,C].map(id=>({id,name:id===C?'C':'same name',class_name:'elf'}));
@@ -64,6 +64,7 @@ test('R3-A rank source semantics, old final model parity, v1 equality, RLS, meta
  alter default privileges in schema public grant execute on functions to anon,authenticated,service_role;`);
  await db.query('insert into public.admin_users values($1)',[ADMIN]);
  for(const file of ['supabase/legacy-migrations/pre-baseline/015_match_rank_metadata.sql','supabase/legacy-migrations/pre-baseline/012_matchup_aggregates_v1.sql','tests/fixtures/analysis-aggregates-v1.sql','supabase/legacy-migrations/pre-baseline/014_period_report_aggregates_v1.sql'])await db.exec(fs.readFileSync(file,'utf8'));
+ await db.exec(fs.readFileSync('supabase/legacy-migrations/pre-baseline/016_analysis_rank_aggregates_v2.sql','utf8'));
  const before=await catalog();await db.exec(migration);assert.deepEqual(await catalog(),before);evidence.existingCatalogUnchanged=true;
  evidence.version=(await db.query('select version()')).rows[0].version;
  const meta=(await db.query(`select p.prosecdef,p.provolatile,p.proconfig,has_function_privilege('anon',p.oid,'execute') as anon,has_function_privilege('authenticated',p.oid,'execute') as authenticated,has_function_privilege('service_role',p.oid,'execute') as service_role,exists(select 1 from aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a where a.grantee=0 and a.privilege_type='EXECUTE') as public_execute from pg_proc p where p.oid=$1::regprocedure`,[signature])).rows[0];

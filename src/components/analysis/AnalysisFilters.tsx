@@ -1,4 +1,4 @@
-import { ANALYSIS_RANK_FILTERS, type AnalysisRankFilter } from "@/lib/analysis-rank-filter";
+import { ANALYSIS_PAGE_RANK_FILTERS, type AnalysisPageRankFilter } from "@/lib/analysis-page-rank-filter";
 import Link from "next/link";
 import { AnalysisDateTimeField } from "@/components/analysis/AnalysisDateTimeField";
 import { Button } from "@/components/Button";
@@ -18,7 +18,7 @@ export type AnalysisFilterValues = {
   playedTo: string;
   scope: string;
   winRateMode: WinRateMode;
-  rankFilter?: AnalysisRankFilter;
+  rankFilter?: AnalysisPageRankFilter;
 };
 
 export function AnalysisFilters({
@@ -41,7 +41,7 @@ export function AnalysisFilters({
 
   return (
     <form action="/analysis" className="rounded-md border border-slate-200 bg-white p-3">
-      <div className="grid items-start gap-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,2fr)]">
+      <div className="grid items-start gap-3 md:grid-cols-2 xl:grid-cols-3">
         <FieldLabel>
           勝率集計
           <Select name="winRateMode" defaultValue={values.winRateMode}>
@@ -73,7 +73,7 @@ export function AnalysisFilters({
             </span>
           </div>
           <Select id="analysis-rank" key={values.rankFilter ?? "all"} name="rank" defaultValue={values.rankFilter ?? "all"}>
-            {ANALYSIS_RANK_FILTERS.map(option => (
+            {ANALYSIS_PAGE_RANK_FILTERS.map(option => (
               <option key={option.value} value={option.value}>{option.label}</option>
             ))}
           </Select>
@@ -123,6 +123,9 @@ export function AnalysisFilters({
           </Select>
         </FieldLabel>
 
+      </div>
+
+      <div className="mt-3 grid items-start gap-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,2fr)]">
         <FieldLabel>
           先後
           <Select name="turnOrder" defaultValue={values.turnOrder}>

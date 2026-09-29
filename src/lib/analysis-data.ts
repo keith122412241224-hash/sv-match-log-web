@@ -1,11 +1,11 @@
-import { parseAnalysisRankFilter, type AnalysisRankFilter } from "@/lib/analysis-rank-filter";
+import { parseAnalysisPageRankFilter, type AnalysisPageRankFilter } from "@/lib/analysis-page-rank-filter";
 import { AnalysisDataError, emptyAnalysisAggregates, parseAnalysisAggregates } from "@/lib/analysis-aggregates";
 import { getCurrentUser, type MatchFilters } from "@/lib/data";
 import type { WinRateMode } from "@/lib/match-perspectives";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export async function getAnalysisAggregates(environmentId: string, mode: WinRateMode, filters: MatchFilters, recentDeckIds?: readonly string[], rankFilter: AnalysisRankFilter = "all") {
-  const rank = parseAnalysisRankFilter(rankFilter);
+export async function getAnalysisAggregates(environmentId: string, mode: WinRateMode, filters: MatchFilters, recentDeckIds?: readonly string[], rankFilter: AnalysisPageRankFilter = "all") {
+  const rank = parseAnalysisPageRankFilter(rankFilter);
   if (!await getCurrentUser()) return emptyAnalysisAggregates();
   const supabase = await createSupabaseServerClient();
   let response;

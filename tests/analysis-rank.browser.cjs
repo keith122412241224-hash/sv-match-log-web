@@ -50,6 +50,29 @@ const api=http.createServer(async(req,res)=>{
     assert.equal(calls.length,1);assert.equal(calls[0].p_include_reversed,true);assert.equal(calls[0].p_include_all_users,true);
     assert.match(await page.locator('main').innerText(),/対象登録戦績: 1件/);assert.equal(await page.locator('article').count(),2);
     await page.screenshot({path:path.join(output,'combined.png'),fullPage:true});
+    for(const width of [320,375,640,768,1024,1280,1440]){
+      await page.setViewportSize({width,height:1000});
+      const controls=await page.locator('form[action="/analysis"] select, form[action="/analysis"] input:not([type="hidden"])').evaluateAll(es=>es.map(e=>{
+        const r=e.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,right:r.right,height:r.height};
+      }));
+      assert.ok(controls.every(r=>r.x>=0&&r.right<=width),'no overflow at '+width);
+      if(width>=1280){
+        assert.ok(controls.slice(0,6).every(r=>Math.abs(r.width-controls[0].width)<1),'upper six equal widths');
+        assert.ok([0,1,2].every(i=>controls[i].y===controls[0].y));
+        assert.ok([3,4,5].every(i=>controls[i].y===controls[3].y));
+        assert.ok([6,7,8,9,10,11].every(i=>controls[i].y===controls[6].y),'period and third row aligned');
+        assert.equal(controls[6].width,controls[7].width);
+        assert.ok(Math.abs((controls[11].right-controls[8].x)-controls[6].width*2)<1,'third row 1:1:2');
+      }
+      if(width<=375)assert.ok(controls[10].y>controls[8].y,'period wraps');
+      if([320,375,1440].includes(width))await page.screenshot({path:path.join(output,`layout-${width}.png`),fullPage:true});
+    }
+    const help=page.locator('#analysis-rank-help'),info=page.locator('button[aria-describedby="analysis-rank-help"]');
+    assert.equal(await help.isVisible(),false);
+    await info.hover();await help.waitFor({state:'visible'});
+    await page.mouse.move(0,0);await help.waitFor({state:'hidden'});
+    await info.click();await help.waitFor({state:'visible'});
+    await page.mouse.move(0,0);await page.locator('select[name="rank"]').focus();await help.waitFor({state:'hidden'});
     const downloaded=page.waitForEvent('download');await page.getByRole('button',{name:'デッキ別サマリー（反転込み）をPNG保存',exact:true}).click();
     const png=await downloaded;const saved=path.join(output,png.suggestedFilename());await png.saveAs(saved);assert.equal(fs.readFileSync(saved).subarray(1,4).toString(),'PNG');
     assert.equal(calls.length,1,'PNG must not refetch');
@@ -60,10 +83,10 @@ const api=http.createServer(async(req,res)=>{
     admin=true;
     const ranks=[{},...['beginner','d','c','b','a','aa'].map(rank_tier=>({rank_tier})),...['emerald','topaz','ruby','sapphire','diamond'].map(master_group=>({rank_tier:'master',master_group})),...['none','epic','ultimate','legend','beyond'].map(grandmaster_rating=>({rank_tier:'grandmaster',grandmaster_rating}))];
     const template=records[0];records.splice(0,records.length,...ranks.map((rank,i)=>({...template,...rank,id:'match-'+String(i).padStart(2,'0')})));
-    const choices=[['all',17],['master-plus',10],['master',5],['grandmaster',5],...ranks.filter(r=>r.master_group).map(r=>['master:'+r.master_group,1]),...ranks.filter(r=>r.grandmaster_rating).map(r=>['grandmaster:'+r.grandmaster_rating,1])];
+    const choices=[['all',17],...['beginner','d','c','b','a','aa'].map(r=>[r,1]),['master-plus',10],['master',5],['grandmaster',5],...ranks.filter(r=>r.master_group).map(r=>['master:'+r.master_group,1]),...ranks.filter(r=>r.grandmaster_rating).map(r=>['grandmaster:'+r.grandmaster_rating,1])];
     for(const scope of ['mine','all'])for(const mode of ['direct','combined']){
       await page.goto(origin+'/analysis?scope='+scope+'&winRateMode='+mode);await page.waitForLoadState('networkidle');
-      assert.equal(await page.locator('select[name="rank"] option').count(),14);
+      assert.equal(await page.locator('select[name="rank"] option').count(),20);
       for(const [rank,n]of choices){
         const before=calls.length;await page.locator('select[name="rank"]').selectOption(rank);
         await page.getByRole('button',{name:'表示',exact:true}).click();await page.waitForLoadState('networkidle');
@@ -81,7 +104,7 @@ const api=http.createServer(async(req,res)=>{
     assert.deepEqual(errors,[]);
     for(const kind of ['missing','invalid']){fail=kind;await page.goto(origin+'/analysis?rank=master');await page.waitForFunction(()=>document.body.innerText.includes('Application error'));assert.equal(await page.locator('article').count(),0);assert.doesNotMatch(await page.locator('body').innerText(),/対象登録戦績: 0件/);}
     assert.equal(rawReads,0);assert.deepEqual(writes,[]);
-    fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,initialRpcCalls:1,rawReads,writes,errors,rankCombinations:56,checks:['14 choices, direct/combined, mine/all, source rank, filter reset, filtered PNG no refetch','combined and reverse-only','non-admin scope/default','true zero','PNG no refetch','missing and malformed RPC are errors']},null,2));
-    console.log('Analysis rank browser passed (56 rank/mode/scope combinations): one RPC, zero raw reads, reverse filters, scope, PNG, zero and errors.');
+    fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,initialRpcCalls:1,rawReads,writes,errors,rankCombinations:80,checks:['20 choices, direct/combined, mine/all, source rank, filter reset, filtered PNG no refetch','320-1440px layout and tooltip','combined and reverse-only','non-admin scope/default','true zero','PNG no refetch','missing and malformed RPC are errors']},null,2));
+    console.log('Analysis rank browser passed (80 rank/mode/scope combinations): layout, tooltip, one RPC, zero raw reads, reverse filters, scope, PNG, zero and errors.');
   }finally{if(browser)await browser.close();app.kill();api.close();fs.closeSync(log);}
 })().catch(error=>{console.error(error);process.exitCode=1;});

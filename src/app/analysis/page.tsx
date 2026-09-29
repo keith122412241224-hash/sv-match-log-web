@@ -1,5 +1,5 @@
 import { selectInitialEnvironmentId } from "@/lib/environment-selection";
-import { parseAnalysisRankFilter } from "@/lib/analysis-rank-filter";
+import { parseAnalysisPageRankFilter } from "@/lib/analysis-page-rank-filter";
 import { DeckAnalysisCards } from "@/components/analysis/DeckAnalysisCards";
 import { ExportableAnalysisBlock } from "@/components/analysis/ExportableAnalysisBlock";
 import { AnalysisFilters, isMatchResult, isTurnOrder } from "@/components/analysis/AnalysisFilters";
@@ -39,7 +39,7 @@ export default async function AnalysisPage({
   searchParams: Promise<AnalysisSearchParams>;
 }) {
   const [params, environments, isAdmin] = await Promise.all([searchParams, getEnvironments(), getIsAdmin()]);
-  const selectedRank = parseAnalysisRankFilter(params.rank);
+  const selectedRank = parseAnalysisPageRankFilter(params.rank);
   const selectedScope = isAdmin && params.scope === "all" ? "all" : "mine";
   const winRateMode = resolveWinRateMode(params.winRateMode, selectedScope);
   const selectedEnvironmentId = selectInitialEnvironmentId(environments, params.environment);

@@ -1,5 +1,20 @@
 ﻿# R3-A: analysis rank filter (local candidate)
 
+## Current analysis screen (2026-09-29)
+
+- The first six filters use an equal three-column grid. Turn/result/period use a separate 1:1:2 grid; mobile keeps wrapping.
+- `src/constants/ranks.ts` (`RANKS`) is the source of truth for Beginner, D, C, B, A, AA, Master and GrandMaster. The database stores these as `matches.rank_tier`; NULL means unregistered.
+- `src/lib/analysis-page-rank-filter.ts` adds the six base tiers from `RANKS` to the existing options. The shared `analysis-rank-filter.ts` contract stays unchanged for matrix/period reports.
+- No `Master以下` definition was found in current source or the searched Git history. The actual gap was that the analysis dropdown and RPC did not accept Beginner through AA, despite the storage model supporting them.
+- `rank=beginner|d|c|b|a|aa` passes unchanged to `get_analysis_aggregates_v2.p_rank_filter`. The `analysis_rank_tiers` migration adds only accepted values and `m.rank_tier = p_rank_filter` before perspective expansion. RPC arguments/output, existing filters, privileges, RLS, timezone handling and reset are unchanged.
+- All old choices retain their labels/values/conditions. Missing/empty/`all` continues using v1 and includes NULL ranks. Reset continues clearing rank and retaining the existing environment/scope rules.
+- Verification: `analysis-rank.test.cjs` checks the new options, loader forwarding and exact SQL diff; `analysis-rank.integration.cjs` tests the migration with synthetic PostgreSQL data; `analysis-rank.browser.cjs` tests 20 choices across both scopes/modes, reset, tooltip and 320–1440px layouts against a local HTTP fixture.
+- Production DB migration `20260929053719_analysis_rank_tiers` is applied. An authenticated-role, read-only transaction returned 9 AA registrations / 4 direct wins, matching stored rows; reversed mode retained 9 registrations with 18 perspectives. The selected owner's `all` result (85 registrations) remained byte-equivalent to its pre-migration JSON and equal to v1. No match rows were modified. Local migration filename matches the remote migration history.
+
+## Historical R3-A record
+
+The deployment status and 14-option counts below describe the original release only.
+
 Baseline: `27f3dbb4b14706774d63dbd26282803a7ca0e8c4`.
 
 Only the analysis screen changes. Rank is the registering player's attribute at match time. Filter original matches before expanding direct/reversed perspectives; directional deck/result/turn predicates still apply after expansion. No rank swapping, opponent rank inference, raw matches fetch, or UI scan is added.

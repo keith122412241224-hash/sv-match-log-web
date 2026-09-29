@@ -3,6 +3,29 @@ const { legacySourcePath } = require('./legacy-source.cjs');
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),cp=require('node:child_process');
 const {ANALYSIS_RANK_FILTERS,parseAnalysisRankFilter}=require('../src/lib/analysis-rank-filter');
 const {MASTER_GROUPS,GRANDMASTER_RATINGS}=require('../src/constants/ranks');
+const {RANKS}=require('../src/constants/ranks');
+const {ANALYSIS_PAGE_RANK_FILTERS,parseAnalysisPageRankFilter}=require('../src/lib/analysis-page-rank-filter');
+
+test('analysis adds every existing base tier without changing other reports or legacy choices',()=>{
+ const lower=RANKS.filter(x=>!['master','grandmaster'].includes(x.value));
+ assert.deepEqual(ANALYSIS_PAGE_RANK_FILTERS.map(x=>x.value),['all',...lower.map(x=>x.value),...ANALYSIS_RANK_FILTERS.slice(1).map(x=>x.value)]);
+ for(const tier of lower){assert.equal(ANALYSIS_PAGE_RANK_FILTERS.find(x=>x.value===tier.value).label,tier.label);assert.throws(()=>parseAnalysisRankFilter(tier.value));}
+ for(const option of ANALYSIS_RANK_FILTERS)assert.deepEqual(ANALYSIS_PAGE_RANK_FILTERS.find(x=>x.value===option.value),option);
+ for(const {value}of ANALYSIS_PAGE_RANK_FILTERS)assert.equal(parseAnalysisPageRankFilter(value),value);
+ for(const value of [undefined,null,'','all'])assert.equal(parseAnalysisPageRankFilter(value),'all');
+ for(const value of ['master-below','none','aa:1','AA','unknown'])assert.throws(()=>parseAnalysisPageRankFilter(value));
+});
+
+test('tier migration only expands the analysis rank allowlist and source predicate',()=>{
+ const read=f=>fs.readFileSync(f,'utf8').replaceAll('\r\n','\n');
+ const baseline=read('supabase/migrations/20260928010000_production_baseline.sql');
+ const start=baseline.indexOf('CREATE OR REPLACE FUNCTION public.get_analysis_aggregates_v2(');
+ const original=baseline.slice(start,baseline.indexOf('$function$;',start)+11);
+ const expected=original.replace("not in ('all',", "not in ('beginner', 'd', 'c', 'b', 'a', 'aa', 'all',")
+   .replace("      or (p_rank_filter = 'master-plus'", "      or (p_rank_filter in ('beginner', 'd', 'c', 'b', 'a', 'aa') and m.rank_tier = p_rank_filter)\n      or (p_rank_filter = 'master-plus'");
+ const migration=read('supabase/migrations/20260929053719_analysis_rank_tiers.sql');
+ assert.equal(migration.slice(migration.indexOf('CREATE OR REPLACE')).trim(),expected);
+});
 test('14 rank filters derive the existing R2 child values, and NULL differs from explicit none',()=>{
  assert.deepEqual(ANALYSIS_RANK_FILTERS.map(x=>x.value),['all','master-plus','master','grandmaster',...MASTER_GROUPS.map(x=>'master:'+x.value),...GRANDMASTER_RATINGS.map(x=>'grandmaster:'+x.value)]);
  for(const v of [null,undefined,'','all'])assert.equal(parseAnalysisRankFilter(v),'all');
@@ -15,7 +38,7 @@ mock('../src/lib/data',{getCurrentUser:async()=>({id:'owner'})});
 mock('../src/lib/supabase/server',{createSupabaseServerClient:async()=>({rpc:async(name,args)=>{calls.push({name,args});return {data:emptyAnalysisAggregates(),error};}})});
 const {getAnalysisAggregates}=require('../src/lib/analysis-data');
 test('all uses unchanged v1; selected rank uses one v2 call retaining every v1 argument',async()=>{
- for(const {value}of ANALYSIS_RANK_FILTERS){calls=[];await getAnalysisAggregates('environment','combined',{includeAllUsers:true,deckIdField:'archetype',myDeckId:'A',opponentDeckId:'B',result:'lose',turnOrder:'second',playedAtFrom:'from',playedAtTo:'to'},[],value);
+ for(const {value}of ANALYSIS_PAGE_RANK_FILTERS){calls=[];await getAnalysisAggregates('environment','combined',{includeAllUsers:true,deckIdField:'archetype',myDeckId:'A',opponentDeckId:'B',result:'lose',turnOrder:'second',playedAtFrom:'from',playedAtTo:'to'},[],value);
  assert.equal(calls.length,1);assert.equal(calls[0].name,value==='all'?'get_analysis_aggregates_v1':'get_analysis_aggregates_v2');
  assert.deepEqual(calls[0].args,{...(value==='all'?{}:{p_rank_filter:value}),p_environment_id:'environment',p_include_all_users:true,p_include_reversed:true,p_use_archetype:true,p_my_deck_id:'A',p_opponent_deck_id:'B',p_result:'lose',p_turn_order:'second',p_played_from:'from',p_played_to:'to',p_recent_deck_ids:[]});}
 });
