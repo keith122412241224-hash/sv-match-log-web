@@ -1,4 +1,6 @@
 import type { ReactNode } from "react";
+import type { EnvironmentDashboardV2 } from "@/lib/environment-dashboard-v2";
+import { getRankSelectionLabel } from "@/lib/rank-selection";
 import { ENVIRONMENT_PERIODS, ENVIRONMENT_RANKS, buildEnvironmentView, formatEnvironmentPercent as percent, publicStatusLabel, type EnvironmentDashboard, type Trend } from "@/lib/environment-dashboard";
 import { formatJstDateTime } from "@/lib/utils";
 
@@ -22,7 +24,7 @@ function WinText({ row }: { row: Row }) {
   return row.winRate === null ? <span className="text-sm text-muted">{publicStatusLabel(row.current.winrate.status)}</span>
     : <span className="text-sm"><strong>{percent(row.winRate)}</strong>{row.sample && <span className="ml-2 inline-block rounded bg-amber-50 px-2 py-1 text-xs text-amber-900">{row.sample}</span>}</span>;
 }
-export function EnvironmentData({ data, activeDeckIds }: { data: EnvironmentDashboard; activeDeckIds: string[] }) {
+export function EnvironmentData({ data, activeDeckIds }: { data: EnvironmentDashboard | EnvironmentDashboardV2; activeDeckIds: string[] }) {
   const view = buildEnvironmentView(data), total = data.current.total;
   // Filter the displayed catalog only; registration totals and rates keep their original population.
   const activeDecks = new Set(activeDeckIds);
@@ -30,7 +32,7 @@ export function EnvironmentData({ data, activeDeckIds }: { data: EnvironmentDash
   const noRanking = total.status === "available" ? "公開条件を満たすデータがありません。" : publicStatusLabel(total.status);
   return <>
     <section aria-label="集計条件" className="rounded-md border border-slate-200 bg-white p-4 text-sm">
-      <p className="mb-2 text-muted">直近{ENVIRONMENT_PERIODS.find(p => p.value === data.period)!.label} / {ENVIRONMENT_RANKS.find(r => r.value === data.rankFilter)!.fullLabel}</p>
+      <p className="mb-2 text-muted">直近{ENVIRONMENT_PERIODS.find(p => p.value === data.period)!.label} / {data.version === 2 ? getRankSelectionLabel(data.rankFilters) : ENVIRONMENT_RANKS.find(r => r.value === data.rankFilter)!.fullLabel}</p>
       <p className="font-semibold">登録戦績：{total.status === "available" ? `${integer(total.totalMatches!)}件` : total.status === "no_data" ? "データなし" : publicStatusLabel(total.status)}</p>
       <p className="mt-2">集計対象：{formatJstDateTime(data.dataThrough)}まで（JST）</p>
       <p className="mt-1 text-xs text-muted">今期：{formatJstDateTime(data.current.start)} ～ {formatJstDateTime(data.current.end)}（終了時刻は含みません）</p>

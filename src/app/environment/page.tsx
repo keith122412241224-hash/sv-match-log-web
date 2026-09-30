@@ -3,7 +3,9 @@ import { AppShell } from "@/components/AppShell";
 import { EnvironmentFilters } from "@/components/environment/EnvironmentFilters";
 import { getCurrentUser } from "@/lib/data";
 import { selectInitialEnvironmentId } from "@/lib/environment-selection";
-import { environmentHref, normalizeEnvironmentPeriod, normalizeEnvironmentRank, type EnvironmentDashboard } from "@/lib/environment-dashboard";
+import { normalizeEnvironmentPeriod } from "@/lib/environment-dashboard";
+import { environmentHrefV2, type EnvironmentDashboardV2 } from "@/lib/environment-dashboard-v2";
+import { parseRankSelection } from "@/lib/rank-selection";
 import { getEnvironmentDashboard } from "@/lib/environment-dashboard-data";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -20,9 +22,12 @@ export default async function EnvironmentPage({ searchParams }: { searchParams: 
   ]);
   if (archetypeError) throw new Error("デッキ分類を取得できませんでした。");
   const environment = selectInitialEnvironmentId(environments ?? [], typeof params.environment === "string" ? params.environment : undefined);
-  const selection = { environment, period: normalizeEnvironmentPeriod(params.period), rank: normalizeEnvironmentRank(params.rank) };
-  if (environment && !environmentError && ["environment", "period", "rank"].some(k => params[k] !== undefined && params[k] !== selection[k as keyof typeof selection])) redirect(environmentHref(selection));
-  let dashboard: EnvironmentDashboard | null = null, failed = Boolean(environmentError);
+  let ranks;
+  try { ranks = parseRankSelection(params); }
+  catch { return <AppShell><div role="alert" className="rounded-md border p-4">ランクの絞り込み条件が不正です。URLのランク指定を確認してください。</div></AppShell>; }
+  const selection = { environment, period: normalizeEnvironmentPeriod(params.period), ranks };
+  if (environment && !environmentError && ["environment", "period"].some(k => params[k] !== undefined && params[k] !== selection[k as "environment" | "period"])) redirect(environmentHrefV2(selection));
+  let dashboard: EnvironmentDashboardV2 | null = null, failed = Boolean(environmentError);
   if (environment && !failed) {
     try {
       dashboard = await getEnvironmentDashboard(selection);
@@ -30,6 +35,6 @@ export default async function EnvironmentPage({ searchParams }: { searchParams: 
   }
   return <AppShell navigationPrefetch={false}><div className="space-y-5">
     <div><h1 className="text-2xl font-bold">環境データ</h1><p className="mt-2 text-sm leading-relaxed text-muted">SV Match Log利用者が登録した戦績の集計データです。個別ユーザーの戦績や識別情報は表示しません。データ量の少ない項目は非表示になる場合があります。</p></div>
-    <EnvironmentFilters key={environmentHref(selection)} environments={(environments ?? []).map(e => ({ id: e.id, name: e.name }))} activeDeckIds={(activeArchetypes ?? []).map(a => a.id)} initialSelection={selection} initialData={dashboard} initialFailed={failed} />
+    <EnvironmentFilters key={environmentHrefV2(selection)} environments={(environments ?? []).map(e => ({ id: e.id, name: e.name }))} activeDeckIds={(activeArchetypes ?? []).map(a => a.id)} initialSelection={selection} initialData={dashboard} initialFailed={failed} />
   </div></AppShell>;
 }

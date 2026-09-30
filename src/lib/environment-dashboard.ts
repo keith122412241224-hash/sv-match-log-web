@@ -131,7 +131,7 @@ export function deckTrend(d: DashboardDeck, c: Total, p: Total): Trend {
   const state = BigInt(200) * cross >= denominator ? "increase" : BigInt(200) * cross <= -denominator ? "decrease" : "flat";
   return { state, current, previous, delta: current - previous };
 }
-export function buildEnvironmentView(data: EnvironmentDashboard) {
+export function buildEnvironmentView(data: Pick<EnvironmentDashboard, "decks" | "current" | "previous">) {
   const rows = data.decks.map(d => ({ ...d, encounterRate: encounterRate(d.current.encounter, data.current.total),
     winRate: winRate(d.current.winrate), sample: sampleLabel(d.current.winrate), trend: deckTrend(d, data.current.total, data.previous.total) }));
   const stable = (a: { key: string }, b: { key: string }) => a.key < b.key ? -1 : a.key > b.key ? 1 : 0;

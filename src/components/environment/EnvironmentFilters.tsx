@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type SyntheticEvent } from "react";
 import { EnvironmentData } from "@/components/environment/EnvironmentData";
-import { RankFilterSelect } from "@/components/RankFilterSelect";
-import { rankDestinationSupport } from "@/lib/rank-filter";
-import { ENVIRONMENT_PERIODS, environmentHref, normalizeEnvironmentPeriod, normalizeEnvironmentRank, parseEnvironmentDashboard, type DashboardSelection, type EnvironmentDashboard } from "@/lib/environment-dashboard";
+import { RankMultiSelect } from "@/components/RankMultiSelect";
+import { parseRankSelection, rankSelectionToMatrixFilter, serializeRankSelection } from "@/lib/rank-selection";
+import { ENVIRONMENT_PERIODS, normalizeEnvironmentPeriod } from "@/lib/environment-dashboard";
+import { environmentHrefV2 as environmentHref, parseEnvironmentDashboardV2 as parseEnvironmentDashboard, type DashboardSelectionV2 as DashboardSelection, type EnvironmentDashboardV2 as EnvironmentDashboard } from "@/lib/environment-dashboard-v2";
 
 export function EnvironmentFilters({ environments, activeDeckIds, initialSelection, initialData, initialFailed }: {
   environments: { id: string; name: string }[]; activeDeckIds: string[]; initialSelection: DashboardSelection; initialData: EnvironmentDashboard | null; initialFailed: boolean;
@@ -33,7 +34,7 @@ export function EnvironmentFilters({ environments, activeDeckIds, initialSelecti
     // ordinary SSR/reload already matches and must not issue a second RPC.
     const q = new URLSearchParams(window.location.search);
     const environment = environments.some(e => e.id === q.get("environment")) ? q.get("environment")! : initialSelection.environment;
-    const next = { environment, period: normalizeEnvironmentPeriod(q.get("period")), rank: normalizeEnvironmentRank(q.get("rank")) };
+    const next = { environment, period: normalizeEnvironmentPeriod(q.get("period")), ranks: parseRankSelection({ ranks: q.get("ranks") ?? undefined, rank: q.get("rank") ?? undefined }) };
     if (environmentHref(next) !== environmentHref(currentSelection.current)) void load(next);
     return () => { controller.current?.abort(); };
   }, [environments, initialSelection.environment, load]);
@@ -46,8 +47,9 @@ export function EnvironmentFilters({ environments, activeDeckIds, initialSelecti
   function blockPendingInteraction(e: SyntheticEvent) {
     if (pending) { e.preventDefault(); e.stopPropagation(); }
   }
-  const ownQuery = new URLSearchParams({ environment: selection.environment, rank: selection.rank, scope: "mine" });
-  const destinations = rankDestinationSupport(selection.rank);
+  const ownQuery = new URLSearchParams({ environment: selection.environment, ranks: serializeRankSelection(selection.ranks), scope: "mine" });
+  const matrixRank = rankSelectionToMatrixFilter(selection.ranks);
+  const matrixQuery = new URLSearchParams({ environment: selection.environment, rank: matrixRank ?? "", scope: "mine" });
   return <>
     <form onSubmit={e => e.preventDefault()} className="rounded-md border border-slate-200 bg-white p-4">
       {/* Keep the native Tab sequence intact while a selection starts loading. */}
@@ -70,7 +72,7 @@ export function EnvironmentFilters({ environments, activeDeckIds, initialSelecti
             </label>)}
           </div>
         </fieldset>
-        <RankFilterSelect value={selection.rank} disabled={pending || environments.length === 0} onChange={rank => update({ ...selection, rank })} />
+        <RankMultiSelect value={selection.ranks} disabled={pending || environments.length === 0} onApply={ranks => update({ ...selection, ranks })} />
       </fieldset>
     </form>
     {pending && <p role="status" className="rounded-md border border-slate-200 bg-white p-6">環境データを読み込み中…</p>}
@@ -78,8 +80,8 @@ export function EnvironmentFilters({ environments, activeDeckIds, initialSelecti
       : data ? <EnvironmentData data={data} activeDeckIds={activeDeckIds} /> : <p className="rounded-md border border-slate-200 bg-white p-5">選択できる環境がありません。</p>)}
     <section className="rounded-md border border-slate-200 bg-white p-4"><h2 className="font-semibold">自分の登録データを見る</h2><p className="mt-2 text-sm text-muted">環境とランクを引き継ぎます。期間の指定は引き継ぎません。</p>
       <div className="mt-3 flex flex-wrap gap-3">{([ ["analysis", "分析"], ["matrix", "相性表"] ] as const).map(([target, label]) => <div key={target}>
-        {destinations[target] ? <Link prefetch={false} href={`/${target}?${ownQuery}`} className="inline-flex min-h-11 items-center rounded-md border border-slate-300 px-3 text-sm font-semibold">自分の{label}を見る</Link>
-          : <><span role="link" aria-disabled="true" className="inline-flex min-h-11 items-center rounded-md border border-slate-200 px-3 text-sm text-muted">自分の{label}を見る</span><p className="mt-1 text-xs text-muted">{label}はこのランク条件に未対応です。</p></>}
+        {target === "analysis" || matrixRank !== null ? <Link prefetch={false} href={`/${target}?${target === "analysis" ? ownQuery : matrixQuery}`} className="inline-flex min-h-11 items-center rounded-md border border-slate-300 px-3 text-sm font-semibold">自分の{label}を見る</Link>
+          : <><span role="link" aria-disabled="true" className="inline-flex min-h-11 items-center rounded-md border border-slate-200 px-3 text-sm text-muted">自分の{label}を見る</span><p className="mt-1 text-xs text-muted">このランクの組み合わせは相性表ではまだ利用できません。</p></>}
       </div>)}</div>
     </section>
   </>;
