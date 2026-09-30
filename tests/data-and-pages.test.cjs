@@ -9,6 +9,7 @@ let admin = true;
 let currentUser = { id: 'owner' };
 let records = [];
 let calls = [];
+let failAnalysisRpc = false;
 const decks = ['A', 'B'].map(id => ({ id, name: id, class_name: 'エルフ', is_active: true }));
 const environment = { id: 'environment', name: 'Test environment', created_at: '2026-09-01', allow_match_input: true };
 function mockModule(relative, exports) {
@@ -22,8 +23,10 @@ const supabase = {
       calls.push({ rpc: name, args });
       return { data: periodFixture(records, args), error: null };
     }
-    assert.equal(name, 'get_analysis_aggregates_v1');
+    assert.equal(name, 'get_analysis_aggregates_v3');
+    assert.deepEqual(args.p_rank_filters, require('../src/lib/rank-selection').RANK_ATOMS);
     calls.push({ rpc: name, args });
+    if (failAnalysisRpc) return { error: { code: '42501', message: 'PRIVATE-DATABASE-DETAIL' } };
     const scoped = records.filter(row => admin && args.p_include_all_users || row.user_id === currentUser?.id);
     return { data: analysisFixture(scoped, args), error: null };
   },
@@ -112,6 +115,28 @@ test('actual analysis page defaults to combined for all users; reverse-only filt
   assert.match(mine, /勝率集計: 使用者側のみ/);
   const direct = renderToStaticMarkup(await AnalysisPage({ searchParams: Promise.resolve({ scope: 'all', winRateMode: 'direct', myDeck: 'B' }) }));
   assert.match(direct, /対象登録戦績: 0件/);
+});
+
+test('analysis API reuses page scoping, rejects invalid ranks before RPC and returns private no-store data', async () => {
+  const { GET } = require('../src/app/api/analysis/route');
+  const ranks = require('../src/lib/rank-selection').RANK_ATOMS.join(',');
+  admin = false; records = [record(1), record(2, { user_id: 'someone-else' })]; calls = [];
+  const response = await GET(new Request('http://localhost/api/analysis?' + new URLSearchParams({ scope: 'all', ranks })));
+  assert.equal(response.status, 200); assert.equal(response.headers.get('cache-control'), 'private, no-store');
+  assert.equal(response.headers.get('vary'), 'Cookie');
+  const body = await response.json(); assert.equal(body.selectedScope, 'mine'); assert.equal(body.aggregates.registeredMatches, 1);
+  assert.equal(calls.filter(c => c.rpc).length, 1); assert.equal(calls.filter(c => c.table === 'matches').length, 0);
+  for (const items of [body.decks, body.archetypes, body.matrixDecks, body.environments]) for (const item of items) assert.ok(!Object.hasOwn(item, 'user_id'));
+  for (const query of ['ranks=', 'ranks=master', 'ranks=a&ranks=b', 'ranks=a&rank=all', 'ranks=a&user_id=someone-else']) {
+    calls = []; assert.equal((await GET(new Request('http://localhost/api/analysis?' + query))).status, 400); assert.equal(calls.filter(c => c.rpc).length, 0);
+  }
+  currentUser = null; calls = []; assert.equal((await GET(new Request('http://localhost/api/analysis?ranks=a'))).status, 401); assert.equal(calls.length, 0);
+  currentUser = { id: 'owner' }; admin = true;
+  failAnalysisRpc = true; calls = [];
+  const failed = await GET(new Request('http://localhost/api/analysis?' + new URLSearchParams({ ranks })));
+  assert.equal(failed.status, 503); assert.ok(!(await failed.text()).includes('PRIVATE'));
+  assert.equal(calls.filter(c => c.rpc).length, 1); assert.equal(calls.filter(c => c.table === 'matches').length, 0);
+  failAnalysisRpc = false;
 });
 test('report chart and PNG content include environment rate and both breakdowns', () => {
   const report = buildWeeklyReport([record(1)], [], decks, buildWeeklyPeriod('2026-09-05'));

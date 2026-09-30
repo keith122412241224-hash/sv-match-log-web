@@ -1,4 +1,5 @@
-import { ANALYSIS_PAGE_RANK_FILTERS, type AnalysisPageRankFilter } from "@/lib/analysis-page-rank-filter";
+import { RankMultiSelect } from "@/components/RankMultiSelect";
+import { RANK_ATOMS, type RankSelection } from "@/lib/rank-selection";
 import Link from "next/link";
 import { AnalysisDateTimeField } from "@/components/analysis/AnalysisDateTimeField";
 import { Button } from "@/components/Button";
@@ -18,19 +19,23 @@ export type AnalysisFilterValues = {
   playedTo: string;
   scope: string;
   winRateMode: WinRateMode;
-  rankFilter?: AnalysisPageRankFilter;
+  rankSelection?: RankSelection;
 };
 
 export function AnalysisFilters({
   environments,
   decks,
   values,
-  canUseAllUsers
+  canUseAllUsers,
+  pending = false,
+  onRankApply
 }: {
-  environments: Environment[];
+  environments: Pick<Environment, "id" | "name">[];
   decks: DeckLike[];
   values: AnalysisFilterValues;
   canUseAllUsers?: boolean;
+  pending?: boolean;
+  onRankApply?: (ranks: RankSelection) => void;
 }) {
   const scopeQuery = values.scope === "all" ? "&scope=all" : "";
   const resetHref = values.environmentId
@@ -40,7 +45,13 @@ export function AnalysisFilters({
       : "/analysis";
 
   return (
-    <form action="/analysis" className="rounded-md border border-slate-200 bg-white p-3">
+    <form action="/analysis" aria-busy={pending || undefined}
+      onSubmit={e => { if (pending) e.preventDefault(); }}
+      onPointerDownCapture={e => { if (pending) { e.preventDefault(); e.stopPropagation(); } }}
+      onClickCapture={e => { if (pending) { e.preventDefault(); e.stopPropagation(); } }}
+      onChangeCapture={e => { if (pending) { e.preventDefault(); e.stopPropagation(); } }}
+      onKeyDownCapture={e => { if (pending && e.key !== "Tab") { e.preventDefault(); e.stopPropagation(); } }}
+      className="rounded-md border border-slate-200 bg-white p-3">
       <div className="grid items-start gap-3 md:grid-cols-2 xl:grid-cols-3">
         <FieldLabel>
           勝率集計
@@ -49,35 +60,7 @@ export function AnalysisFilters({
             <option value="combined">対戦相手反転込み</option>
           </Select>
         </FieldLabel>
-        <div className="grid gap-1.5 text-sm font-semibold text-ink">
-          <div className="flex items-center gap-1">
-            <label htmlFor="analysis-rank">登録者のランク</label>
-            <span className="group relative inline-flex">
-              <button
-                type="button"
-                aria-label="登録者のランクについて"
-                aria-describedby="analysis-rank-help"
-                className="inline-flex size-5 items-center justify-center rounded-full text-muted hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
-              >
-                <span aria-hidden="true">ⓘ</span>
-              </button>
-              <span
-                id="analysis-rank-help"
-                role="tooltip"
-                className="invisible absolute -left-28 top-full z-30 w-64 max-w-[calc(100vw-3rem)] pt-2 opacity-0 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100"
-              >
-                <span className="block rounded-md bg-ink p-3 text-xs font-normal leading-relaxed text-white shadow-lg">
-                  登録者の対戦時点のランクで絞ります。反転込みでもランクは変わりません。
-                </span>
-              </span>
-            </span>
-          </div>
-          <Select id="analysis-rank" key={values.rankFilter ?? "all"} name="rank" defaultValue={values.rankFilter ?? "all"}>
-            {ANALYSIS_PAGE_RANK_FILTERS.map(option => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </Select>
-        </div>
+        <div className="min-w-0"><RankMultiSelect label="登録者のランク" value={values.rankSelection ?? RANK_ATOMS} disabled={pending} onApply={ranks => onRankApply?.(ranks)} /><p className="mt-1 text-xs text-muted">登録者の対戦時点のランクで絞ります。反転込みでもランクは変わりません。</p></div>
         {canUseAllUsers ? (
           <FieldLabel>
             集計範囲

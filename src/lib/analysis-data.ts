@@ -1,17 +1,19 @@
 import { parseAnalysisPageRankFilter, type AnalysisPageRankFilter } from "@/lib/analysis-page-rank-filter";
+import { normalizeRankSelection, type RankSelection } from "@/lib/rank-selection";
 import { AnalysisDataError, emptyAnalysisAggregates, parseAnalysisAggregates } from "@/lib/analysis-aggregates";
 import { getCurrentUser, type MatchFilters } from "@/lib/data";
 import type { WinRateMode } from "@/lib/match-perspectives";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export async function getAnalysisAggregates(environmentId: string, mode: WinRateMode, filters: MatchFilters, recentDeckIds?: readonly string[], rankFilter: AnalysisPageRankFilter = "all") {
-  const rank = parseAnalysisPageRankFilter(rankFilter);
+export async function getAnalysisAggregates(environmentId: string, mode: WinRateMode, filters: MatchFilters, recentDeckIds?: readonly string[], rankFilter: AnalysisPageRankFilter | RankSelection = "all") {
+  const ranks = typeof rankFilter === "string" ? null : normalizeRankSelection(rankFilter);
+  const rank = typeof rankFilter === "string" ? parseAnalysisPageRankFilter(rankFilter) : "all";
   if (!await getCurrentUser()) return emptyAnalysisAggregates();
   const supabase = await createSupabaseServerClient();
   let response;
   try {
-    response = await supabase.rpc(rank === "all" ? "get_analysis_aggregates_v1" : "get_analysis_aggregates_v2", {
-      ...(rank === "all" ? {} : { p_rank_filter: rank }),
+    response = await supabase.rpc(ranks ? "get_analysis_aggregates_v3" : rank === "all" ? "get_analysis_aggregates_v1" : "get_analysis_aggregates_v2", {
+      ...(ranks ? { p_rank_filters: ranks } : rank === "all" ? {} : { p_rank_filter: rank }),
       p_environment_id: environmentId || null,
       p_include_all_users: Boolean(filters.includeAllUsers),
       p_include_reversed: mode === "combined",
