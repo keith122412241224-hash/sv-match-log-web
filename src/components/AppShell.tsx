@@ -12,18 +12,20 @@ const navItems = [
   { href: "/matches", label: "戦績入力", icon: ListPlus },
   { href: "/decks", label: "デッキ管理", icon: Swords },
   { href: "/analysis", label: "分析", icon: BarChart3 },
+  { href: "/environment", label: "環境", icon: BarChart3 },
   { href: "/matrix", label: "相性表", icon: Grid3X3 },
   { href: "/admin", label: "管理", icon: LockKeyhole }
 ];
 
-export async function AppShell({ children }: { children: ReactNode }) {
+export async function AppShell({ children, navigationPrefetch = true }: { children: ReactNode; navigationPrefetch?: boolean }) {
   const [user, isAdmin] = await Promise.all([getCurrentUser(), getIsAdmin()]);
 
   if (!user) {
     redirect("/login");
   }
 
-  const visibleNavItems = navItems.filter((item) => item.href !== "/admin" || isAdmin);
+  const visibleNavItems = navItems.filter((item) => (item.href !== "/admin" || isAdmin)
+    && (item.href !== "/environment" || user.is_anonymous === false));
 
   return (
     <div className="min-h-screen bg-surface">
@@ -53,7 +55,7 @@ export async function AppShell({ children }: { children: ReactNode }) {
           {visibleNavItems.map((item) => {
             const Icon = item.icon;
             // Fetch full-match aggregates and unpaginated admin lists only on navigation.
-            const prefetch = !["/analysis", "/matrix", "/admin"].includes(item.href);
+            const prefetch = navigationPrefetch && !["/analysis", "/matrix", "/environment", "/admin"].includes(item.href);
             return (
               <Link
                 className="inline-flex min-w-0 flex-col items-center justify-center gap-1 rounded-md px-1 py-2 text-[11px] font-semibold leading-none text-muted hover:bg-slate-100 hover:text-ink sm:min-h-10 sm:shrink-0 sm:flex-row sm:gap-2 sm:px-3 sm:text-sm"

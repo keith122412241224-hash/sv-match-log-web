@@ -60,6 +60,17 @@ test('R3-A and R3-B entry points are isolated; R2 and other Phase A/C code remai
  // Save UX exceptions are narrowly guarded by global-pending-scope.test.cjs.
  const allowed=new Set([...require('./rescue-scope.cjs').rescueSources,"src/app/page.tsx","src/app/analysis/page.tsx","src/app/matrix/page.tsx","src/app/actions.ts","src/app/admin/actions.ts","src/app/admin/page.tsx","src/app/guest/page.tsx","src/app/matches/page.tsx","src/components/admin/AdminEnvironmentTable.tsx","src/components/admin/CreateEnvironmentForm.tsx","src/lib/data.ts","src/types/database.ts","src/app/actions.ts","src/components/GlobalPendingIndicator.tsx","src/components/matches/QuickMatchForm.tsx","src/components/MatchupMatrix.tsx","src/app/admin/weekly-report/page.tsx","src/components/admin/WeeklyReportClientTools.tsx","src/lib/data.ts","src/lib/period-report-data.ts",'src/app/matrix/page.tsx', 'src/lib/matchup-data.ts', 'src/app/analysis/page.tsx','src/lib/analysis-data.ts','src/components/analysis/AnalysisFilters.tsx']);
  for(const file of git(['ls-tree','-r','--name-only',base]).trim().split('\n').filter(f=>f.startsWith('src/')||f.startsWith('supabase/')||f==='tests/fixtures/analysis-aggregates-v1.sql')){
- if(!allowed.has(file))assert.equal(fs.readFileSync(legacySourcePath(file),'utf8').replaceAll('\r\n','\n'),git(['show',base+':'+file]),file);
+ if(!allowed.has(file)){
+  let actual=fs.readFileSync(legacySourcePath(file),'utf8').replaceAll('\r\n','\n');
+  // E1 adds only a member navigation item and its session-refresh route.
+  // Normalize those exact additions; continue protecting every other byte.
+  if(file==='src/components/AppShell.tsx')actual=actual
+   .replace('export async function AppShell({ children, navigationPrefetch = true }: { children: ReactNode; navigationPrefetch?: boolean })','export async function AppShell({ children }: { children: ReactNode })')
+   .replace('  { href: "/environment", label: "環境", icon: BarChart3 },\n','')
+   .replace('navItems.filter((item) => (item.href !== "/admin" || isAdmin)\n    && (item.href !== "/environment" || user.is_anonymous === false))','navItems.filter((item) => item.href !== "/admin" || isAdmin)')
+   .replace('navigationPrefetch && !["/analysis", "/matrix", "/environment", "/admin"]','!["/analysis", "/matrix", "/admin"]');
+  if(file==='src/middleware.ts')actual=actual.replace(', "/environment/:path*"','');
+  assert.equal(actual,git(['show',base+':'+file]),file);
+ }
  }
 });
