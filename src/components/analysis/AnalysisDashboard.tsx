@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { DeckAnalysisCards } from "@/components/analysis/DeckAnalysisCards";
 import { ExportableAnalysisBlock } from "@/components/analysis/ExportableAnalysisBlock";
 import { AnalysisFilters } from "@/components/analysis/AnalysisFilters";
@@ -10,13 +10,20 @@ import { parseRankSelection, serializeRankSelection, type RankSelection } from "
 import { formatPercent } from "@/lib/utils";
 import type { AnalysisPageData } from "@/lib/analysis-page-data";
 
-export function AnalysisDashboard({ initialData }: { initialData: AnalysisPageData }) {
+function queryKey(value: string) {
+  const query = new URLSearchParams(value);
+  query.sort();
+  return query.toString();
+}
+
+export function AnalysisDashboard({ initialData, initialQuery }: { initialData: AnalysisPageData; initialQuery: string }) {
   const container = useRef<HTMLDivElement>(null), controller = useRef<AbortController | null>(null);
   const [data, setData] = useState(initialData), [pending, setPending] = useState(false), [failed, setFailed] = useState(false);
-  const currentQuery = useRef<string | null>(null);
+  const currentQuery = useRef(initialQuery), serverData = useRef(initialData);
   const load = useCallback(async (query: URLSearchParams, updateUrl: boolean) => {
     controller.current?.abort();
     const request = new AbortController(); controller.current = request;
+    currentQuery.current = query.toString();
     setPending(true); setFailed(false);
     try {
       const ranks = parseRankSelection(Object.fromEntries(query));
@@ -32,8 +39,31 @@ export function AnalysisDashboard({ initialData }: { initialData: AnalysisPageDa
     } catch { if (!request.signal.aborted) setFailed(true); }
     finally { if (!request.signal.aborted) setPending(false); }
   }, []);
+  useLayoutEffect(() => {
+    const query = new URLSearchParams(window.location.search);
+    // A history entry changed by client Apply can retain an older RSC payload.
+    // Never install that payload over the selection named by the restored URL.
+    if (queryKey(initialQuery) !== queryKey(query.toString())) {
+      if (queryKey(currentQuery.current) !== queryKey(query.toString())) void load(query, false);
+      return;
+    }
+    if (serverData.current === initialData) return;
+    serverData.current = initialData;
+    controller.current?.abort();
+    currentQuery.current = query.toString();
+    setData(initialData); setPending(false); setFailed(false);
+  }, [initialData, initialQuery, load]);
+  useLayoutEffect(() => {
+    // Uncontrolled selects keep their DOM/focus, but must follow accepted navigation data.
+    const values = { environment: data.selectedEnvironmentId, scope: data.selectedScope,
+      winRateMode: data.winRateMode, myDeck: data.selectedMyDeckId, opponentDeck: data.selectedOpponentDeckId,
+      result: data.selectedResult, turnOrder: data.selectedTurnOrder };
+    for (const [name, value] of Object.entries(values)) {
+      const control = container.current?.querySelector('form')?.elements.namedItem(name);
+      if (control instanceof HTMLSelectElement) control.value = value;
+    }
+  }, [data]);
   useEffect(() => {
-    currentQuery.current = window.location.search.slice(1);
     const restore = () => {
       const query = new URLSearchParams(window.location.search);
       if (query.toString() !== currentQuery.current) void load(query, false);

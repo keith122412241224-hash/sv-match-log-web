@@ -26,6 +26,6 @@ test('only three page selection expressions/imports change; all other existing p
  for(const p of git(['ls-tree','-r','--name-only',base]).trim().split('\n').filter(p=>/^(src|supabase)\//.test(p)||/^package(-lock)?\.json$/.test(p))){
   let expected=git(['show',base+':'+p]);
   if(pages.includes(p)){expected=expected.replace('  const selectedEnvironmentId = environments.some((environment) => environment.id === params.environment)\n    ? params.environment ?? ""\n    : getMostRecentlyCreatedId(environments);','  const selectedEnvironmentId = selectInitialEnvironmentId(environments, params.environment);').replace(', getMostRecentlyCreatedId','').replace('import { getMostRecentlyCreatedId } from "@/lib/utils";\n','');expected='import { selectInitialEnvironmentId } from "@/lib/environment-selection";\n'+expected;}
-  if (!require('./rescue-scope.cjs').rescueSources.has(p)) assert.equal(fs.readFileSync(p,'utf8').replaceAll('\r\n','\n'),expected,p);
+  if (!require('./rescue-scope.cjs').rescueSources.has(p)) assert.equal(p === 'src/app/analysis/page.tsx' ? require('./analysis-split-scope.cjs').analysisBeforeSplit() : fs.readFileSync(p,'utf8').replaceAll('\r\n','\n'),expected,p);
  }
 });

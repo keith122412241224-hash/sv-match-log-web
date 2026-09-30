@@ -7,7 +7,7 @@ const read=p=>fs.readFileSync(p,'utf8').replaceAll('\r\n','\n');
 const declarations=s=>{const t=ts.createSourceFile('file.tsx',s,ts.ScriptTarget.Latest,true);return new Map(t.statements.filter(n=>!ts.isImportDeclaration(n)).map(n=>[n.name?.text??n.declarationList?.declarations[0]?.name?.text??n.getText(t),n.getText(t)]));};
 test('rescue preserves all current main source outside the explicit display/guest allowlist; every existing SQL and dependencies unchanged',()=>{
  for(const p of git(['ls-tree','-r','--name-only',base]).trim().split('\n').filter(p=>/^(src|supabase)\//.test(p)||/^package(-lock)?\.json$/.test(p))){
-  if(!rescueSources.has(p))assert.equal(read(p),git(['show',base+':'+p]),p);
+  if(!rescueSources.has(p))assert.equal(p === 'src/app/analysis/page.tsx' ? require('./analysis-split-scope.cjs').analysisBeforeSplit() : read(p),git(['show',base+':'+p]),p);
  }
  const before=declarations(git(['show',base+':src/lib/data.ts'])),after=declarations(read('src/lib/data.ts'));
  for(const [name,value]of before)if(!rankLoaders.includes(name))assert.equal(after.get(name),value,name);
