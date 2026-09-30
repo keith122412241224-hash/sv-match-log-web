@@ -22,8 +22,11 @@ function WinText({ row }: { row: Row }) {
   return row.winRate === null ? <span className="text-sm text-muted">{publicStatusLabel(row.current.winrate.status)}</span>
     : <span className="text-sm"><strong>{percent(row.winRate)}</strong>{row.sample && <span className="ml-2 inline-block rounded bg-amber-50 px-2 py-1 text-xs text-amber-900">{row.sample}</span>}</span>;
 }
-export function EnvironmentData({ data }: { data: EnvironmentDashboard }) {
+export function EnvironmentData({ data, activeDeckIds }: { data: EnvironmentDashboard; activeDeckIds: string[] }) {
   const view = buildEnvironmentView(data), total = data.current.total;
+  // Filter the displayed catalog only; registration totals and rates keep their original population.
+  const activeDecks = new Set(activeDeckIds);
+  const visibleRows = view.rows.filter(d => d.key !== "unclassified" && activeDecks.has(d.key));
   const noRanking = total.status === "available" ? "公開条件を満たすデータがありません。" : publicStatusLabel(total.status);
   return <>
     <section aria-label="集計条件" className="rounded-md border border-slate-200 bg-white p-4 text-sm">
@@ -55,16 +58,17 @@ export function EnvironmentData({ data }: { data: EnvironmentDashboard }) {
       </Panel>)}
     </div>
     <Panel title="デッキ別データ">
-      <p id="environment-count-help" className="mb-4 text-xs leading-relaxed text-muted">対象登録件数は、そのデッキが自分または相手に登場した登録数です。評価件数は直接＋反転の件数で、mirrorの1登録は2評価になります。勝率の対象1〜9登録はサンプル不足、10〜29登録は参考値です。未分類はランキングと比較の対象外です。</p>
+      <p id="environment-count-help" className="mb-4 text-xs leading-relaxed text-muted">対象登録件数は、そのデッキが自分または相手に登場した登録数です。評価件数は直接＋反転の件数で、mirrorの1登録は2評価になります。勝率の対象1〜9登録はサンプル不足、10〜29登録は参考値です。</p>
+      {visibleRows.length === 0 && <p className="text-sm text-muted">表示できる有効なデッキがありません。</p>}
       <table aria-describedby="environment-count-help" className="hidden w-full table-fixed text-left text-sm lg:table">
         <thead className="bg-slate-50"><tr>{["デッキ", "遭遇率", "勝率", "評価件数", "対象登録件数", "前期間比較"].map(h => <th scope="col" key={h} className="p-3">{h}</th>)}</tr></thead>
-        <tbody>{view.rows.map(d => <tr key={d.key} className="border-t border-slate-100">
+        <tbody>{visibleRows.map(d => <tr key={d.key} className="border-t border-slate-100">
           <th scope="row" className="break-words p-3">{d.name}</th><td className="p-3"><EncounterText row={d} total={total.totalMatches} /></td><td className="p-3"><WinText row={d} /></td>
           <td className="p-3">{d.current.winrate.status === "available" ? `${integer(d.current.winrate.evaluationCount!)}件` : "—"}</td>
           <td className="p-3">{d.current.winrate.status === "available" ? `${integer(d.current.winrate.targetRegistrations!)}登録` : "—"}</td><td className="p-3"><TrendText trend={d.trend} /></td>
         </tr>)}</tbody>
       </table>
-      <div className="divide-y divide-slate-200 lg:hidden">{view.rows.map(d => <article key={d.key} className="space-y-3 py-4 first:pt-0">
+      <div className="divide-y divide-slate-200 lg:hidden">{visibleRows.map(d => <article key={d.key} className="space-y-3 py-4 first:pt-0">
         <h3 className="break-words font-semibold">{d.name}</h3>
         <div className="flex flex-wrap items-start gap-x-3 gap-y-1"><span className="text-sm">遭遇率</span><EncounterText row={d} total={total.totalMatches} /></div>
         <div className="flex flex-wrap items-start gap-x-3 gap-y-1"><span className="text-sm">勝率</span><div><WinText row={d} />{d.current.winrate.status === "available" && <p className="mt-1 text-sm text-muted">評価{integer(d.current.winrate.evaluationCount!)}件・対象{integer(d.current.winrate.targetRegistrations!)}登録</p>}</div></div>

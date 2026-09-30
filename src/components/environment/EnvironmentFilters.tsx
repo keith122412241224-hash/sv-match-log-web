@@ -5,8 +5,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { EnvironmentData } from "@/components/environment/EnvironmentData";
 import { ENVIRONMENT_PERIODS, ENVIRONMENT_RANKS, environmentHref, normalizeEnvironmentPeriod, normalizeEnvironmentRank, parseEnvironmentDashboard, type DashboardSelection, type EnvironmentDashboard } from "@/lib/environment-dashboard";
 
-export function EnvironmentFilters({ environments, initialSelection, initialData, initialFailed }: {
-  environments: { id: string; name: string }[]; initialSelection: DashboardSelection; initialData: EnvironmentDashboard | null; initialFailed: boolean;
+export function EnvironmentFilters({ environments, activeDeckIds, initialSelection, initialData, initialFailed }: {
+  environments: { id: string; name: string }[]; activeDeckIds: string[]; initialSelection: DashboardSelection; initialData: EnvironmentDashboard | null; initialFailed: boolean;
 }) {
   const form = useRef<HTMLFormElement>(null), controller = useRef<AbortController | null>(null);
   const currentSelection = useRef(initialSelection);
@@ -71,7 +71,7 @@ export function EnvironmentFilters({ environments, initialSelection, initialData
     </form>
     {pending && <p role="status" className="rounded-md border border-slate-200 bg-white p-6">環境データを読み込み中…</p>}
     {!pending && (failed ? <div role="alert" className="rounded-md border border-red-200 bg-white p-5 text-sm"><p>環境データを取得できませんでした。時間をおいて再度お試しください。</p>{selection.environment && <button type="button" onClick={() => void load(selection)} className="mt-3 min-h-11 rounded-md border border-slate-300 px-4">再試行</button>}</div>
-      : data ? <EnvironmentData data={data} /> : <p className="rounded-md border border-slate-200 bg-white p-5">選択できる環境がありません。</p>)}
+      : data ? <EnvironmentData data={data} activeDeckIds={activeDeckIds} /> : <p className="rounded-md border border-slate-200 bg-white p-5">選択できる環境がありません。</p>)}
     <section className="rounded-md border border-slate-200 bg-white p-4"><h2 className="font-semibold">自分の登録データを見る</h2><p className="mt-2 text-sm text-muted">環境とランクを引き継ぎます。期間の指定は引き継ぎません。</p>
       <div className="mt-3 flex flex-wrap gap-3"><Link prefetch={false} href={`/analysis?${ownQuery}`} className="inline-flex min-h-11 items-center rounded-md border border-slate-300 px-3 text-sm font-semibold">自分の分析を見る</Link><Link prefetch={false} href={`/matrix?${ownQuery}`} className="inline-flex min-h-11 items-center rounded-md border border-slate-300 px-3 text-sm font-semibold">自分の相性表を見る</Link></div>
     </section>
