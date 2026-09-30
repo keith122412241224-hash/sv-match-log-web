@@ -7,19 +7,19 @@ const crypto = require('node:crypto');
 const { Client } = require(process.env.PG_MODULE || 'pg');
 const f = require('./environment-dashboard-fixture.cjs');
 const root = path.resolve(__dirname, '..'), out = path.join(root, 'build/e1-evidence');
-const migration = fs.readdirSync(path.join(root, 'supabase/migrations')).find(n => n.endsWith('_environment_dashboard_aggregates_v1.sql'));
+const migration = fs.readdirSync(path.join(root, 'supabase/migrations')).find(n => n.endsWith('_environment_dashboard_rank_filters.sql'));
 const migrationSql = fs.readFileSync(path.join(root, 'supabase/migrations', migration), 'utf8');
 const name = 'get_environment_dashboard_aggregates_v1';
-const db = new Client({ host: '127.0.0.1', port: 55322, database: 'postgres', user: 'postgres', password: 'postgres', connectionTimeoutMillis: 5000 });
+const db = new Client({ host: '127.0.0.1', port: 56322, database: 'postgres', user: 'postgres', password: 'postgres', connectionTimeoutMillis: 5000 });
 const report = { localOnly: true, cases: [], auth: [], plans: [], migration };
 let keys, rows, anchor;
 function note(name) { report.cases.push(name); }
 function readKeys() {
   const raw = fs.readFileSync(path.join(out, 'start.log'));
   const text = raw.toString(raw[0] === 255 ? 'utf16le' : 'utf8');
-  const data = JSON.parse(text.split(/\r?\n/).find(l => l.startsWith('{"DB_URL"')));
-  assert.equal(data.API_URL, 'http://127.0.0.1:55321');
-  assert.equal(data.DB_URL, 'postgresql://postgres:postgres@127.0.0.1:55322/postgres');
+  const data = JSON.parse(text.replace(/^\uFEFF/, '').trim());
+  assert.equal(data.API_URL, 'http://127.0.0.1:56321');
+  assert.equal(data.DB_URL, 'postgresql://postgres:postgres@127.0.0.1:56322/postgres');
   return data;
 }
 async function http(route, body, token, extra = {}) {
@@ -108,10 +108,10 @@ async function seed() {
     for (const c of f.catalog.filter(c => c.key !== 'unclassified')) await db.query("insert into public.deck_archetypes(id,name,class_name,is_active,memo) values($1,$2,$3,$4,'PRIVATE-MEMO')", [c.key, c.name, c.className, c.name !== 'Shared inactive']);
     await db.query('insert into public.admin_users(user_id) values($1)', [f.users[4]]);
     for (const r of rows) {
-      const rank = r.rank?.startsWith('grandmaster') ? 'grandmaster' : r.rank;
+      const rank = r.rank?.split(':')[0] ?? null;
       await db.query(`insert into public.matches(id,user_id,environment_id,my_deck_id,opponent_deck_id,my_archetype_id,opponent_archetype_id,result,turn_order,played_at,rank_tier,master_group,grandmaster_rating,memo)
         values($1,$2,$3,$4,$4,$5,$6,$7,'first',$8,$9,$10,$11,'PRIVATE-MEMO')`,
-      [r.id, r.user, r.environment, r.privateDeck, r.my, r.opponent, r.result, f.iso(r.played), rank, rank === 'master' ? 'emerald' : null, rank === 'grandmaster' ? (r.rank.includes(':') ? 'epic' : 'none') : null]);
+      [r.id, r.user, r.environment, r.privateDeck, r.my, r.opponent, r.result, f.iso(r.played), rank, rank === 'master' ? (r.rank.split(':')[1] || 'emerald') : null, rank === 'grandmaster' ? (r.rank.split(':')[1] || 'none') : null]);
     }
     await db.query('commit');
   } catch (e) { await db.query('rollback'); throw e; }
@@ -138,7 +138,7 @@ async function main() {
     assert.equal((await db.query('select count(*)::int n from public.matches')).rows[0].n, 0, 'Run clean reset of dedicated stack first');
     report.history = (await db.query('select version from supabase_migrations.schema_migrations order by version')).rows.map(r => r.version);
     const apply = process.argv.includes('--apply');
-    assert.deepEqual(report.history, ['20260928010000', '20260928060000', '20260929053719', ...(!apply ? [migration.split('_')[0]] : [])]);
+    assert.deepEqual(report.history, ['20260928010000', '20260928060000', '20260929053719', '20260930004618', ...(!apply ? [migration.split('_')[0]] : [])]);
     const beforeCatalog = await catalogSnapshot();
     const password = crypto.randomBytes(24).toString('hex'), tokens = [];
     for (let i = 0; i < 5; i++) {
@@ -168,10 +168,25 @@ async function main() {
       // Test-only clock substitution in the real body, rolled back. No clock input/GUC exists in production.
       await db.query(definition.replace('pg_catalog.statement_timestamp()', `timestamptz '${f.iso(anchor + 14n * 60_000_000n)}'`));
       await claim();
-      for (const [label, environment] of Object.entries(f.env)) for (const period of ['24h', '3d', '7d', '30d']) for (const rank of ['all', 'master-plus', 'master', 'grandmaster']) {
+      for (const [label, environment] of Object.entries(f.env)) for (const period of ['24h', '3d', '7d', '30d']) for (const rank of f.filters) {
         compare(await rpc(environment, period, rank), environment, period, rank, anchor);
         note(`oracle ${label}/${period}/${rank}`);
       }
+      const totals=Object.fromEntries(await Promise.all(f.filters.map(async rank=>[rank,(await rpc(f.env.rankThree,'24h',rank)).current.total.totalMatches])));
+      assert.equal(totals['master-plus'],totals.master+totals.grandmaster);
+      assert.equal(totals['grandmaster-plus'],totals.grandmaster);
+      assert.equal(totals.master,f.leaves.slice(6,11).reduce((n,r)=>n+totals[r],0));
+      assert.equal(totals.grandmaster,f.leaves.slice(11).reduce((n,r)=>n+totals[r],0));
+      assert.equal(totals.all-f.leaves.reduce((n,r)=>n+totals[r],0),9);
+      assert.equal(totals['grandmaster:none'],9);
+      note('All rank inclusion identities and NULL distinct from GM none');
+      for(const rank of f.filters) for(const [e,status]of [[f.env.rankZero,'no_data'],[f.env.rankOne,'privacy_suppressed'],[f.env.rankTwo,'privacy_suppressed'],[f.env.rankThree,'available']]) assert.equal((await rpc(e,'24h',rank)).current.total.status,status);
+      note('Every rank has zero, one, two and three distinct contributor checks');
+      for(const rank of f.filters){
+        await claim();compare(await rpc(f.env.rankThree,'24h',rank,'private'),f.env.rankThree,'24h',rank,anchor);
+        const member=await rpc(f.env.rankOne,'24h',rank);await claim(f.users[4]);assert.deepEqual(await rpc(f.env.rankOne,'24h',rank),member);
+      }
+      await claim();note('Private function accepts every valid rank; admin has identical per-rank suppression');
       const mixed = (await rpc(f.env.mixed)).decks.find(d => d.key === f.catalog[0].key).current;
       assert.equal(mixed.encounter.status, 'privacy_suppressed'); assert.equal(mixed.winrate.status, 'available');
       const mirror = (await rpc(f.env.mirror)).decks.find(d => d.key === f.catalog[0].key).current.winrate;
@@ -185,7 +200,7 @@ async function main() {
       const member = await rpc(f.env.one); await claim(f.users[4]); assert.deepEqual(await rpc(f.env.one), member); note('Admin receives identical suppression');
       await claim(); const normal = await rpc(f.env.three); assert.deepEqual(await rpc(f.env.three, '24h', 'all', 'private'), normal);
       for (const schema of ['public', 'private']) {
-        for (const [e, p, r] of [[null, '24h', 'all'], [f.uuid(999), '24h', 'all'], [f.env.three, null, 'all'], [f.env.three, 'custom', 'all'], [f.env.three, '24h', null], [f.env.three, '24h', 'master:emerald'], [f.env.three, '24h', 'grandmaster:none'], [f.env.three, '24h', 'invalid']]) await rejectCall(() => rpc(e, p, r, schema), '22023');
+        for (const [e, p, r] of [[null, '24h', 'all'], [f.uuid(999), '24h', 'all'], [f.env.three, null, 'all'], [f.env.three, 'custom', 'all'], [f.env.three, '24h', null], [f.env.three, '24h', 'master:none'], [f.env.three, '24h', 'grandmaster:emerald'], [f.env.three, '24h', 'invalid']]) await rejectCall(() => rpc(e, p, r, schema), '22023');
         for (const [user, anonymousClaim, role, omit] of [[null, false, 'authenticated', false], [f.users[0], true, 'authenticated', false], [f.users[0], false, 'authenticated', true], [f.users[0], 'false', 'authenticated', false], [f.users[0], null, 'authenticated', false], [f.users[0], false, 'anon', false], [f.users[0], false, 'service_role', false]]) {
           await claim(user, anonymousClaim, role, omit); await rejectCall(() => rpc(f.env.three, '24h', 'all', schema), '42501');
         }
@@ -215,8 +230,13 @@ async function main() {
       report.auth.push({ label, status: response.status });
     }
     const privateApi = await http('/rest/v1/rpc/' + name, args, tokens[0], { 'Content-Profile': 'private' });
+    for(const rank of f.filters) for(const [label,token,success]of [['anon',null,false],['anonymous',anonToken,false],['member',tokens[0],true],['admin',tokens[4],true]]){
+      const response=await http('/rest/v1/rpc/'+name,{...args,p_environment_id:f.env.rankThree,p_rank_filter:rank},token);
+      assert.equal(response.status,success?200:label==='anonymous'?403:401,label+'/'+rank);if(success){auditPayload(response.body);assert.equal(response.body.rankFilter,rank);}else assert.equal(response.body.code,'42501');
+    }
+    note('Real Auth/PostgREST authorization for every new rank');
     assert.equal(privateApi.status, 406); assert.equal(privateApi.body.code, 'PGRST106'); note('Private schema not exposed via Data API');
-    for (const bad of [{ ...args, p_period: 'custom' }, { ...args, p_rank_filter: 'master:emerald' }, { ...args, p_environment_id: null }, { ...args, p_rank_filter: null }, { ...args, p_period: null }, { ...args, p_environment_id: f.uuid(999) }, { ...args, p_current_start: '2026-01-01' }, { ...args, p_user_id: f.users[1] }]) {
+    for (const bad of [{ ...args, p_period: 'custom' }, { ...args, p_rank_filter: 'master:none' }, { ...args, p_environment_id: null }, { ...args, p_rank_filter: null }, { ...args, p_period: null }, { ...args, p_environment_id: f.uuid(999) }, { ...args, p_current_start: '2026-01-01' }, { ...args, p_user_id: f.users[1] }]) {
       const response = await http('/rest/v1/rpc/' + name, bad, tokens[0]); assert.ok(response.status >= 400);
       for (const s of [...f.users, 'PRIVATE-MEMO', 'PRIVATE-DECK']) assert.ok(!JSON.stringify(response.body).includes(s));
     }
@@ -314,6 +334,8 @@ async function regressions() {
     await claim();
     await rejectCall(() => db.query("insert into public.matches(user_id,environment_id,my_deck_id,opponent_deck_id,result,turn_order) values($1,$2,$3,$3,'win','first')", [f.users[0], f.env.empty, f.uuid(300)]), 'P0001');
     await rejectCall(() => db.query("update public.matches set rank_tier='grandmaster',grandmaster_rating=null where id=$1", [rows[0].id]), '23514');
+    await rejectCall(() => db.query("update public.matches set rank_tier=null,grandmaster_rating='none' where id=$1", [rows[0].id]), '23514');
+    await rejectCall(() => db.query("update public.matches set rank_tier='master',master_group=null where id=$1", [rows[0].id]), '23514');
     note('Rank NULL/none CHECK and environment schedule trigger/predicate remain enforced');
   } finally { await db.query('rollback'); await db.query('reset role'); }
 }

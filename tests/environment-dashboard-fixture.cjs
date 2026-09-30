@@ -5,7 +5,10 @@ const catalog = ['A', 'B', 'C', 'D', 'inactive', 'empty'].map((name, i) => ({
 }));
 catalog.push({ key: 'unclassified', name: '未分類', className: null });
 const users = Array.from({ length: 5 }, (_, i) => uuid(i + 1));
-const env = Object.fromEntries(['empty', 'one', 'two', 'three', 'four', 'mixed', 'mirror', 'unknown', 'ranks', 'edges', 'previousOnly', 'sparseMirror'].map((name, i) => [name, uuid(200 + i)]));
+const env = Object.fromEntries(['empty', 'one', 'two', 'three', 'four', 'mixed', 'mirror', 'unknown', 'ranks', 'edges', 'previousOnly', 'sparseMirror', 'rankZero', 'rankOne', 'rankTwo', 'rankThree'].map((name, i) => [name, uuid(200 + i)]));
+// Independent fixture contract; not imported from application option generation.
+const leaves = ['beginner','d','c','b','a','aa','master:emerald','master:topaz','master:ruby','master:sapphire','master:diamond','grandmaster:none','grandmaster:epic','grandmaster:ultimate','grandmaster:legend','grandmaster:beyond'];
+const filters = ['all', ...leaves.slice(0,6), 'master-plus','master',...leaves.slice(6,11),'grandmaster-plus','grandmaster',...leaves.slice(11)];
 function fixture(anchor) {
   const rows = [];
   function add(environment, user, my, opponent, offset = -HOUR, rank = null, result = 'win') {
@@ -39,6 +42,13 @@ function fixture(anchor) {
     }
   }
   for (let i = 0; i < 3; i++) add(env.previousOnly, users[i], catalog[0].key, catalog[1].key, -25n * HOUR);
+  for (const [name,n] of [['rankOne',1],['rankTwo',2],['rankThree',3]]) for (const rank of [...leaves,null]) for(let i=0;i<n;i++) {
+    for (const offset of [-HOUR,-25n*HOUR]) {
+      add(env[name],users[i],catalog[0].key,catalog[1].key,offset,rank,i%2?'lose':'win');
+      add(env[name],users[i],catalog[1].key,catalog[0].key,offset,rank,i%2?'win':'lose');
+      add(env[name],users[i],catalog[0].key,catalog[0].key,offset,rank,i%2?'lose':'win');
+    }
+  }
   return rows;
 }
 function iso(us) {
@@ -49,8 +59,15 @@ function iso(us) {
 function expected(rows, environment, period, rank, anchor) {
   const hours = { '24h': 24, '3d': 72, '7d': 168, '30d': 720 }[period];
   const span = BigInt(hours) * HOUR;
-  const passRank = r => rank === 'all' || (rank === 'master-plus' && (r === 'master' || r?.startsWith('grandmaster')))
-    || (rank === 'master' && r === 'master') || (rank === 'grandmaster' && r?.startsWith('grandmaster'));
+  const passRank = r => {
+    if(rank==='all')return true;if(r===null)return false;
+    const [tier,part]=r.split(':');
+    if(rank==='master-plus')return ['master','grandmaster'].includes(tier);
+    if(rank==='grandmaster-plus')return tier==='grandmaster';
+    if(!rank.includes(':'))return tier===rank;
+    const [wantedTier,wantedPart]=rank.split(':');
+    return tier===wantedTier && (part || (tier==='master'?'emerald':'none'))===wantedPart;
+  };
   function calculate(end) {
     const selected = rows.filter(r => r.environment === environment && r.played >= end - span && r.played < end && passRank(r.rank));
     const status = n => n === 0 ? 'no_data' : n < 3 ? 'privacy_suppressed' : 'available';
@@ -75,4 +92,4 @@ function expected(rows, environment, period, rank, anchor) {
   }
   return { current: calculate(anchor), previous: calculate(anchor - span) };
 }
-module.exports = { uuid, HOUR, catalog, users, env, fixture, iso, expected };
+module.exports = { uuid, HOUR, catalog, users, env, fixture, iso, expected, filters, leaves };
