@@ -47,7 +47,7 @@ test('E1 parser accepts exact contract and separate metric suppression',()=>{
  p.decks[0].current.encounter={status:'privacy_suppressed',count:null};assert.doesNotThrow(()=>m.parseEnvironmentDashboard(p,selection));
 });
 const mutations={
- missing:p=>delete p.version, version:p=>p.version=2, period:p=>p.period='custom',rank:p=>p.rankFilter='master:ruby',environment:p=>p.environmentId=id(91),
+ missing:p=>delete p.version, version:p=>p.version=2, period:p=>p.period='custom',rank:p=>p.rankFilter='master:invalid',environment:p=>p.environmentId=id(91),
  timestamp:p=>p.aggregatedAt='invalid',boundary:p=>p.current.end='2026-09-30T00:00:01Z',cutoff:p=>p.dataThrough='2026-09-30T00:01:00Z',
  impossibleDate:p=>p.aggregatedAt='2026-09-31T00:14:00Z',
  invalidStatus:p=>p.current.total.status='unknown',negative:p=>p.decks[0].current.encounter.count=-1,fraction:p=>p.decks[0].current.encounter.count=1.5,
@@ -61,6 +61,6 @@ const mutations={
 };
 for(const [name,change] of Object.entries(mutations))test('E1 parser rejects '+name,()=>{const p=payload();change(p);assert.throws(()=>m.parseEnvironmentDashboard(p,selection));});
 test('E1 URL defaults, safe query and one-decimal formatting',()=>{
- assert.equal(m.normalizeEnvironmentPeriod('custom'),'7d');assert.equal(m.normalizeEnvironmentRank('master:emerald'),'all');assert.equal(m.normalizeEnvironmentRank(['master']),'all');
+ assert.equal(m.normalizeEnvironmentPeriod('custom'),'7d');assert.equal(m.normalizeEnvironmentRank('master:invalid'),'all');assert.equal(m.normalizeEnvironmentRank(['master']),'all');
  assert.equal(m.environmentHref(selection),`/environment?environment=${id(90)}&period=7d&rank=all`);assert.equal(m.formatEnvironmentPercent(50),'50.0%');
 });

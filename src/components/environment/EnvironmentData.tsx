@@ -30,7 +30,7 @@ export function EnvironmentData({ data, activeDeckIds }: { data: EnvironmentDash
   const noRanking = total.status === "available" ? "公開条件を満たすデータがありません。" : publicStatusLabel(total.status);
   return <>
     <section aria-label="集計条件" className="rounded-md border border-slate-200 bg-white p-4 text-sm">
-      <p className="mb-2 text-muted">直近{ENVIRONMENT_PERIODS.find(p => p.value === data.period)!.label} / {ENVIRONMENT_RANKS.find(r => r.value === data.rankFilter)!.label}</p>
+      <p className="mb-2 text-muted">直近{ENVIRONMENT_PERIODS.find(p => p.value === data.period)!.label} / {ENVIRONMENT_RANKS.find(r => r.value === data.rankFilter)!.fullLabel}</p>
       <p className="font-semibold">登録戦績：{total.status === "available" ? `${integer(total.totalMatches!)}件` : total.status === "no_data" ? "データなし" : publicStatusLabel(total.status)}</p>
       <p className="mt-2">集計対象：{formatJstDateTime(data.dataThrough)}まで（JST）</p>
       <p className="mt-1 text-xs text-muted">今期：{formatJstDateTime(data.current.start)} ～ {formatJstDateTime(data.current.end)}（終了時刻は含みません）</p>

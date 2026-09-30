@@ -1,13 +1,12 @@
+import { RANK_FILTER_OPTIONS, normalizeRankFilter, type RankFilter } from "@/lib/rank-filter";
+
 export const ENVIRONMENT_PERIODS = [
   { value: "24h", label: "24時間", hours: 24 }, { value: "3d", label: "3日", hours: 72 },
   { value: "7d", label: "7日", hours: 168 }, { value: "30d", label: "30日", hours: 720 }
 ] as const;
-export const ENVIRONMENT_RANKS = [
-  { value: "all", label: "すべて" }, { value: "master-plus", label: "Master以上" },
-  { value: "master", label: "Master" }, { value: "grandmaster", label: "GrandMaster" }
-] as const;
+export const ENVIRONMENT_RANKS = RANK_FILTER_OPTIONS;
 export type EnvironmentPeriod = typeof ENVIRONMENT_PERIODS[number]["value"];
-export type EnvironmentRank = typeof ENVIRONMENT_RANKS[number]["value"];
+export type EnvironmentRank = RankFilter;
 export type PublicStatus = "available" | "no_data" | "privacy_suppressed";
 export type Total = { status: PublicStatus; totalMatches: number | null };
 export type Encounter = { status: PublicStatus; count: number | null };
@@ -21,7 +20,7 @@ export type EnvironmentDashboard = {
 };
 export type DashboardSelection = { environment: string; period: EnvironmentPeriod; rank: EnvironmentRank };
 export const normalizeEnvironmentPeriod = (v: unknown): EnvironmentPeriod => ENVIRONMENT_PERIODS.find(p => p.value === v)?.value ?? "7d";
-export const normalizeEnvironmentRank = (v: unknown): EnvironmentRank => ENVIRONMENT_RANKS.find(p => p.value === v)?.value ?? "all";
+export const normalizeEnvironmentRank = normalizeRankFilter;
 export function environmentHref(s: DashboardSelection) {
   return `/environment?${new URLSearchParams({ environment: s.environment, period: s.period, rank: s.rank })}`;
 }
