@@ -74,9 +74,9 @@ export function RankFilterSelect({ value, onChange, disabled = false }: { value:
     <label id={`${id}-label`} htmlFor={`${id}-trigger`}>ランク</label>
     <button ref={trigger} id={`${id}-trigger`} type="button" role="combobox" aria-haspopup="listbox" aria-expanded={open}
       aria-controls={open ? `${id}-list` : undefined} aria-activedescendant={open ? activeId : undefined}
-      aria-labelledby={`${id}-label ${id}-value`} disabled={disabled} onKeyDown={keyDown}
+      aria-labelledby={`${id}-label ${id}-value`} aria-disabled={disabled || undefined} onKeyDown={keyDown}
       onBlur={e => { if (!list.current?.contains(e.relatedTarget as Node)) setOpen(false); }} onClick={() => open ? setOpen(false) : show()}
-      className="flex min-h-11 w-full min-w-0 items-center justify-between gap-2 rounded-md border border-slate-300 bg-white px-2 text-left font-normal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 disabled:opacity-60">
+      className="flex min-h-11 w-full min-w-0 items-center justify-between gap-2 rounded-md border border-slate-300 bg-white px-2 text-left font-normal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 aria-disabled:opacity-60">
       <span id={`${id}-value`}><span className="sr-only">{selected.fullLabel !== selected.label ? `${selected.fullLabel.split(" / ")[0]} / ` : ""}</span><RankOptionLabel option={selected} /></span><ChevronDown aria-hidden="true" className="h-4 w-4 shrink-0" />
     </button>
     <input type="hidden" name="rank" value={value} />

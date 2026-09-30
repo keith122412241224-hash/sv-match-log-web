@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type SyntheticEvent } from "react";
 import { EnvironmentData } from "@/components/environment/EnvironmentData";
 import { RankFilterSelect } from "@/components/RankFilterSelect";
 import { rankDestinationSupport } from "@/lib/rank-filter";
@@ -43,11 +43,18 @@ export function EnvironmentFilters({ environments, activeDeckIds, initialSelecti
     window.history.replaceState(null, "", environmentHref(next));
     void load(next);
   }
+  function blockPendingInteraction(e: SyntheticEvent) {
+    if (pending) { e.preventDefault(); e.stopPropagation(); }
+  }
   const ownQuery = new URLSearchParams({ environment: selection.environment, rank: selection.rank, scope: "mine" });
   const destinations = rankDestinationSupport(selection.rank);
   return <>
     <form onSubmit={e => e.preventDefault()} className="rounded-md border border-slate-200 bg-white p-4">
-      <fieldset disabled={pending || environments.length === 0} className="grid min-w-0 gap-4 md:grid-cols-3">
+      {/* Keep the native Tab sequence intact while a selection starts loading. */}
+      <fieldset disabled={environments.length === 0} aria-disabled={pending || undefined}
+        onPointerDownCapture={blockPendingInteraction} onClickCapture={blockPendingInteraction}
+        onKeyDownCapture={e => { if (e.key !== "Tab") blockPendingInteraction(e); }}
+        className="grid min-w-0 gap-4 md:grid-cols-3">
         <legend className="sr-only">環境データの条件</legend>
         <label className="grid min-w-0 gap-2 text-sm font-semibold">環境
           <select name="environment" value={selection.environment} onChange={e => update({ ...selection, environment: e.target.value })} className="min-h-11 w-full min-w-0 rounded-md border border-slate-300 bg-white px-2 text-sm">

@@ -125,6 +125,38 @@ async function noOverflow(page){assert.ok(await page.evaluate(()=>document.docum
  for(const route of ['/','/matches','/analysis','/matrix','/admin/weekly-report','/admin','/guest']){const response=await ap.goto(origin+route,{waitUntil:'networkidle'});assert.equal(response.status(),200,route);await noOverflow(ap);assert.equal(await ap.getByText('Application error',{exact:false}).count(),0);checks.push('regression '+route);}
  await page.goto(origin+`/environment?environment=${envs.main}&period=7d&rank=all`,{waitUntil:'networkidle'});await page.setViewportSize({width:390,height:900});await page.keyboard.press('Tab');assert.ok(await page.evaluate(()=>document.activeElement!==document.body));
  start=count();await page.getByRole('radio',{name:'3日',exact:true}).focus();await page.keyboard.press('Space');await settled(page);assert.equal(await page.locator('input[name=period]:checked').inputValue(),'3d');assert.equal(count()-start,1);checks.push('keyboard period control');
+ // Assert the actual native focus destination, including while a request is pending.
+ for(const width of [1365,390]){
+  await page.setViewportSize({width,height:900});
+  for(const key of ['Tab','Shift+Tab','Enter','Space','Escape','mouse']){
+   await page.goto(origin+`/environment?environment=${envs.main}&period=7d&rank=all`,{waitUntil:'networkidle'});
+   const trigger=page.locator('button[role=combobox]');
+   await trigger.focus();await page.keyboard.press('Space');await page.keyboard.press('ArrowDown');
+   const expectedFocus=key==='Tab'?page.getByRole('link',{name:'自分の分析を見る'}):key==='Shift+Tab'?page.getByRole('radio',{name:'7日',exact:true}):trigger;
+   delay=600;
+   if(key==='mouse')await page.locator('[role=option][id$="-option-beginner"]').click();else await page.keyboard.press(key);
+   assert.equal(await trigger.getAttribute('aria-expanded'),'false');
+   assert.ok(await expectedFocus.evaluate(e=>e===document.activeElement),`${width}/${key}: immediate native focus destination`);
+   await settled(page);delay=0;
+   assert.ok(await expectedFocus.evaluate(e=>e===document.activeElement),`${width}/${key}: focus after response`);
+   const selected=key==='Escape'?'all':'beginner';
+   assert.equal(await page.locator('input[name=rank]').inputValue(),selected);assert.equal(new URL(page.url()).searchParams.get('rank'),selected);
+   checks.push(`focus regression ${width}/${key}`);
+  }
+  for(const key of ['Tab','Shift+Tab']){
+   await page.locator('button[role=combobox]').focus();await page.keyboard.press(key);
+   const expectedFocus=key==='Tab'?page.getByRole('link',{name:'自分の分析を見る'}):page.getByRole('radio',{name:'7日',exact:true});
+   assert.ok(await expectedFocus.evaluate(e=>e===document.activeElement));checks.push(`closed selector focus ${width}/${key}`);
+  }
+ }
+ // Loading still blocks changes without removing the controls from keyboard navigation.
+ await selectRank(page,'all');await settled(page);delay=1000;start=count();await selectRank(page,'beginner');
+ const busyTrigger=page.locator('button[role=combobox]');assert.equal(await busyTrigger.getAttribute('aria-disabled'),'true');
+ await busyTrigger.focus();await page.keyboard.press('Space');assert.equal(await busyTrigger.getAttribute('aria-expanded'),'false');
+ await page.getByRole('radio',{name:'7日',exact:true}).focus();await page.keyboard.press('ArrowRight');
+ assert.equal(await page.locator('input[name=period]:checked').inputValue(),'7d');
+ await page.locator('label').filter({has:page.locator('input[name=period][value="3d"]')}).click({force:true});
+ await settled(page);delay=0;assert.equal(count()-start,1);assert.equal(await page.locator('input[name=period]:checked').inputValue(),'7d');checks.push('pending filters block activation while retaining focus order');
  assert.deepEqual(errors,[]);
  const e1Calls=calls.filter(c=>c.path.endsWith('/rpc/'+rpc));fs.writeFileSync(path.join(out,'result.json'),JSON.stringify({passed:true,checks,e1Calls,errors,imageRequests,realSupabase:true},null,2));console.log(JSON.stringify({passed:true,checks:checks.length,e1RpcCalls:e1Calls.length}));
  if(process.argv.includes('--inspect')){console.log('INSPECT_READY CDP 9334; local app 3264');await wait(55000);}
