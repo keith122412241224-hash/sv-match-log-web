@@ -1,5 +1,6 @@
 import { EMPTY_RANK, validateMatchRank, type MatchRank } from "@/lib/match-rank";
 import { RANK_ATOMS, type RankAtomicFilter } from "@/lib/rank-selection";
+import { safeGetItem, safeSetItem } from "@/lib/browser-preferences";
 
 export function rankFromSelection(value: unknown): MatchRank {
   if (typeof value !== "string" || !RANK_ATOMS.includes(value as RankAtomicFilter) || value === "unranked") return { ...EMPTY_RANK };
@@ -22,11 +23,10 @@ export function lastRankKey(userId?: string, guest = false): string | null {
 // The key is versioned. Only exact canonical strings are accepted, including
 // unranked (all NULL); JSON, old triples and incomplete parent ranks are invalid.
 export function readLastRank(key: string | null): MatchRank {
-  try { return key ? rankFromSelection(window.localStorage.getItem(key)) : { ...EMPTY_RANK }; }
-  catch { return { ...EMPTY_RANK }; }
+  return key ? rankFromSelection(safeGetItem(key)) : { ...EMPTY_RANK };
 }
 
 export function rememberLastRank(key: string | null, rank: MatchRank): void {
-  try { if (key) window.localStorage.setItem(key, rankToSelection(rank)); }
-  catch { /* A preference failure must not turn a saved match into an error/retry. */ }
+  // Preference failures must not turn a saved match into an error/retry.
+  if (key) safeSetItem(key, rankToSelection(rank));
 }

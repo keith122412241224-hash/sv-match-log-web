@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { CheckCircle2, CircleAlert, X } from "lucide-react";
 
 export type SaveNotification = { id: number; kind: "success" | "error" };
@@ -8,12 +8,33 @@ export type SaveNotification = { id: number; kind: "success" | "error" };
 export function SaveToast({ notification, onDismiss }: {
   notification: SaveNotification | null; onDismiss: () => void;
 }) {
+  const container = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    function position() {
+      const toast = container.current;
+      if (!toast || !notification) return;
+      toast.style.bottom = "max(1rem, env(safe-area-inset-bottom))";
+      const box = toast.getBoundingClientRect();
+      const buttons = [...(toast.closest("form")?.querySelectorAll<HTMLButtonElement>('button[type="submit"]') ?? [])]
+        .map(button => button.getBoundingClientRect()).filter(button => button.height > 0 && button.bottom > 0 && button.top < innerHeight);
+      if (buttons.some(button => box.top < button.bottom && box.bottom > button.top)) {
+        // A click can leave the save controls near the viewport edge. Keep the
+        // notification above the whole save group in that case, without scrolling.
+        toast.style.bottom = `${innerHeight - Math.min(...buttons.map(button => button.top)) + 8}px`;
+      }
+    }
+    position();
+    window.addEventListener("resize", position);
+    return () => window.removeEventListener("resize", position);
+  }, [notification]);
   useEffect(() => {
     if (notification?.kind !== "success") return;
     const timeout = window.setTimeout(onDismiss, 4000);
     return () => window.clearTimeout(timeout);
   }, [notification, onDismiss]);
-  return <div className="pointer-events-none fixed inset-x-2 top-[max(1rem,env(safe-area-inset-top))] z-50 mx-auto w-auto max-w-md">
+  // Keep the chosen viewport position during scrolling; only a new notification
+  // or viewport resize recalculates it. Transparent areas never capture clicks.
+  return <div ref={container} className="pointer-events-none fixed inset-x-2 bottom-[max(1rem,env(safe-area-inset-bottom))] z-50 mx-auto w-auto max-w-md">
     <div role="status" aria-atomic="true">
       {notification?.kind === "success" ? <div key={notification.id} className="flex items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-900 shadow-lg"><CheckCircle2 aria-hidden="true" className="size-5 shrink-0" />戦績を保存しました</div> : null}
     </div>

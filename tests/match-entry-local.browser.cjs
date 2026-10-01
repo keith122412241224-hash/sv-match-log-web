@@ -11,7 +11,7 @@ assert.equal(keys.API_URL, 'http://127.0.0.1:57321');
 assert.equal(keys.DB_URL, 'postgresql://postgres:postgres@127.0.0.1:57322/postgres');
 const db = new Client({ host: '127.0.0.1', port: 57322, user: 'postgres', password: 'postgres', database: 'postgres' });
 const origin = 'http://localhost:3262', output = path.resolve('build/match-entry-local');
-const env = crypto.randomUUID(), archetype = crypto.randomUUID(), ids = [], sessions = [], calls = [];
+const env = crypto.randomUUID(), archetype = crypto.randomUUID(), ids = [], sessions = [], credentials = [], calls = [];
 const nil = { rank_tier: null, master_group: null, grandmaster_rating: null };
 const ranks = [nil, ...['beginner','d','c','b','a','aa'].map(rank_tier => ({...nil,rank_tier})), ...['emerald','topaz','ruby','sapphire','diamond'].map(master_group => ({...nil,rank_tier:'master',master_group})), ...['none','epic','ultimate','legend','beyond'].map(grandmaster_rating => ({...nil,rank_tier:'grandmaster',grandmaster_rating}))];
 async function auth(route, body, admin = false, method = 'POST') {
@@ -34,6 +34,7 @@ async function until(check) { for(let i=0;i<200;i++){if(await check())return;awa
     assert.equal((await db.query('select count(*)::int n from supabase_migrations.schema_migrations')).rows[0].n,6);
     for(let i=0;i<2;i++){
       const email='rank-ux-'+crypto.randomUUID()+'@example.test',password=crypto.randomBytes(24).toString('hex');
+      credentials.push({email,password});
       const created=await auth('/auth/v1/admin/users',{email,password,email_confirm:true},true); ids.push(created.id);
       sessions.push(await auth('/auth/v1/token?grant_type=password',{email,password}));
     }
@@ -43,12 +44,26 @@ async function until(check) { for(let i=0;i<200;i++){if(await check())return;awa
     app=spawn(process.execPath,[require.resolve('next/dist/bin/next'),'start','-p','3262'],{windowsHide:true,stdio:['ignore',log,log],env:{...process.env,NEXT_PUBLIC_SUPABASE_URL:'http://127.0.0.1:54329',NEXT_PUBLIC_SUPABASE_ANON_KEY:'test-public-key',OPENAI_API_KEY:''}});
     await until(async()=>{try{return(await fetch(origin+'/privacy')).ok;}catch{return false;}});
     browser=await chromium.launch({headless:true,...(process.env.CHROME_EXECUTABLE?{executablePath:process.env.CHROME_EXECUTABLE}:{})});
+    if (process.env.MATCH_ENTRY_STORAGE_ONLY === '1') {
+      await require('./match-entry-storage.browser.cjs').runStorageRegression({browser,origin,session:sessions[0],environmentId:env,archetypeId:archetype,db,calls,output});
+      return;
+    }
+    if (process.env.MATCH_ENTRY_TOAST_ONLY === '1') {
+      await require('./toast-navigation.browser.cjs').runToastRegression({browser,origin,session:sessions[0],environmentId:env,output});
+      return;
+    }
     const context=await browser.newContext({viewport:{width:390,height:844}});
     await context.route('**/*',route=>['localhost','127.0.0.1'].includes(new URL(route.request().url()).hostname)?route.continue():route.abort());
     const cookie=async index=>{await context.addCookies([{name:'sb-127-auth-token',value:'base64-'+Buffer.from(JSON.stringify(sessions[index])).toString('base64url'),url:origin}]);};
     await cookie(0);page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
     const choose=async rank=>{const value=rank.rank_tier==='master'?'master:'+rank.master_group:rank.rank_tier==='grandmaster'?'grandmaster:'+rank.grandmaster_rating:rank.rank_tier||'unranked';await page.locator('button[aria-haspopup=dialog]').click();await page.locator('dialog input[value="'+value+'"]').click();};
     const open=async()=>{await page.goto(origin+'/matches',{waitUntil:'networkidle'});await page.locator('[name=environment_id]').selectOption(env);};
+    const switchUser=async index=>{
+      await page.locator('header form button').click();await page.waitForURL(origin+'/login');
+      const form=page.locator('form').filter({has:page.getByRole('button',{name:'ログイン',exact:true})});
+      await form.locator('[name=email]').fill(credentials[index].email);await form.locator('[name=password]').fill(credentials[index].password);
+      await form.getByRole('button',{name:'ログイン',exact:true}).click();await page.waitForURL(origin+'/');
+    };
     await open();const apiPerSave=[];
     for(const rank of ranks){
       await choose(rank);const start=calls.length;await page.locator('button[value=continue]').click();await page.getByRole('status').filter({hasText:'戦績を保存しました'}).waitFor();
@@ -58,15 +73,22 @@ async function until(check) { for(let i=0;i<200;i++){if(await check())return;awa
     }
     assert.equal((await db.query('select count(*)::int n from public.matches where user_id=$1 and environment_id=$2',[ids[0],env])).rows[0].n,17);
     // Server rejects forged combinations and unknown values before any insert.
-    for(const bad of [{rank_tier:'master',master_group:'ruby',grandmaster_rating:'epic'},{rank_tier:'grandmaster',master_group:'ruby',grandmaster_rating:'epic'},{rank_tier:'unknown',master_group:'',grandmaster_rating:''}]){
+    for(const bad of [{rank_tier:'master',master_group:'ruby',grandmaster_rating:'epic'},{rank_tier:'grandmaster',master_group:'ruby',grandmaster_rating:'epic'},{rank_tier:'unknown',master_group:'',grandmaster_rating:''},{rank_tier:'master',master_group:'unknown',grandmaster_rating:''},{rank_tier:'grandmaster',master_group:'',grandmaster_rating:'unknown'},{rank_tier:'master:sapphire:epic',master_group:'',grandmaster_rating:''}]){
       await page.evaluate(values=>{for(const [k,v]of Object.entries(values))document.querySelector('[name="'+k+'"]').value=v;},bad);
       await page.locator('button[value=continue]').click();await page.getByRole('alert').filter({hasText:'戦績の保存に失敗しました'}).waitFor();
       assert.equal((await db.query('select count(*)::int n from public.matches where user_id=$1',[ids[0]])).rows[0].n,17);
     }
     await choose({rank_tier:'grandmaster',grandmaster_rating:'epic'});await page.locator('button[value=continue]').click();await page.getByRole('status').filter({hasText:'戦績を保存しました'}).waitFor();
-    await cookie(1);await open();assert.equal(await page.locator('[name=rank_tier]').inputValue(),'');
+    await switchUser(1);await open();assert.equal(await page.locator('[name=rank_tier]').inputValue(),'');
     await choose({rank_tier:'master',master_group:'sapphire'});await page.locator('button[value=home]').click();await page.waitForURL(origin+'/');
-    await cookie(0);await open();assert.equal(await page.locator('[name=grandmaster_rating]').inputValue(),'epic');
+    await switchUser(0);await open();assert.equal(await page.locator('[name=grandmaster_rating]').inputValue(),'epic');
+    // Both directions: authenticated EPIC does not seed guest, guest AA does not seed A.
+    await page.goto(origin+'/guest',{waitUntil:'networkidle'});await page.getByRole('button',{name:'戦績入力',exact:true}).click();
+    assert.equal(await page.locator('[name=rank_tier]').inputValue(),'');await choose({rank_tier:'aa'});
+    await page.getByRole('button',{name:'入力を試す',exact:true}).click();await page.getByRole('status').filter({hasText:'戦績を保存しました'}).waitFor();
+    await open();assert.equal(await page.locator('[name=grandmaster_rating]').inputValue(),'epic');
+    await page.goto(origin+'/guest',{waitUntil:'networkidle'});await page.getByRole('button',{name:'戦績入力',exact:true}).click();assert.equal(await page.locator('[name=rank_tier]').inputValue(),'aa');
+    await open();
     // Existing guest import action: legacy NULL, regular, Master and GM.
     const guestRanks=[{},ranks[6],ranks[10],ranks[12]];
     const guest=guestRanks.map((r,i)=>({...r,local_id:'local-import-'+i,environment_id:env,my_deck_id:archetype,opponent_deck_id:archetype,my_archetype_id:archetype,opponent_archetype_id:archetype,turn_order:'first',result:'win',played_at:'2026-09-20T00:00:00.000Z'}));

@@ -9,6 +9,7 @@ import { createMatch, createMatchInline } from "@/app/actions";
 import { RankFields } from "@/components/matches/RankFields";
 import { SaveToast, type SaveNotification } from "@/components/SaveToast";
 import { lastRankKey, readLastRank, rememberLastRank } from "@/lib/match-rank-preference";
+import { safeGetItem, safeSetItem } from "@/lib/browser-preferences";
 import { EMPTY_RANK, validateMatchRank, type MatchRank } from "@/lib/match-rank";
 import { Button } from "@/components/Button";
 import { notifyNavigationStart } from "@/components/GlobalPendingIndicator";
@@ -95,7 +96,7 @@ export function QuickMatchForm({
   }
 
   useEffect(() => {
-    const stored = window.localStorage.getItem(LAST_MY_CHOICE_KEY);
+    const stored = safeGetItem(LAST_MY_CHOICE_KEY);
     if (stored && myChoices.some((choice) => choice.id === stored)) {
       setMyChoiceId(stored);
     } else if (myChoices[0]) {
@@ -105,12 +106,12 @@ export function QuickMatchForm({
 
   useEffect(() => {
     if (myChoiceId) {
-      window.localStorage.setItem(LAST_MY_CHOICE_KEY, myChoiceId);
+      safeSetItem(LAST_MY_CHOICE_KEY, myChoiceId);
     }
   }, [myChoiceId]);
 
   useEffect(() => {
-    const stored = window.localStorage.getItem(LAST_ENVIRONMENT_KEY);
+    const stored = safeGetItem(LAST_ENVIRONMENT_KEY);
     if (stored && environments.some((environment) => environment.id === stored)) {
       setEnvironmentId(stored);
     } else {
@@ -120,7 +121,7 @@ export function QuickMatchForm({
 
   useEffect(() => {
     if (environmentId) {
-      window.localStorage.setItem(LAST_ENVIRONMENT_KEY, environmentId);
+      safeSetItem(LAST_ENVIRONMENT_KEY, environmentId);
     }
   }, [environmentId]);
 

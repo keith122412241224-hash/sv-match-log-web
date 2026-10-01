@@ -9,7 +9,8 @@ const { spawn } = require('node:child_process');
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const origin = 'http://localhost:3251';
 const apiOrigin = 'http://127.0.0.1:54329';
-const output = path.resolve('build/global-pending-proof');
+const storageDenied = process.env.MATCH_ENTRY_STORAGE_DENIED === '1';
+const output = path.resolve(storageDenied ? 'build/global-pending-storage-denied' : 'build/global-pending-proof');
 const user = { id: 'fixture-user', aud: 'authenticated', role: 'authenticated', email: 'fixture@example.test', app_metadata: {}, user_metadata: {} };
 const decks = [
   { id: 'A', name: 'デッキA', class_name: 'エルフ', is_active: true },
@@ -81,6 +82,11 @@ const api = http.createServer(async (req, res) => {
     }
     browser = await chromium.launch({ headless: true, ...(process.env.CHROME_EXECUTABLE ? { executablePath: process.env.CHROME_EXECUTABLE } : {}) });
     const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    if (storageDenied) await context.addInitScript(() => {
+      for (const method of ['getItem', 'setItem', 'removeItem', 'clear']) {
+        Storage.prototype[method] = () => { throw new DOMException('Test storage unavailable', 'SecurityError'); };
+      }
+    });
     await context.route('**/*', async route => {
       const request = route.request(), url = new URL(request.url());
       if (!['localhost', '127.0.0.1'].includes(url.hostname)) { unexpected.push(url.origin); await route.abort(); return; }
