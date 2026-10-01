@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 // Built app -> actual local Auth/PostgREST -> v3 -> strict parser -> responsive UI.
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
+const {assertEnvironmentCache}=require('./environment-cache-contract.cjs');
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
 const out=path.resolve('build/ux-evidence'),origin='http://localhost:3286';
 const saved=JSON.parse(fs.readFileSync(out+'/sessions.json','utf8'));
@@ -33,7 +34,7 @@ const report={checks:[],errors:[],requests:[]};
  await go(saved.env.three);assert.equal(await section('勝率TOP5').locator('li').count(),2);assert.ok((await section('勝率TOP5').innerText()).includes('勝率集計12件・対象戦績12件'));report.checks.push('10+ ranking counts without reference badge');
  await go(saved.env.empty);assert.ok((await page.innerText('body')).includes('この期間に対象戦績のあるデッキがありません。'));assert.equal(await section('デッキ別データ').locator('tbody tr').count(),0);report.checks.push('zero-data empty state');
  await go(saved.env.single);const before=report.requests.length;await page.getByText('3日',{exact:true}).click();await page.getByText('環境データを読み込み中…').waitFor({state:'hidden'});await page.waitForLoadState('networkidle');assert.equal(report.requests.length-before,1);assert.ok(page.url().includes('period=3d'));assert.ok((await page.innerText('body')).includes('登録戦績：1件'));report.checks.push('period change loads v3 API once and renders one-registration payload');
- const api=await context.request.get(origin+'/api/environment?'+new URLSearchParams({environment:saved.env.single,period:'24h',ranks:'a'}));assert.equal(api.status(),200);const json=await api.json();assert.equal(json.version,3);assert.equal(json.current.total.totalMatches,1);assert.equal(api.headers()['cache-control'],'private, no-store');report.checks.push('authenticated app API -> real RPC v3, rank selection and private no-store');
+ const api=await context.request.get(origin+'/api/environment?'+new URLSearchParams({environment:saved.env.single,period:'24h',ranks:'a'}));assert.equal(api.status(),200);const json=await api.json();assert.equal(json.version,3);assert.equal(json.current.total.totalMatches,1);assertEnvironmentCache(api.headers());report.checks.push('authenticated app API -> real RPC v3, rank selection and private no-store');
  const unsigned=await browser.newContext();const guestPage=await unsigned.newPage();await guestPage.goto(origin+'/environment');assert.ok(guestPage.url().includes('/login'));assert.equal((await unsigned.request.get(origin+'/api/environment?'+new URLSearchParams({environment:saved.env.single,period:'24h',rank:'all'}))).status(),401);await unsigned.close();report.checks.push('unsigned page redirects and API returns 401');
  assert.deepEqual(report.errors,[]);await context.close();fs.writeFileSync(out+'/browser.json',JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));
 }finally{await browser.close();}})().catch(e=>{console.error(e.stack);process.exitCode=1;});
