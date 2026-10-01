@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 const { legacySourcePath } = require('./legacy-source.cjs');
+const { readBeforeRouteLoading } = require('./route-loading-scope.cjs');
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),cp=require('node:child_process');
 const {ANALYSIS_RANK_FILTERS}=require('../src/lib/analysis-rank-filter');
 const mock=(p,exports)=>{const id=require.resolve(p);require.cache[id]={id,filename:id,loaded:true,exports};};
@@ -22,6 +23,6 @@ test('R3-B preserves every existing Production source/schema file except two mat
   // Matrix creation-date hydration fix is guarded by matrix-created-date.test.cjs.
  // Save UX exceptions are narrowly guarded by global-pending-scope.test.cjs.
  const allowed=new Set([...require('./rescue-scope.cjs').rescueSources,"src/app/page.tsx","src/app/analysis/page.tsx","src/app/matrix/page.tsx","src/app/actions.ts","src/app/admin/actions.ts","src/app/admin/page.tsx","src/app/guest/page.tsx","src/app/matches/page.tsx","src/components/admin/AdminEnvironmentTable.tsx","src/components/admin/CreateEnvironmentForm.tsx","src/lib/data.ts","src/types/database.ts","src/app/actions.ts","src/components/GlobalPendingIndicator.tsx","src/components/matches/QuickMatchForm.tsx","src/components/MatchupMatrix.tsx","src/app/admin/weekly-report/page.tsx","src/components/admin/WeeklyReportClientTools.tsx","src/lib/data.ts","src/lib/period-report-data.ts",'src/app/matrix/page.tsx','src/lib/matchup-data.ts']);
- for(const file of git(['ls-tree','-r','--name-only',base]).trim().split('\n').filter(f=>f.startsWith('src/')||f.startsWith('supabase/')||['package.json','package-lock.json'].includes(f)))if(!allowed.has(file))assert.equal(fs.readFileSync(legacySourcePath(file),'utf8').replaceAll('\r\n','\n'),git(['show',base+':'+file]),file);
+ for(const file of git(['ls-tree','-r','--name-only',base]).trim().split('\n').filter(f=>f.startsWith('src/')||f.startsWith('supabase/')||['package.json','package-lock.json'].includes(f)))if(!allowed.has(file))assert.equal(readBeforeRouteLoading(legacySourcePath(file)),git(['show',base+':'+file]),file);
  const sql=fs.readFileSync('supabase/legacy-migrations/pre-baseline/017_matchup_rank_aggregates_v2.sql','utf8').replace(/--[^\n]*/g,'');assert.equal((sql.match(/create or replace function/g)||[]).length,1);assert.doesNotMatch(sql,/\b(alter|drop|insert|update|delete|truncate|trigger|index|policy)\b/i);
 });

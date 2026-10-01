@@ -3,7 +3,7 @@ const {test}=require('node:test'),assert=require('node:assert/strict'),fs=requir
 const {rescueSources,rankLoaders}=require('./rescue-scope.cjs');
 const base='5534ace5efcf90a6725bef5a2e0cbb6e311d44ef';
 const git=args=>cp.execFileSync('git',args,{encoding:'utf8',maxBuffer:64e6}).replaceAll('\r\n','\n');
-const read=p=>fs.readFileSync(p,'utf8').replaceAll('\r\n','\n');
+const { readBeforeRouteLoading: read } = require('./route-loading-scope.cjs');
 const declarations=s=>{const t=ts.createSourceFile('file.tsx',s,ts.ScriptTarget.Latest,true);return new Map(t.statements.filter(n=>!ts.isImportDeclaration(n)).map(n=>[n.name?.text??n.declarationList?.declarations[0]?.name?.text??n.getText(t),n.getText(t)]));};
 test('rescue preserves all current main source outside the explicit display/guest allowlist; every existing SQL and dependencies unchanged',()=>{
  for(const p of git(['ls-tree','-r','--name-only',base]).trim().split('\n').filter(p=>/^(src|supabase)\//.test(p)||/^package(-lock)?\.json$/.test(p))){

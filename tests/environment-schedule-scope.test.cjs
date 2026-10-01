@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('fs'),cp=require('child_process'),ts=require('typescript');
+const {test}=require('node:test'),assert=require('node:assert/strict'),cp=require('child_process'),ts=require('typescript');
 const base='1181db5c3b655dfd2ee2e87009aad74069c23185';
 const git=args=>cp.execFileSync('git',args,{encoding:'utf8',maxBuffer:64e6}).replaceAll('\r\n','\n');
-const read=p=>fs.readFileSync(p,'utf8').replaceAll('\r\n','\n');
+const { readBeforeRouteLoading: read } = require('./route-loading-scope.cjs');
 const changed=new Set([...require('./rescue-scope.cjs').rescueSources,"src/app/page.tsx","src/app/analysis/page.tsx","src/app/matrix/page.tsx",'src/app/actions.ts','src/app/admin/actions.ts','src/app/admin/page.tsx','src/app/guest/page.tsx','src/app/matches/page.tsx','src/components/admin/AdminEnvironmentTable.tsx','src/components/admin/CreateEnvironmentForm.tsx','src/lib/data.ts','src/types/database.ts']);
 test('scheduling preserves all existing aggregation, rank, UX, guest identity, baseline and legacy source',()=>{
  for(const p of git(['ls-tree','-r','--name-only',base]).trim().split('\n').filter(p=>/^(src|supabase)\//.test(p)||/^package(-lock)?\.json$/.test(p))){

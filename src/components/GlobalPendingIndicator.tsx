@@ -118,7 +118,7 @@ export function GlobalPendingIndicator() {
       <div className="h-1 overflow-hidden bg-slate-200">
         <div className="global-pending-bar h-full bg-ink" />
       </div>
-      <div className="absolute inset-x-0 bottom-4 flex justify-center px-4 sm:bottom-6">
+      <div className="absolute inset-x-0 bottom-[max(1rem,var(--save-toast-clearance,0px))] flex justify-center px-4 sm:bottom-[max(1.5rem,var(--save-toast-clearance,0px))]">
         <div className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-ink shadow-sm">
           <span className="size-3 animate-spin rounded-full border-2 border-slate-300 border-t-ink" />
           読み込み中

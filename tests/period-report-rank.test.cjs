@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 const { legacySourcePath } = require('./legacy-source.cjs');
-const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),cp=require('node:child_process'),ts=require('typescript');
+const {test}=require('node:test'),assert=require('node:assert/strict'),cp=require('node:child_process'),ts=require('typescript');
+const { readBeforeRouteLoading } = require('./route-loading-scope.cjs');
 const {ANALYSIS_RANK_FILTERS}=require('../src/lib/analysis-rank-filter');
 const {withPeriodReportRank,getPeriodReportRankLabel}=require('../src/lib/period-report-rank');
 const {buildWeeklyReport,buildWeeklyPeriod,buildWeeklyReportPrompt}=require('../src/lib/weekly-report');
@@ -23,7 +24,7 @@ test('R4 all returns exact model identity; selected rank adds only AI population
 });
 test('R4 leaves evaluation, R3A/B, R2, all existing SQL and unrelated Production source byte-identical',()=>{
  const base='089f7e27b69694cce68513bca9d50d0be1f6187f',git=a=>cp.execFileSync('git',['-c','safe.directory='+process.cwd().replaceAll('\\','/'),...a],{encoding:'utf8',maxBuffer:64e6}).replaceAll('\r\n','\n');
- const read=f=>fs.readFileSync(legacySourcePath(f),'utf8').replaceAll('\r\n','\n');// Matrix creation-date hydration fix is guarded by matrix-created-date.test.cjs.
+ const read=f=>readBeforeRouteLoading(legacySourcePath(f));// Matrix creation-date hydration fix is guarded by matrix-created-date.test.cjs.
  // Save UX exceptions are narrowly guarded by global-pending-scope.test.cjs.
  const allowed=new Set([...require('./rescue-scope.cjs').rescueSources,"src/app/page.tsx","src/app/analysis/page.tsx","src/app/matrix/page.tsx","src/app/actions.ts","src/app/admin/actions.ts","src/app/admin/page.tsx","src/app/guest/page.tsx","src/app/matches/page.tsx","src/components/admin/AdminEnvironmentTable.tsx","src/components/admin/CreateEnvironmentForm.tsx","src/lib/data.ts","src/types/database.ts","src/app/actions.ts","src/components/GlobalPendingIndicator.tsx","src/components/matches/QuickMatchForm.tsx","src/app/matrix/page.tsx","src/components/MatchupMatrix.tsx",'src/app/admin/weekly-report/page.tsx','src/components/admin/WeeklyReportClientTools.tsx','src/lib/data.ts','src/lib/period-report-data.ts']);
  for(const f of git(['ls-tree','-r','--name-only',base]).trim().split('\n').filter(f=>f.startsWith('src/')||f.startsWith('supabase/')||['package.json','package-lock.json'].includes(f)))if(!allowed.has(f))assert.equal(read(f),git(['show',base+':'+f]),f);

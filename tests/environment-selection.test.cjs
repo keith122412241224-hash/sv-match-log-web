@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),cp=require('node:child_process');
+const {test}=require('node:test'),assert=require('node:assert/strict'),cp=require('node:child_process');
+const { readBeforeRouteLoading } = require('./route-loading-scope.cjs');
 const {selectInitialEnvironmentId:select}=require('../src/lib/environment-selection');
 const boundary=Date.parse('2026-09-29T17:00:00+09:00');
 const old={id:'old',name:'アズヴォルト・レヴナント（2026/8/27～）',created_at:'2026-08-26',allow_match_input:true,match_input_start_at:null,match_input_end_at:new Date(boundary).toISOString()};
@@ -26,6 +27,6 @@ test('only three page selection expressions/imports change; all other existing p
  for(const p of git(['ls-tree','-r','--name-only',base]).trim().split('\n').filter(p=>/^(src|supabase)\//.test(p)||/^package(-lock)?\.json$/.test(p))){
   let expected=git(['show',base+':'+p]);
   if(pages.includes(p)){expected=expected.replace('  const selectedEnvironmentId = environments.some((environment) => environment.id === params.environment)\n    ? params.environment ?? ""\n    : getMostRecentlyCreatedId(environments);','  const selectedEnvironmentId = selectInitialEnvironmentId(environments, params.environment);').replace(', getMostRecentlyCreatedId','').replace('import { getMostRecentlyCreatedId } from "@/lib/utils";\n','');expected='import { selectInitialEnvironmentId } from "@/lib/environment-selection";\n'+expected;}
-  if (!require('./rescue-scope.cjs').rescueSources.has(p)) assert.equal(p === 'src/app/analysis/page.tsx' ? require('./analysis-split-scope.cjs').analysisBeforeSplit() : fs.readFileSync(p,'utf8').replaceAll('\r\n','\n'),expected,p);
+  if (!require('./rescue-scope.cjs').rescueSources.has(p)) assert.equal(p === 'src/app/analysis/page.tsx' ? require('./analysis-split-scope.cjs').analysisBeforeSplit() : readBeforeRouteLoading(p),expected,p);
  }
 });

@@ -12,7 +12,10 @@ export function SaveToast({ notification, onDismiss }: {
   useLayoutEffect(() => {
     function position() {
       const toast = container.current;
-      if (!toast || !notification) return;
+      if (!toast || !notification) {
+        document.documentElement.style.removeProperty("--save-toast-clearance");
+        return;
+      }
       toast.style.bottom = "max(1rem, env(safe-area-inset-bottom))";
       const box = toast.getBoundingClientRect();
       const buttons = [...(toast.closest("form")?.querySelectorAll<HTMLButtonElement>('button[type="submit"]') ?? [])]
@@ -22,10 +25,15 @@ export function SaveToast({ notification, onDismiss }: {
         // notification above the whole save group in that case, without scrolling.
         toast.style.bottom = `${innerHeight - Math.min(...buttons.map(button => button.top)) + 8}px`;
       }
+      // Keep the navigation badge above this notification without moving the Toast.
+      document.documentElement.style.setProperty("--save-toast-clearance", `${innerHeight - toast.getBoundingClientRect().top + 8}px`);
     }
     position();
     window.addEventListener("resize", position);
-    return () => window.removeEventListener("resize", position);
+    return () => {
+      window.removeEventListener("resize", position);
+      document.documentElement.style.removeProperty("--save-toast-clearance");
+    };
   }, [notification]);
   useEffect(() => {
     if (notification?.kind !== "success") return;

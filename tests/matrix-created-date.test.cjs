@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 const {test} = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
+const { readBeforeRouteLoading } = require('./route-loading-scope.cjs');
 const cp = require('node:child_process');
 
 test('only matrix creation-date plumbing differs from the Production source', () => {
@@ -11,7 +11,7 @@ test('only matrix creation-date plumbing differs from the Production source', ()
   // Save UX exceptions are narrowly guarded by global-pending-scope.test.cjs.
   const saveUx = new Set([...require('./rescue-scope.cjs').rescueSources,"src/app/page.tsx","src/app/analysis/page.tsx","src/app/matrix/page.tsx","src/app/actions.ts","src/app/admin/actions.ts","src/app/admin/page.tsx","src/app/guest/page.tsx","src/app/matches/page.tsx","src/components/admin/AdminEnvironmentTable.tsx","src/components/admin/CreateEnvironmentForm.tsx","src/lib/data.ts","src/types/database.ts","src/app/actions.ts", "src/components/GlobalPendingIndicator.tsx", "src/components/matches/QuickMatchForm.tsx"]);
   for (const file of files.filter(file => !saveUx.has(file))) {
-    let current = fs.readFileSync(file,'utf8').replaceAll('\r\n','\n');
+    let current = readBeforeRouteLoading(file);
     if (file === 'src/app/matrix/page.tsx') current = current
       .replace('  const createdAtLabel = new Date().toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" });\n\n','')
       .replace(' createdAtLabel={createdAtLabel}','');

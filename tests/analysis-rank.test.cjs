@@ -1,5 +1,6 @@
 ﻿/* eslint-disable @typescript-eslint/no-require-imports */
 const { legacySourcePath } = require('./legacy-source.cjs');
+const { readBeforeRouteLoading } = require('./route-loading-scope.cjs');
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),cp=require('node:child_process');
 const {ANALYSIS_RANK_FILTERS,parseAnalysisRankFilter}=require('../src/lib/analysis-rank-filter');
 const {MASTER_GROUPS,GRANDMASTER_RATINGS}=require('../src/constants/ranks');
@@ -62,7 +63,7 @@ test('R3-A and R3-B entry points are isolated; R2 and other Phase A/C code remai
  for(const file of git(['ls-tree','-r','--name-only',base]).trim().split('\n').filter(f=>f.startsWith('src/')||f.startsWith('supabase/')||f==='tests/fixtures/analysis-aggregates-v1.sql')){
  // Match entry rank UI is now guarded against the current Production baseline.
  if(!allowed.has(file) && file !== 'src/components/matches/RankFields.tsx'){
-  let actual=fs.readFileSync(legacySourcePath(file),'utf8').replaceAll('\r\n','\n');
+  let actual=readBeforeRouteLoading(legacySourcePath(file));
   // E1 adds only a member navigation item and its session-refresh route.
   // Normalize those exact additions; continue protecting every other byte.
   if(file==='src/components/AppShell.tsx')actual=actual
