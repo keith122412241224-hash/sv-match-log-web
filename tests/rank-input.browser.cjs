@@ -33,28 +33,32 @@ async function until(check){for(let i=0;i<120;i++){if(await check())return;await
  const token=['eyJhbGciOiJIUzI1NiJ9',Buffer.from(JSON.stringify({sub:user.id,exp:Math.floor(Date.now()/1000)+3600})).toString('base64url'),'fixture'].join('.');
  await context.addCookies([{name:'sb-127-auth-token',value:'base64-'+Buffer.from(JSON.stringify({access_token:token,refresh_token:'fixture',expires_at:Math.floor(Date.now()/1000)+3600,expires_in:3600,token_type:'bearer',user})).toString('base64url'),url:origin}]);
  const page=await context.newPage();auditPage=page;page.on('pageerror',e=>errors.push(e.message));
- const choose=async rank=>{await page.locator('[name="rank_tier"]').selectOption(rank.rank_tier||'');if(rank.master_group)await page.locator('[name="master_group"]').selectOption(rank.master_group);if(rank.grandmaster_rating)await page.locator('[name="grandmaster_rating"]').selectOption(rank.grandmaster_rating);};
+ const choose=async rank=>{const value=rank.rank_tier==='master'?'master:'+rank.master_group:rank.rank_tier==='grandmaster'?'grandmaster:'+rank.grandmaster_rating:rank.rank_tier||'unranked';await page.locator('button[aria-haspopup="dialog"]').click();await page.locator('dialog input[value="'+value+'"]').click();};
  await page.goto(origin+'/matches',{waitUntil:'networkidle'});
  for(const rank of ranks){console.log("UI case "+JSON.stringify(rank));await choose(rank);const count=saved.length;await page.getByRole('button',{name:'保存して続ける',exact:true}).click();await until(()=>saved.length===count+1);await page.getByRole('button',{name:'保存して続ける',exact:true}).waitFor();for(const key of Object.keys(nil))assert.equal(saved.at(-1)[key],rank[key]);assert.equal(await page.locator('[name="rank_tier"]').inputValue(),rank.rank_tier||'');}
  // Consecutive submissions preserve the selected rank and deck.
  const selected=await page.locator('[name="my_archetype_id"]').inputValue();let count=saved.length;
  await page.getByRole('button',{name:'保存して続ける',exact:true}).click();await until(()=>saved.length===count+1);await page.getByRole('button',{name:'保存して続ける',exact:true}).waitFor();assert.equal(saved.at(-1).grandmaster_rating,'beyond');assert.equal(await page.locator('[name="my_archetype_id"]').inputValue(),selected);
- // Switching parents must discard children, including returning to the same parent.
- await choose({rank_tier:'master',master_group:'ruby'});await page.locator('[name="rank_tier"]').selectOption('grandmaster');assert.equal(await page.locator('[name="master_group"]').count(),0);assert.equal(await page.locator('[name="grandmaster_rating"]').inputValue(),'');
- count=saved.length;await page.getByRole('button',{name:'保存して続ける',exact:true}).click();await page.waitForTimeout(200);assert.equal(saved.length,count);assert.equal(await page.locator('[name="grandmaster_rating"]').evaluate(e=>e.validity.valueMissing),true);
- await page.locator('[name="rank_tier"]').selectOption('master');assert.equal(await page.locator('[name="master_group"]').inputValue(),'');await page.getByRole('button',{name:'保存して続ける',exact:true}).click();assert.equal(saved.length,count);
- await page.locator('[name="rank_tier"]').selectOption('aa');assert.equal(await page.locator('[name="master_group"],[name="grandmaster_rating"]').count(),0);
+ // Atomic choices discard incompatible children; tampered fields still hit server validation.
+ await choose({rank_tier:'master',master_group:'ruby'});await choose({rank_tier:'grandmaster',grandmaster_rating:'none'});
+ assert.equal(await page.locator('[name="master_group"]').inputValue(),'');
+ count=saved.length;
+ await page.locator('[name="master_group"]').evaluate(e=>e.value='ruby');
+ await page.getByRole('button',{name:'保存して続ける',exact:true}).click();
+ await page.getByRole('alert').filter({hasText:'戦績の保存に失敗しました'}).waitFor();assert.equal(saved.length,count);
+ await choose({rank_tier:'aa'});assert.equal(await page.locator('[name="master_group"]').inputValue(),'');
+ assert.equal(await page.locator('[name="grandmaster_rating"]').inputValue(),'');
  await page.getByRole('button',{name:'保存してホームへ',exact:true}).click();await page.waitForURL(origin+'/');await until(()=>saved.length===count+1);assert.equal(saved.at(-1).rank_tier,'aa');assert.equal(saved.at(-1).master_group,null);assert.equal(saved.at(-1).grandmaster_rating,null);
- await page.goto(origin+'/matches',{waitUntil:'networkidle'});assert.equal(await page.locator('[name="rank_tier"]').inputValue(),'');
+ await page.goto(origin+'/matches',{waitUntil:'networkidle'});assert.equal(await page.locator('[name="rank_tier"]').inputValue(),'aa');
  // Legacy guest rows survive loading; new guest saves serialize rank metadata.
  const legacy={local_id:'legacy',environment_id:'e',my_deck_id:'a',opponent_deck_id:'b',my_archetype_id:'a',opponent_archetype_id:'b',result:'win',turn_order:'first',played_at:'2026-09-20T00:00:00Z'};
  await page.evaluate(([k,row])=>localStorage.setItem(k,JSON.stringify([row])),[storageKey,legacy]);await page.goto(origin+'/guest',{waitUntil:'networkidle'});await page.getByRole('button',{name:'戦績入力',exact:true}).click();
  for(const rank of [nil,ranks[9],ranks[12]]){await choose(rank);await page.getByRole('button',{name:'入力を試す',exact:true}).click();const rows=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),storageKey);for(const key of Object.keys(nil))assert.equal(rows[0][key],rank[key]);assert.equal(rows.at(-1).local_id,'legacy');assert.equal('rank_tier' in rows.at(-1),false);}
- await page.reload({waitUntil:'networkidle'});await page.getByRole('button',{name:'戦績入力',exact:true}).click();assert.equal(await page.locator('[name="rank_tier"]').inputValue(),'');
+ await page.reload({waitUntil:'networkidle'});await page.getByRole('button',{name:'戦績入力',exact:true}).click();assert.equal(await page.locator('[name="rank_tier"]').inputValue(),'grandmaster');
  // Adding after reload must not erase ranks from previously saved guest rows.
  await page.locator('button[value="continue"]').click();
  const rows=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),storageKey);assert.equal(rows.length,5);
- assert.equal(rows.filter(r=>r.grandmaster_rating==='none').length,1);assert.equal(rows.filter(r=>r.master_group==='ruby').length,1);
+ assert.equal(rows.filter(r=>r.grandmaster_rating==='none').length,2);assert.equal(rows.filter(r=>r.master_group==='ruby').length,1);
  // Real import action: invalid ranks stay local; same-ID rank changes while pending stay local.
  const invalid={...legacy,local_id:'bad',rank_tier:'master'},noId={...legacy};delete noId.local_id;
  const input=[...rows,invalid,noId];await page.evaluate(([k,r])=>localStorage.setItem(k,JSON.stringify(r)),[storageKey,input]);await page.goto(origin+'/',{waitUntil:'networkidle'});
@@ -76,7 +80,7 @@ async function until(check){for(let i=0;i<120;i++){if(await check())return;await
  const reread=await page.evaluate(k=>JSON.parse(localStorage.getItem(k)),storageKey);assert.equal(reread.length,4);assert.deepEqual(reread[2],future);assert.equal(reread[3].local_id,'concurrent');
  const rawBefore=await page.evaluate(k=>localStorage.getItem(k),storageKey);
  await page.evaluate(()=>{window.originalSetItem=Storage.prototype.setItem;Storage.prototype.setItem=function(){throw new DOMException('quota','QuotaExceededError');};});
- await page.getByRole('button',{name:'入力を試す',exact:true}).click();assert.match(await page.locator('p[role=alert]').innerText(),/保存できません/);assert.equal(await page.evaluate(k=>localStorage.getItem(k),storageKey),rawBefore);
+ await page.getByRole('button',{name:'入力を試す',exact:true}).click();assert.match(await page.locator('p').filter({hasText:'端末に保存できませんでした。保存設定・容量'}).first().innerText(),/保存できません/);assert.equal(await page.evaluate(k=>localStorage.getItem(k),storageKey),rawBefore);
  await page.evaluate(()=>{Storage.prototype.setItem=window.originalSetItem;});
  // DB save succeeds but updating local acknowledged IDs fails: all re-import paths remain blocked.
  await page.evaluate(([k,r])=>localStorage.setItem(k,JSON.stringify([r])),[storageKey,{...legacy,local_id:'post-db-failure'}]);
@@ -104,6 +108,6 @@ async function until(check){for(let i=0;i<120;i++){if(await check())return;await
  rankReadFails=true;await page.reload({waitUntil:'networkidle'});assert.match(await page.locator('main').innerText(),/ランク取得不可/);assert.match(await page.locator('main').innerText(),/総試合数/);rankReadFails=false;
 
  assert.deepEqual(unexpected,[]);assert.deepEqual(errors,[]);
- fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,rescueB:true,rescueC:true,validUiCombinations:17,normalAndContinuous:true,rankRetained:true,childClear:true,incompleteBlocked:true,reloadUnentered:true,guestNewAndLegacy:true,partialImport:true,identityAdded:true,duplicateSubmitBlocked:true,concurrentRankChangePreserved:true,syntheticSaved:saved.length,errors},null,2));console.log('R2 browser passed: 17 combinations, continuous/normal saves, child clearing, guest persistence/import and concurrent edit protection.');
+ fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({passed:true,rescueB:true,rescueC:true,validUiCombinations:17,normalAndContinuous:true,rankRetained:true,childClear:true,invalidCombinationBlocked:true,reloadRestored:true,guestNewAndLegacy:true,partialImport:true,identityAdded:true,duplicateSubmitBlocked:true,concurrentRankChangePreserved:true,syntheticSaved:saved.length,errors},null,2));console.log('R2 browser passed: 17 combinations, continuous/normal saves, child clearing, guest persistence/import and concurrent edit protection.');
  }catch(error){fs.writeFileSync(path.join(output,'failure.json'),JSON.stringify({message:error.message,saved,calls,errors,main:auditPage?await auditPage.locator('main').innerText():null},null,2));throw error;}finally{if(release)release();if(browser)await browser.close();app.kill();api.close();fs.closeSync(log);}
 })().catch(e=>{console.error(e);process.exitCode=1;});

@@ -69,9 +69,11 @@ export function GuestApp({
       setMatches(next.map(toGuestMatch));
       setSavedCount(count => count + 1);
       setStorageError("");
+      return { ok: true };
     } catch {
       setSavedCount(0);
       setStorageError("端末に保存できませんでした。保存設定・容量を確認してください。既存データは削除していません。");
+      return { ok: false, message: "端末に保存できませんでした。保存設定・容量を確認してください。既存データは削除していません。" };
     }
   }
 
@@ -103,7 +105,7 @@ export function GuestApp({
           ゲスト入力はこの端末に一時保存されます。正式に残すにはログイン後に取り込んでください。
         </p>
 
-        {storageError ? <p role="alert" className="text-sm font-semibold text-red-700">{storageError}</p> : null}
+        {storageError ? <p role={tab === "input" ? undefined : "alert"} className="text-sm font-semibold text-red-700">{storageError}</p> : null}
 
         {tab === "home" ? (
           <>

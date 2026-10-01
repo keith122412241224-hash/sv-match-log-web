@@ -1,12 +1,14 @@
 "use client";
 
 import { Loader2, Save } from "lucide-react";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useFormStatus } from "react-dom";
 import type { FormEvent } from "react";
 import { createMatch, createMatchInline } from "@/app/actions";
 import { RankFields } from "@/components/matches/RankFields";
+import { SaveToast, type SaveNotification } from "@/components/SaveToast";
+import { lastRankKey, readLastRank, rememberLastRank } from "@/lib/match-rank-preference";
 import { EMPTY_RANK, validateMatchRank, type MatchRank } from "@/lib/match-rank";
 import { Button } from "@/components/Button";
 import { notifyNavigationStart } from "@/components/GlobalPendingIndicator";
@@ -44,6 +46,7 @@ export function QuickMatchForm({
   saved,
   error,
   guest = false,
+  userId,
   onGuestSubmit
 }: {
   decks: Deck[];
@@ -52,7 +55,8 @@ export function QuickMatchForm({
   saved?: boolean;
   error?: string;
   guest?: boolean;
-  onGuestSubmit?: (match: GuestMatchDraft) => void;
+  userId?: string;
+  onGuestSubmit?: (match: GuestMatchDraft) => { ok: boolean; message?: string };
 }) {
   const router = useRouter();
   const [isNavigating, startNavigation] = useTransition();
@@ -80,6 +84,15 @@ export function QuickMatchForm({
   const [saveState, setSaveState] = useState<"idle" | "saved" | "error">("idle");
   const [saveMessage, setSaveMessage] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const saving = useRef(false);
+  const notificationId = useRef(0);
+  const [notification, setNotification] = useState<SaveNotification | null>(null);
+  const dismissNotification = useCallback(() => setNotification(null), []);
+  const rankKey = lastRankKey(userId, guest);
+  useEffect(() => { setRank(readLastRank(rankKey)); }, [rankKey]);
+  function notify(kind: SaveNotification["kind"]) {
+    setNotification({ id: ++notificationId.current, kind });
+  }
 
   useEffect(() => {
     const stored = window.localStorage.getItem(LAST_MY_CHOICE_KEY);
@@ -134,18 +147,23 @@ export function QuickMatchForm({
       const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
 
       event.preventDefault();
-      if (isSaving || isNavigating) return;
+      if (saving.current || isNavigating) return;
+      saving.current = true;
       const nextAction = submitter?.value === "continue" ? "continue" : "home";
       setIsSaving(true);
       setSaveState("idle");
       setSaveMessage("");
+      dismissNotification();
 
       try {
         const formData = new FormData(event.currentTarget);
         formData.set("next_action", nextAction);
+        const submittedRank = validateMatchRank({ rank_tier: formData.get("rank_tier"), master_group: formData.get("master_group"), grandmaster_rating: formData.get("grandmaster_rating") });
         const response = await createMatchInline(formData);
 
         if (response.ok) {
+          if (submittedRank.ok) rememberLastRank(rankKey, submittedRank.value);
+          notify("success");
           if (nextAction === "home") {
             notifyNavigationStart("/");
             startNavigation(() => router.push("/"));
@@ -155,12 +173,15 @@ export function QuickMatchForm({
         } else {
           setSaveState("error");
           setSaveMessage(response.message ?? "保存できませんでした。");
+          notify("error");
         }
       } catch {
         setSaveState("error");
         setSaveMessage("保存できませんでした。");
+        notify("error");
       } finally {
         setIsSaving(false);
+        saving.current = false;
       }
 
       return;
@@ -175,10 +196,11 @@ export function QuickMatchForm({
     if (!rankResult.ok) {
       setSaveState("error");
       setSaveMessage(rankResult.message);
+      notify("error");
       return;
     }
     setSaveState("idle");
-    onGuestSubmit?.({
+    const response = onGuestSubmit?.({
       ...rankResult.value,
       environment_id: environmentId,
       my_deck_id: selectedMyChoice.id,
@@ -189,6 +211,16 @@ export function QuickMatchForm({
       result,
       played_at: new Date().toISOString()
     });
+    if (response?.ok) {
+      rememberLastRank(rankKey, rankResult.value);
+      setSaveState("saved");
+      setSaveMessage("");
+      notify("success");
+    } else {
+      setSaveState("error");
+      setSaveMessage(response?.message ?? "端末に保存できませんでした。");
+      notify("error");
+    }
   }
 
   return (
@@ -197,13 +229,14 @@ export function QuickMatchForm({
       className="grid gap-4 rounded-md border border-slate-200 bg-white p-4"
       onSubmit={handleSubmit}
     >
-      {saved || guest || saveState === "saved" ? (
+      <SaveToast notification={notification} onDismiss={dismissNotification} />
+      {saved || guest ? (
         <p className="rounded-md bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">
           {guest ? "ゲスト体験中です。入力操作だけ確認できます。" : "保存しました。続けて入力できます。"}
         </p>
       ) : null}
       {error || saveState === "error" ? (
-        <p className="rounded-md bg-red-50 px-3 py-2 text-sm font-semibold text-red-800">
+        <p className="break-words rounded-md bg-red-50 px-3 py-2 text-sm font-semibold text-red-800">
           {saveState === "error" ? saveMessage : error}
         </p>
       ) : null}
@@ -345,7 +378,7 @@ export function QuickMatchForm({
         </div>
       </section>
 
-      <RankFields value={rank} onChange={setRank} />
+      <RankFields value={rank} onChange={setRank} disabled={isSaving || isNavigating} />
 
       <div className="grid gap-2 sm:grid-cols-2">
         <MatchSubmitButtons guest={guest} pendingOverride={isSaving || isNavigating} />
@@ -360,14 +393,14 @@ function MatchSubmitButtons({ guest, pendingOverride = false }: { guest: boolean
 
   return (
     <>
-      <Button aria-disabled={isPending} disabled={isPending} name="next_action" type="submit" value="continue">
+      <Button aria-disabled={isPending} onClick={event => { if (isPending) event.preventDefault(); }} name="next_action" type="submit" value="continue">
         {isPending ? <Loader2 className="animate-spin" size={17} aria-hidden="true" /> : <Save size={17} aria-hidden="true" />}
         {isPending ? "保存中..." : guest ? "入力を試す" : "保存して続ける"}
       </Button>
       <Button
         aria-disabled={isPending}
         className={guest ? "hidden" : undefined}
-        disabled={isPending}
+        onClick={event => { if (isPending) event.preventDefault(); }}
         name="next_action"
         type="submit"
         value="home"
@@ -375,11 +408,9 @@ function MatchSubmitButtons({ guest, pendingOverride = false }: { guest: boolean
       >
         {isPending ? "保存中..." : "保存してホームへ"}
       </Button>
-      {isPending ? (
-        <p aria-live="polite" className="sm:col-span-2 rounded-md bg-slate-50 px-3 py-2 text-sm font-semibold text-muted">
-          戦績を保存しています。完了するまでこのままお待ちください。
-        </p>
-      ) : null}
+      <p aria-live="polite" className="min-h-16 rounded-md px-3 py-2 text-sm font-semibold text-muted sm:col-span-2">
+        {isPending ? "戦績を保存しています。完了するまでこのままお待ちください。" : ""}
+      </p>
     </>
   );
 }

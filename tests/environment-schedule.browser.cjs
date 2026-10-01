@@ -63,7 +63,7 @@ const until=async fn=>{const end=Date.now()+60000;while(Date.now()<end){if(await
   // Leave a selected form open. Boundary updates environment while retaining rank/deck.
   const boundary=Date.now()+10000;environments=[environment('old',{match_input_end_at:new Date(boundary).toISOString()}),environment('new',{match_input_start_at:new Date(boundary).toISOString()})];
   await page.goto(origin+'/matches',{waitUntil:'networkidle'});assert.equal(await page.locator('[name="environment_id"]').inputValue(),'old');
-  await page.locator('[name="rank_tier"]').selectOption('aa');let count=saved.length;await page.getByRole('button',{name:'保存して続ける',exact:true}).click();await until(()=>saved.length===count+1);assert.equal(saved.at(-1).environment_id,'old');
+  await page.locator('button[aria-haspopup=dialog]').click();await page.locator('dialog input[value="aa"]').click();let count=saved.length;await page.getByRole('button',{name:'保存して続ける',exact:true}).click();await until(()=>saved.length===count+1);assert.equal(saved.at(-1).environment_id,'old');
   const before=requests.filter(r=>r.method==='GET'&&r.url.includes('/matches?_rsc')).length;
   await until(async()=>await page.locator('[name="environment_id"]').inputValue()==='new');
   assert.equal(await page.locator('[name="rank_tier"]').inputValue(),'aa');assert.deepEqual(await page.locator('[name="environment_id"] option').evaluateAll(options=>options.map(o=>o.value)),['new']);

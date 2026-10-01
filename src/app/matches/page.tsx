@@ -1,7 +1,7 @@
 import { AppShell } from "@/components/AppShell";
 import { EmptyState } from "@/components/EmptyState";
 import { ScheduledMatchForm } from "@/components/matches/ScheduledMatchForm";
-import { getActiveArchetypes, getDecks, getEnvironments } from "@/lib/data";
+import { getActiveArchetypes, getCurrentUser, getDecks, getEnvironments } from "@/lib/data";
 
 
 export default async function MatchesPage({
@@ -9,11 +9,12 @@ export default async function MatchesPage({
 }: {
   searchParams: Promise<{ saved?: string; error?: string }>;
 }) {
-  const [decks, archetypes, allEnvironments, params] = await Promise.all([
+  const [decks, archetypes, allEnvironments, params, user] = await Promise.all([
     getDecks(),
     getActiveArchetypes(),
     getEnvironments(),
-    searchParams
+    searchParams,
+    getCurrentUser()
   ]);
   const serverNow = Date.now();
   const hasDecks = decks.length > 0 || archetypes.length > 0;
@@ -43,6 +44,8 @@ export default async function MatchesPage({
           />
         ) : (
           <ScheduledMatchForm
+            key={user?.id}
+            userId={user?.id}
             archetypes={archetypes}
             decks={decks}
             environments={allEnvironments}

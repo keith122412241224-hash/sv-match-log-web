@@ -12,6 +12,7 @@ export function ScheduledMatchForm({ environments, serverNow, ...props }: {
   archetypes: DeckArchetype[];
   error?: string;
   saved?: boolean;
+  userId?: string;
 }) {
   const enabled = useScheduledEnvironments(environments, serverNow);
   return enabled.length ? <QuickMatchForm {...props} environments={enabled} /> : (

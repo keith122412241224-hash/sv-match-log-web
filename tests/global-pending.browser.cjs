@@ -98,8 +98,8 @@ const api = http.createServer(async (req, res) => {
     page.on('pageerror', error => errors.push(error.message));
     await page.goto(origin + '/matches');
     await page.waitForLoadState('networkidle');
-    await page.locator('select[name=rank_tier]').selectOption('master');
-    await page.locator('select[name=master_group]').selectOption('diamond');
+    await page.locator('button[aria-haspopup=dialog]').click();
+    await page.locator('dialog input[value="master:diamond"]').click();
     await page.evaluate(() => {
       window.pendingAppearances = 0;
       new MutationObserver(records => {
@@ -110,7 +110,7 @@ const api = http.createServer(async (req, res) => {
     });
     const indicator = page.locator('[aria-busy="true"]');
     const savingMessage = page.getByText('戦績を保存しています。完了するまでこのままお待ちください。', { exact: true });
-    const success = page.getByText('保存しました。続けて入力できます。', { exact: true });
+    const success = page.getByText('戦績を保存しました', { exact: true });
     const form = page.locator('form').filter({ has: page.locator('button[value=continue]') });
     async function beginSave(value) {
       saveGate = gate();
@@ -120,13 +120,13 @@ const api = http.createServer(async (req, res) => {
       // Longer than the 80ms display delay, while the save remains unresolved.
       await pause(180);
       assert.equal(await indicator.count(), 0);
-      assert.equal(await form.locator('button[type=submit]:disabled').count(), 2);
+      assert.equal(await form.locator('button[type=submit][aria-disabled=true]').count(), 2);
       assert.equal(await form.locator('button[value=continue] .animate-spin').count(), 1);
       assert.equal(await savingMessage.isVisible(), true);
       assert.equal(await page.evaluate(() => window.pendingAppearances), 0);
     }
     async function assertSaveFinished() {
-      await page.waitForFunction(() => !document.querySelector('button[value=continue]').disabled);
+      await page.waitForFunction(() => document.querySelector('button[value=continue]').getAttribute('aria-disabled') !== 'true');
       assert.equal(await form.locator('.animate-spin').count(), 0);
       assert.equal(await savingMessage.count(), 0);
       assert.equal(await indicator.count(), 0);
@@ -139,8 +139,8 @@ const api = http.createServer(async (req, res) => {
       saveGate.release();
       await success.waitFor();
       await assertSaveFinished();
-      assert.equal(await page.locator('select[name=rank_tier]').inputValue(), 'master');
-      assert.equal(await page.locator('select[name=master_group]').inputValue(), 'diamond');
+      assert.equal(await page.locator('input[name=rank_tier]').inputValue(), 'master');
+      assert.equal(await page.locator('input[name=master_group]').inputValue(), 'diamond');
       assert.equal(new URL(page.url()).pathname, '/matches');
     }
     assert.equal(rows.length, 3);
