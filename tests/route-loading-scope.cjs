@@ -28,7 +28,7 @@ function readBeforeRouteLoading(file) {
     assert.equal(fs.existsSync(file), false, 'route fallback must be removed: '+file);
     return original(file);
   }
-  let content = fs.readFileSync(file, 'utf8').replaceAll('\r\n', '\n');
+  let content = require('./environment-dashboard-v3-scope.cjs').readBeforeEnvironmentUX(file);
   const changes = replacements.filter(([target]) => target === file);
   for (const [, before, after] of [...changes].reverse()) {
     assert.equal(content.split(after).length, 2, 'exact position adjustment: '+file);

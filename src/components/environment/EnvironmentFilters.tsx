@@ -6,7 +6,9 @@ import { EnvironmentData } from "@/components/environment/EnvironmentData";
 import { RankMultiSelect } from "@/components/RankMultiSelect";
 import { parseRankSelection, rankSelectionToMatrixFilter, serializeRankSelection } from "@/lib/rank-selection";
 import { ENVIRONMENT_PERIODS, normalizeEnvironmentPeriod } from "@/lib/environment-dashboard";
-import { environmentHrefV2 as environmentHref, parseEnvironmentDashboardV2 as parseEnvironmentDashboard, type DashboardSelectionV2 as DashboardSelection, type EnvironmentDashboardV2 as EnvironmentDashboard } from "@/lib/environment-dashboard-v2";
+import { environmentHrefV2 as environmentHref, type DashboardSelectionV2 as DashboardSelection } from "@/lib/environment-dashboard-v2";
+
+import { parseEnvironmentDashboardV3 as parseEnvironmentDashboard, type EnvironmentDashboardV3 as EnvironmentDashboard } from "@/lib/environment-dashboard-v3";
 
 export function EnvironmentFilters({ environments, activeDeckIds, initialSelection, initialData, initialFailed }: {
   environments: { id: string; name: string }[]; activeDeckIds: string[]; initialSelection: DashboardSelection; initialData: EnvironmentDashboard | null; initialFailed: boolean;
