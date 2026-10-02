@@ -1,6 +1,7 @@
 import { reportDisplayContext } from "@/lib/report-display-context";
 import { ANALYSIS_RANK_FILTERS, parseAnalysisRankFilter } from "@/lib/analysis-rank-filter";
 import { getPeriodReportRankLabel } from "@/lib/period-report-rank";
+import { parsePeriodReportEnvironment } from "@/lib/period-report-environment";
 import { PeriodReportRankProvider } from "@/components/admin/PeriodReportRankContext";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -9,13 +10,13 @@ import { WeeklyReportInteractiveSections } from "@/components/admin/WeeklyReport
 import { ExportableReportBlock } from "@/components/admin/WeeklyReportClientTools";
 import { WEEKLY_REPORT_CONFIG } from "@/lib/weekly-report-config";
 import { getDefaultWeeklyReportStartDate, getWeeklyReportPeriodDayCount } from "@/lib/weekly-report";
-import { getIsAdmin, getWeeklyReport } from "@/lib/data";
+import { getEnvironments, getIsAdmin, getWeeklyReport } from "@/lib/data";
 import { formatPercent } from "@/lib/utils";
 
 export default async function AdminWeeklyReportPage({
   searchParams
 }: {
-  searchParams: Promise<{ start?: string; end?: string; rank?: string }>;
+  searchParams: Promise<{ start?: string; end?: string; rank?: string; environment?: string | string[] }>;
 }) {
   const isAdmin = await getIsAdmin();
 
@@ -24,15 +25,18 @@ export default async function AdminWeeklyReportPage({
   }
 
   const params = await searchParams;
+  const environments = await getEnvironments();
   const selectedStartDate = /^\d{4}-\d{2}-\d{2}$/.test(params.start ?? "") ? params.start! : getDefaultWeeklyReportStartDate();
   const selectedEndDate = /^\d{4}-\d{2}-\d{2}$/.test(params.end ?? "") ? params.end! : undefined;
   let selectedRank: ReturnType<typeof parseAnalysisRankFilter> = "all";
+  let selectedEnvironment: string | null = null;
   let report;
   let fetchError: string | null = null;
 
   try {
     selectedRank = parseAnalysisRankFilter(params.rank);
-    report = await getWeeklyReport(selectedStartDate, selectedEndDate, selectedRank);
+    selectedEnvironment = parsePeriodReportEnvironment(params.environment);
+    report = await getWeeklyReport(selectedStartDate, selectedEndDate, selectedRank, selectedEnvironment);
   } catch (error) {
     fetchError = error instanceof Error ? error.message : "Supabaseから期間レポートを取得できませんでした。";
   }
@@ -52,6 +56,7 @@ export default async function AdminWeeklyReportPage({
   const rankLabel = getPeriodReportRankLabel(selectedRank);
   const periodDayCount = getWeeklyReportPeriodDayCount(report.period);
   const isLowComparisonConfidence = report.comparisonConfidence === "low";
+  const noPrevious = report.aiJson.summary.comparisonStatus === "no_previous";
 
   return (
     <PeriodReportRankProvider label={rankLabel} description={reportDisplayContext(report.aiJson, rankLabel)}>
@@ -75,7 +80,14 @@ export default async function AdminWeeklyReportPage({
         </header>
 
         <section className="rounded-md border border-slate-200 bg-white p-4">
-          <form className="grid gap-3 md:grid-cols-[1fr_1fr_220px_auto]" action="/admin/weekly-report">
+          <form className="grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto]" action="/admin/weekly-report">
+            <label className="grid min-w-0 gap-1 text-sm font-semibold text-ink">
+              環境
+              <select key={selectedEnvironment ?? "all"} name="environment" defaultValue={selectedEnvironment ?? "all"} className="min-h-11 w-full min-w-0 rounded-md border border-slate-300 bg-white px-2 text-sm">
+                <option value="all">すべて</option>
+                {environments.map(environment => <option key={environment.id} value={environment.id}>{environment.name}</option>)}
+              </select>
+            </label>
             <label className="grid gap-1 text-sm font-semibold text-ink">
               開始日
               <input className="min-h-11 rounded-md border border-slate-300 px-3" type="date" name="start" defaultValue={report.period.startDate} />
@@ -96,12 +108,12 @@ export default async function AdminWeeklyReportPage({
           </form>
         </section>
 
-        {rankLabel ? <p className="text-sm font-semibold text-ink">ランク: {rankLabel}（当期間・前期間とも登録者本人のランクで絞り込み）</p> : null}
+        <p className="min-w-0 break-words text-sm font-semibold text-ink">{reportDisplayContext(report.aiJson, rankLabel)}</p>
 
         <section className="grid gap-3 md:grid-cols-4">
           <MiniStat label="登録試合数" value={`${report.totalMatches}`} detail={`前期間 ${report.previousTotalMatches}戦`} />
-          <MiniStat label="前期間比" value={`${report.totalMatches - report.previousTotalMatches > 0 ? "+" : ""}${report.totalMatches - report.previousTotalMatches}`} detail="試合数差分" />
-          <MiniStat label="期間比較信頼度" value={report.comparisonConfidence.toUpperCase()} detail={isLowComparisonConfidence ? "前期間比較は参考値" : "通常比較"} />
+          <MiniStat label="前期間比" value={noPrevious ? "比較対象なし" : `${report.totalMatches - report.previousTotalMatches > 0 ? "+" : ""}${report.totalMatches - report.previousTotalMatches}`} detail={noPrevious ? "選択環境の前期間は0件" : "試合数差分"} />
+          <MiniStat label="期間比較信頼度" value={noPrevious ? "比較対象なし" : report.comparisonConfidence.toUpperCase()} detail={noPrevious ? "前期間の戦績がありません" : isLowComparisonConfidence ? "前期間比較は参考値" : "通常比較"} />
           <MiniStat label="主要対面" value={`${report.unifiedMatchups.filter((row) => row.totalMatches >= WEEKLY_REPORT_CONFIG.majorMatchupMinMatches).length}`} detail={`${WEEKLY_REPORT_CONFIG.majorMatchupMinMatches}戦以上`} />
         </section>
 
@@ -116,9 +128,9 @@ export default async function AdminWeeklyReportPage({
             <div className="flex items-start gap-2">
               <AlertTriangle className="mt-0.5 shrink-0" size={20} aria-hidden="true" />
               <div>
-                <h2 className="font-bold">前期間比較は参考値です</h2>
+                <h2 className="font-bold">{noPrevious ? "比較対象なし" : "前期間比較は参考値です"}</h2>
                 <p className="mt-1 text-sm">
-                  選択期間: {report.totalMatches}戦 / 前期間: {report.previousTotalMatches}戦。前期間のサンプル数が少ない、または母数差が大きいため、期間比を環境変化として断定しないでください。
+                  選択期間: {report.totalMatches}戦 / 前期間: {report.previousTotalMatches}戦。{noPrevious ? "選択環境の前期間に戦績がないため、増減の比較は行いません。" : "前期間のサンプル数が少ない、または母数差が大きいため、期間比を環境変化として断定しないでください。"}
                 </p>
               </div>
             </div>
@@ -130,18 +142,18 @@ export default async function AdminWeeklyReportPage({
           <p className="text-xs text-muted">
             {report.period.startDate} ～ {report.period.endDate} / 前期間: {report.previousPeriod.startDate} ～ {report.previousPeriod.endDate} / {WEEKLY_REPORT_CONFIG.timeZone} / 全ユーザー / 登録試合数{report.totalMatches}戦（前期間{report.previousTotalMatches}戦）
           </p>
-          <div className="mt-3 grid gap-3 lg:grid-cols-3">
+          {noPrevious ? <p className="mt-3 text-sm text-muted">比較対象なし（選択環境の前期間の戦績が0件）</p> : <div className="mt-3 grid gap-3 lg:grid-cols-3">
             <ChangeList title={isLowComparisonConfidence ? "遭遇率上昇 参考値" : "遭遇率上昇"} rows={report.changes.encounterShareUp.map((row) => `${row.deckName} ${formatSignedPercent(row.shareChange)}${row.comparisonNote ? ` / ${row.comparisonNote}` : ""}`)} />
             <ChangeList title={isLowComparisonConfidence ? "遭遇率下降 参考値" : "遭遇率下降"} rows={report.changes.encounterShareDown.map((row) => `${row.deckName} ${formatSignedPercent(row.shareChange)}${row.comparisonNote ? ` / ${row.comparisonNote}` : ""}`)} />
             <ChangeList title={isLowComparisonConfidence ? "選択期間確認" : "新規確認"} rows={(isLowComparisonConfidence ? report.opponentDeckRanking.filter((row) => row.previousMatches === 0 && row.matches >= WEEKLY_REPORT_CONFIG.change.minNewDeckMatches).slice(0, 3) : report.changes.newDecks).map((row) => `${row.deckName} ${row.matches}戦 / ${formatPercent(row.share)}${isLowComparisonConfidence ? " / 前期間比較は参考値" : ""}`)} />
             <ChangeList title={isLowComparisonConfidence ? "勝率上昇 参考値" : "勝率上昇"} rows={report.changes.winRateUp.map((row) => `${row.deckName} ${formatSignedPercent(row.winRateChange)}${row.comparisonNote ? ` / ${row.comparisonNote}` : ""}`)} />
             <ChangeList title={isLowComparisonConfidence ? "勝率下降 参考値" : "勝率下降"} rows={report.changes.winRateDown.map((row) => `${row.deckName} ${formatSignedPercent(row.winRateChange)}${row.comparisonNote ? ` / ${row.comparisonNote}` : ""}`)} />
             <ChangeList title={isLowComparisonConfidence ? "対面変化 参考値" : "対面変化"} rows={report.changes.matchupChanges.map((row) => `${row.deckA} vs ${row.deckB} ${formatSignedPercent(row.deckAWinRateChange)}${row.comparisonNote ? ` / ${row.comparisonNote}` : ""}`)} />
-          </div>
+          </div>}
         </ExportableReportBlock>
 
         <WeeklyReportInteractiveSections
-          key={`${report.period.startDate}:${report.period.endDate}:${selectedRank}`}
+          key={`${report.period.startDate}:${report.period.endDate}:${selectedRank}:${selectedEnvironment ?? "all"}`}
           opponentRows={report.opponentDeckRanking}
           winRateRows={report.myDeckWinRates}
           matchupRows={report.unifiedMatchups}

@@ -4,9 +4,9 @@ const {base,changed,added}=require('./environment-dashboard-v3-scope.cjs');
 const git=args=>cp.execFileSync('git',args,{encoding:'utf8',maxBuffer:64e6}).replaceAll('\r\n','\n');
 test('Environment v3 changes only its own display/loading paths and adds one RPC; all old SQL, RLS, analysis, matrix and dependencies unchanged',()=>{
  const files=git(['ls-tree','-r','--name-only',base]).trim().split('\n').filter(f=>/^(src|supabase)\//.test(f)||/^package(-lock)?\.json$/.test(f));
- for(const f of files)if(!changed.has(f))assert.equal(fs.readFileSync(f,'utf8').replaceAll('\r\n','\n'),git(['show',base+':'+f]),f);
+ for(const f of files)if(!changed.has(f))assert.equal(require('./period-report-environment-scope.cjs').readBeforePeriodEnvironment(f),git(['show',base+':'+f]),f);
  const actual=git(['ls-files','--cached','--others','--exclude-standard','--','src','supabase']).trim().split('\n').sort();
- assert.deepEqual(actual,[...files.filter(f=>/^(src|supabase)\//.test(f)),...added].sort());
+ assert.deepEqual(actual,[...files.filter(f=>/^(src|supabase)\//.test(f)),...added,...require('./period-report-environment-scope.cjs').added].sort());
  const sql=fs.readFileSync([...added].find(f=>f.endsWith('.sql')),'utf8');
  assert.doesNotMatch(sql,/privacy_suppressed|\buser_id\b|\bcontributors\b|create or replace|\bdrop\b|\bpolicy\b/i);
  assert.equal((sql.match(/create function/gi)||[]).length,2);

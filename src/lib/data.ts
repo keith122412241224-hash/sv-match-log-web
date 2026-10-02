@@ -1,5 +1,6 @@
 import { type AnalysisRankFilter } from "@/lib/analysis-rank-filter";
 import { withPeriodReportRank } from "@/lib/period-report-rank";
+import { parsePeriodReportEnvironment, resolvePeriodReportEnvironment, withPeriodReportEnvironment } from "@/lib/period-report-environment";
 import { cache } from "react";
 import { isEnvironmentInputEnabled } from "@/lib/environment-input";
 import { getPeriodReportAggregates } from "@/lib/period-report-data";
@@ -372,18 +373,20 @@ export async function getDeckSuggestionsForAdmin() {
   return data ?? [];
 }
 
-export async function getWeeklyReport(startDate: string, endDate?: string, rank: AnalysisRankFilter = "all") {
+export async function getWeeklyReport(startDate: string, endDate?: string, rank: AnalysisRankFilter = "all", environmentFilter?: string | null) {
   const [isAdmin, archetypes] = await Promise.all([getIsAdmin(), getActiveArchetypes()]);
 
   if (!isAdmin) {
     return null;
   }
 
+  const environmentId = parsePeriodReportEnvironment(environmentFilter);
+  const environment = environmentId ? resolvePeriodReportEnvironment(environmentId, await getEnvironments()) : null;
   const period = buildWeeklyPeriod(startDate, endDate);
   const previousPeriod = getPreviousWeeklyReportPeriod(period);
 
-  const aggregates = await getPeriodReportAggregates(period, previousPeriod, rank);
-  return withPeriodReportRank(buildWeeklyReportFromAggregates(aggregates, archetypes, period), rank);
+  const aggregates = await getPeriodReportAggregates(period, previousPeriod, rank, environment?.id);
+  return withPeriodReportEnvironment(withPeriodReportRank(buildWeeklyReportFromAggregates(aggregates, archetypes, period), rank), environment);
 }
 
 export const getIsAdmin = cache(async () => {

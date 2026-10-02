@@ -28,9 +28,9 @@ export type OpponentDeckRankingRow = {
   share: number;
   rank: number;
   previousMatches: number;
-  previousShare: number;
+  previousShare: number | null;
   previousRank: number | null;
-  shareChange: number;
+  shareChange: number | null;
   rankChange: number | null;
   confidence: DataConfidence;
   comparisonNote: string | null;
@@ -138,6 +138,7 @@ export type WeeklyReportData = {
 };
 
 export type WeeklyReportAiJson = {
+  environmentFilter?: { id: string; name: string; description: string };
   period: {
     timeZone: string;
     startDate: string;
@@ -148,7 +149,8 @@ export type WeeklyReportAiJson = {
   summary: {
     totalMatches: number;
     previousTotalMatches: number;
-    matchDelta: number;
+    matchDelta: number | null;
+    comparisonStatus?: "no_previous";
     comparisonConfidence: ComparisonConfidence;
     dataQualityWarnings: string[];
   };
@@ -654,12 +656,12 @@ function buildChanges(
 ): WeeklyReportChanges {
   return {
     encounterShareUp: opponentDeckRanking
-      .filter((row) => row.shareChange >= WEEKLY_REPORT_CONFIG.change.minShareChangePoints)
-      .sort((a, b) => b.shareChange - a.shareChange)
+      .filter((row) => row.shareChange !== null && row.shareChange >= WEEKLY_REPORT_CONFIG.change.minShareChangePoints)
+      .sort((a, b) => (b.shareChange ?? 0) - (a.shareChange ?? 0))
       .slice(0, 3),
     encounterShareDown: opponentDeckRanking
-      .filter((row) => row.shareChange <= -WEEKLY_REPORT_CONFIG.change.minShareChangePoints)
-      .sort((a, b) => a.shareChange - b.shareChange)
+      .filter((row) => row.shareChange !== null && row.shareChange <= -WEEKLY_REPORT_CONFIG.change.minShareChangePoints)
+      .sort((a, b) => (a.shareChange ?? 0) - (b.shareChange ?? 0))
       .slice(0, 3),
     winRateUp: myDeckWinRates
       .filter((row) => row.isRankingEligible && row.isWinRateComparisonReliable && row.winRateChange !== null && row.winRateChange >= WEEKLY_REPORT_CONFIG.change.minWinRateChangePoints)
