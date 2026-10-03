@@ -7,7 +7,7 @@ const http = require('node:http'), fs = require('node:fs'), path = require('node
 const { spawn, execFile } = require('node:child_process'), { promisify } = require('node:util');
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const fixture = require('./obs-environment-fixture.cjs'), { periodFixture } = require('./period-report-fixture.cjs');
-const origin = 'http://localhost:3292', apiPort = 54339, out = path.resolve('build/obs-evidence');
+const origin = 'http://localhost:3292', apiPort = 54339, out = path.resolve(process.env.OBS_EVIDENCE_DIR || 'build/obs-evidence');
 fs.mkdirSync(out, { recursive: true });
 const environments = structuredClone(fixture.environments), decks = structuredClone(fixture.decks);
 const user = { id: fixture.id(90), aud: 'authenticated', role: 'authenticated', is_anonymous: false, email: 'fixture@example.test', app_metadata: {}, user_metadata: {} };
@@ -103,13 +103,24 @@ const api = http.createServer(async (req, res) => {
       const normalRows = await section(title).locator('li').allTextContents(); assert.equal(normalRows.length, obsRows[title].length);
       normalRows.forEach((row, i) => {
         const name = fixture.decks.find(d => row.includes(d.name)).name; assert.ok(obsRows[title][i].includes(name));
-        if (title.includes('TOP5')) assert.ok(obsRows[title][i].includes(row.match(/\d+\.\d%/)[0]));
+        if (title.includes('TOP5')) {
+          assert.ok(obsRows[title][i].includes(row.match(/\d+\.\d%/)[0]));
+          assert.ok(obsRows[title][i].startsWith(String(i + 1)));
+          assert.ok(row.startsWith(`${i + 1}.`));
+          if (title === '遭遇率TOP5') {
+            const [, count, total] = row.match(/([\d,]+)件 \/ 登録([\d,]+)件/);
+            assert.ok(obsRows[title][i].includes(`${count}戦 / 全${total}戦`));
+          } else {
+            const [, count] = row.match(/対象戦績数([\d,]+)件/);
+            assert.ok(obsRows[title][i].includes(`対象戦績 ${count}戦`));
+          }
+        }
         else { const data = fixture.dashboard(obsRpc.args); const deck = data.decks.find(d => d.name === name); const delta = (deck.current.encounter.count / data.current.total.totalMatches * 100 - deck.previous.encounter.count / data.previous.total.totalMatches * 100).toFixed(1); assert.ok(obsRows[title][i].includes(delta)); }
       });
     }
     assert.equal(await page.locator('a[href*="/obs/"]').count(), 0);
     assert.equal(report.mutations.length, mutationsBefore);
-    report.checks.push('Normal/OBS: same RPC args, total, ordered TOP5/TOP3, percentages/deltas; no OBS links in normal page');
+    report.checks.push('Normal/OBS: same RPC args, total, ordered TOP5/TOP3, percentages/deltas, actual encounter counts and combined evaluation counts; no OBS links in normal page');
     for (const width of [1920, 1440, 768, 390, 320]) {
       await page.setViewportSize({ width, height: 1080 });
       for (const [suffix, label] of [['', 'environments'], ['?section=decks', 'decks'], ['?section=decks&deckSection=create', 'create'], ['?section=decks&deckSection=suggestions', 'suggestions'], ['?section=tools', 'tools']]) {

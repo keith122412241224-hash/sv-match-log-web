@@ -4,6 +4,6 @@
   "src/lib/admin-navigation.ts": "90cd3672b4af552477ae68a1911b3f8e9eb070efd1ab0b715abafd79fbdb5a79",
   "src/components/admin/ObsEnvironmentSettings.tsx": "b533b16944379d5ffe81057d16d9ab931c86de24ae5ea0bb6533eb611f0eb360",
   "src/app/admin/obs/environment/page.tsx": "3873afb257fe2b8f41a31788310d9a4f344901848a4e799c198b7babeb1c84bf",
-  "src/components/environment/ObsEnvironmentView.tsx": "03ee3b24fdcdb37641499b8d6cd2e8adc82593695258ed49255b7d86b27b4870",
-  "src/components/environment/ObsEnvironmentView.module.css": "86a840cf7ed94b4408e38dae314fdbdd8004666dbe25b4dcd999083dc938b4e8"
+  "src/components/environment/ObsEnvironmentView.tsx": "5d9e6666468e679216f9f089c52f41242396ae68f7ec9601ca9366f6c0576efb",
+  "src/components/environment/ObsEnvironmentView.module.css": "76feb2577a36c9f565a33d8ca0d41cd514ce2340c3c74a3c13ce2ded179fd59f"
 }

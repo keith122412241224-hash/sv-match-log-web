@@ -39,10 +39,37 @@ test('OBS uses the same URL rank encoding and v3 result for every period/preset'
       for (const row of rows) { assert.ok(a.indexOf(row.name) > last); last = a.indexOf(row.name); assert.ok(b.includes(row.name)); }
       const field = title === '遭遇率TOP5' ? 'encounterRate' : title === '勝率TOP5' ? 'winRate' : null;
       if (field) for (const row of rows) { const pct = row[field].toFixed(1) + '%'; assert.ok(a.includes(pct)); assert.ok(b.includes(pct)); }
+      if (field) for (const row of rows) {
+        const n = value => value.toLocaleString('ja-JP');
+        if (field === 'encounterRate') {
+          assert.ok(a.includes(`${n(row.current.encounter.count)}戦 / 全${n(data.current.total.totalMatches)}戦`));
+          assert.ok(b.includes(`${n(row.current.encounter.count)}件 / 登録${n(data.current.total.totalMatches)}件`));
+        } else {
+          assert.ok(a.includes(`対象戦績 ${n(row.current.winrate.evaluationCount)}戦`));
+          assert.ok(b.includes(`対象戦績数${n(row.current.winrate.evaluationCount)}件`));
+        }
+      }
     }
     assert.match(obs, /800<small>戦/); assert.match(normal, /登録戦績：800件/);
     assert.doesNotMatch(obs, /<form|<button|<input|<nav|対象戦績数|登録800件/);
   }
+});
+
+test('OBS renders exact encounter counts and combined evaluations, not rounded-rate reconstruction or registrations', () => {
+  const selection = { environment: environments[0].id, period: '7d', ranks: [...RANK_PRESETS[0].ranks] };
+  const raw = dashboard({ p_environment_id: selection.environment, p_period: selection.period, p_rank_filters: selection.ranks });
+  raw.current.total.totalMatches = 10001;
+  raw.decks[0].current.encounter.count = 183;
+  const data = parseEnvironmentDashboardV3(raw, selection);
+  const html = render(React.createElement(ObsEnvironmentView, { data, environmentName: '環境' }));
+  const firstEncounter = html.match(/aria-label="遭遇率TOP5".*?<li[^>]*>(.*?)<\/li>/)[1];
+  assert.match(firstEncounter, /1\.8%/);
+  assert.match(firstEncounter, /183戦 \/ 全10,001戦/);
+  assert.notEqual(Math.round(1.8 / 100 * 10001), 183);
+  const firstWin = html.match(/aria-label="勝率TOP5".*?<li[^>]*>(.*?)<\/li>/)[1];
+  assert.match(firstWin, /59\.5%/);
+  assert.match(firstWin, /対象戦績 269戦/);
+  assert.doesNotMatch(firstWin, /対象戦績 250戦/);
 });
 
 test('OBS empty state, custom rate labels and settings provide honest session/update instructions', () => {

@@ -6,12 +6,17 @@ import styles from "./ObsEnvironmentView.module.css";
 
 type Row = ReturnType<typeof buildEnvironmentViewV3>["rows"][number];
 
-function Ranking({ title, rows, metric }: { title: string; rows: Row[]; metric: "encounterRate" | "winRate" }) {
+function Ranking({ title, rows, metric, total }: { title: string; rows: Row[]; metric: "encounterRate" | "winRate"; total: number | null }) {
   return <section className={styles.ranking} aria-label={title}>
     <h2>{title}</h2>
     {rows.length ? <ol>{rows.map((row, index) => <li key={row.key}>
       <div className={styles.rankLine}><span className={styles.position}>{index + 1}</span><span className={styles.deck}>{row.name}</span><strong className={styles.value}>{percent(row[metric]!)}</strong></div>
-      <div className={styles.track} aria-hidden="true"><div className={metric === "winRate" ? styles.winBar : styles.encounterBar} style={{ width: `${row[metric]}%` }} /></div>
+      <div className={styles.support}>
+        <div className={styles.track} aria-hidden="true"><div className={metric === "winRate" ? styles.winBar : styles.encounterBar} style={{ width: `${row[metric]}%` }} /></div>
+        <p className={styles.count}>{metric === "encounterRate"
+          ? `${row.current.encounter.count!.toLocaleString("ja-JP")}戦 / 全${total!.toLocaleString("ja-JP")}戦`
+          : `対象戦績 ${row.current.winrate.evaluationCount!.toLocaleString("ja-JP")}戦`}</p>
+      </div>
     </li>)}</ol> : <p className={styles.empty}>表示できるデータがありません。</p>}
   </section>;
 }
@@ -29,8 +34,8 @@ export function ObsEnvironmentView({ data, environmentName }: { data: Environmen
         <p className={styles.conditions}>直近{ENVIRONMENT_PERIODS.find(p => p.value === data.period)!.label}<span>｜</span>{ranks}</p>
         <p className={styles.environment}>{environmentName}</p>
       </header>
-      <Ranking title="遭遇率TOP5" rows={view.encounters} metric="encounterRate" />
-      <Ranking title="勝率TOP5" rows={view.wins} metric="winRate" />
+      <Ranking title="遭遇率TOP5" rows={view.encounters} metric="encounterRate" total={data.current.total.totalMatches} />
+      <Ranking title="勝率TOP5" rows={view.wins} metric="winRate" total={data.current.total.totalMatches} />
       <div className={styles.trends}>
         {([["増加TOP3", view.increases, "increase"], ["減少TOP3", view.decreases, "decrease"]] as const).map(([title, rows, direction]) => <section key={title} aria-label={title} className={styles[direction]}>
           <h2>{title}<span>遭遇率・前期間比</span></h2>
