@@ -149,7 +149,7 @@ const api = http.createServer(async (req, res) => {
     await changesDownload.saveAs(changesPath);
     assert.ok(fs.statSync(changesPath).size > 1000);
     assert.equal(fs.readFileSync(changesPath).subarray(1, 4).toString(), 'PNG');
-    const block = page.locator('section').filter({ has: page.getByRole('heading', { name: 'デッキ別の環境勝率（対戦相手反転込み）', exact: true }) });
+    const block = page.locator('section').filter({ has: page.getByRole('heading', { name: 'デッキ別の環境勝率', exact: true }) });
     const opponentBlock = page.locator('section').filter({ has: page.getByRole('heading', { name: 'ランクマで多く当たったデッキ', exact: true }) });
     assert.doesNotMatch(await block.innerText(), /pt/);
     assert.doesNotMatch(await opponentBlock.innerText(), /pt/);

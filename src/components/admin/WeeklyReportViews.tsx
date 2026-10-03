@@ -92,8 +92,7 @@ export function WeeklyReportTables({
         <OpponentRankingChart rows={opponentRows} />
       </ExportableReportBlock>
 
-      <ExportableReportBlock title="デッキ別の環境勝率（対戦相手反転込み）" fileName="period-my-deck-win-rate.png">
-        <p className="mb-3 text-xs text-muted">環境勝率 = 使用者側＋対戦相手の勝敗反転。対象件数は視点数で、総登録試合数とは異なります。</p>
+      <ExportableReportBlock title="デッキ別の環境勝率" fileName="period-my-deck-win-rate.png">
         <MyDeckWinRateChart rows={winRateRows} />
       </ExportableReportBlock>
 
@@ -102,7 +101,6 @@ export function WeeklyReportTables({
       </ExportableReportBlock>
 
       <ExportableReportBlock title="Tier候補" fileName="period-tier-candidates.png">
-        <p className="mb-3 text-xs text-muted">評価対象は使用側と相手側を統合したデッキ視点の試合数です（ミラー除外）。環境勝率も同じ対象から算出します。</p>
         <TierTable rows={tierRows} />
       </ExportableReportBlock>
 

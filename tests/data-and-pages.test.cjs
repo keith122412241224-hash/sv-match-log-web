@@ -147,5 +147,5 @@ test('report chart and PNG content include environment rate and both breakdowns'
   assert.match(html, /環境勝率/);
   assert.match(html, /直接 1件 \(100%\) \/ 反転 0件/);
   assert.match(html, /直接 0件 .*反転 1件 \(0%\)/);
-  assert.match(html, /対象件数は視点数/);
+  assert.doesNotMatch(html, /対象件数は視点数|評価対象は使用側/);
 });

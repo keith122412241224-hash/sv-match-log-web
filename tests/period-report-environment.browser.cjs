@@ -68,8 +68,11 @@ let admin=true,fail=false,rawReads=0,aiCalls=0;const calls=[],errors=[],writes=[
    assert.equal(calls.length,before+1);assert.equal(calls.at(-1).version,env?3:rank==='all'?1:2);
    assert.equal(await page.locator('select[name=environment] option').count(),4,'all historical environments available');
    const blocks=page.locator('section').filter({has:page.getByRole('button',{name:'PNG',exact:true})});assert.equal(await blocks.count(),6);
+   const context=page.locator('p').filter({hasText:/^対象期間：/});assert.equal(await context.count(),1);
+   assert.ok((await context.innerText()).includes(env?f.environments.find(e=>e.id===env).name:'環境：すべて'));
+   assert.ok((await context.innerText()).includes('2026/9/29〜10/2'));
    for(let i=0;i<6;i++){
-    const text=await blocks.nth(i).locator(':scope > div').last().innerText();assert.ok(text.includes(env?f.environments.find(e=>e.id===env).name:'すべて（全環境）'));assert.ok(text.includes('2026-09-29 ～ 2026-10-02'));assert.ok(text.includes('JST・各日終日'));
+    const text=await blocks.nth(i).locator(':scope > div').last().innerText();assert.doesNotMatch(text,/対象期間：|JST・各日終日/);
    }
    cases.push({environment:env?env===f.NEW?'new':env===f.OLD?'old':'empty':'all',rank,total:(await readJson()).summary.totalMatches});
   }

@@ -48,9 +48,9 @@ export function EnvironmentData({ data, activeDeckIds }: { data: EnvironmentDash
         </li>)}</ol> : <p className="text-sm text-muted">{noRanking}</p>}
       </Panel>
       <Panel title="勝率TOP5">
-        <p className="mb-4 text-xs text-muted">対象戦績数10件以上のデッキを表示します。</p>
+        <p className="mb-4 text-xs text-muted">登場した登録戦績が10件以上のデッキを表示します。</p>
         {view.wins.length ? <ol className="space-y-4">{view.wins.map((d, i) => <li key={d.key} className="flex flex-wrap items-start justify-between gap-2 border-b border-slate-100 pb-3">
-          <span className="min-w-0 break-words text-sm font-semibold">{i + 1}. {d.name}</span><div><WinText row={d} /><p className="mt-1 text-sm text-muted">勝率集計{integer(d.current.winrate.evaluationCount!)}件・対象戦績{integer(d.current.winrate.targetRegistrations!)}件</p></div>
+          <span className="min-w-0 break-words text-sm font-semibold">{i + 1}. {d.name}</span><div><WinText row={d} /><p className="mt-1 text-sm text-muted">対象戦績数{integer(d.current.winrate.evaluationCount!)}件</p></div>
         </li>)}</ol> : <p className="text-sm text-muted">{noRanking}</p>}
       </Panel>
       {([ ["増加TOP3", view.increases], ["減少TOP3", view.decreases] ] as const).map(([title, rows]) => <Panel key={title} title={title}>
@@ -60,28 +60,27 @@ export function EnvironmentData({ data, activeDeckIds }: { data: EnvironmentDash
       </Panel>)}
     </div>
     <Panel title="デッキ別データ">
-      <p id="environment-count-help" className="mb-4 text-xs leading-relaxed text-muted">勝率とあわせて集計件数・対象戦績数を表示しています。</p>
+      <p id="environment-count-help" className="mb-4 text-xs leading-relaxed text-muted">対象戦績数は勝率計算に使った件数です。</p>
       <details className="mb-4 text-xs leading-relaxed text-muted">
         <summary className="w-fit cursor-pointer rounded py-2 font-semibold focus-visible:outline focus-visible:outline-2">集計について</summary>
         <dl className="mt-2 space-y-2">
-          <div><dt className="font-semibold">勝率集計件数</dt><dd>勝率計算に使った件数です。自分側と相手側を反転して集計するため、ミラーマッチは1戦から2件として集計されます。</dd></div>
-          <div><dt className="font-semibold">対象戦績数</dt><dd>そのデッキが自分側または相手側に登場した登録戦績数です。ミラーマッチも1戦として数えます。</dd></div>
+          <div><dt className="font-semibold">対象戦績数</dt><dd>勝率計算に使った件数です。自分側と相手側を反転して集計するため、ミラーマッチは1戦から2件として集計されます。</dd></div>
           <div><dt className="font-semibold">前期間との比較</dt><dd>両期間の登録戦績がそれぞれ30件以上あり、両期間で相手として観測されたデッキを比較します。遭遇率の変化が±0.5ポイント未満なら横ばいです。</dd></div>
         </dl>
       </details>
       {visibleRows.length === 0 && <p className="text-sm text-muted">この期間に対象戦績のあるデッキがありません。</p>}
       <table aria-describedby="environment-count-help" className="hidden w-full table-fixed text-left text-sm lg:table">
-        <thead className="bg-slate-50"><tr>{["デッキ", "遭遇率", "勝率", "勝率集計件数", "対象戦績数", "前期間比較"].map(h => <th scope="col" key={h} className="p-3">{h}</th>)}</tr></thead>
+        <thead className="bg-slate-50"><tr>{["デッキ", "遭遇率", "勝率", "対象戦績数", "前期間比較"].map(h => <th scope="col" key={h} className="p-3">{h}</th>)}</tr></thead>
         <tbody>{visibleRows.map(d => <tr key={d.key} className="border-t border-slate-100">
           <th scope="row" className="break-words p-3">{d.name}</th><td className="p-3"><EncounterText row={d} total={total.totalMatches} /></td><td className="p-3"><WinText row={d} /></td>
           <td className="p-3">{d.current.winrate.status === "available" ? `${integer(d.current.winrate.evaluationCount!)}件` : "—"}</td>
-          <td className="p-3">{d.current.winrate.status === "available" ? `${integer(d.current.winrate.targetRegistrations)}件` : "—"}</td><td className="p-3"><TrendText trend={d.trend} /></td>
+          <td className="p-3"><TrendText trend={d.trend} /></td>
         </tr>)}</tbody>
       </table>
       <div className="divide-y divide-slate-200 lg:hidden">{visibleRows.map(d => <article key={d.key} className="space-y-3 py-4 first:pt-0">
         <h3 className="break-words font-semibold">{d.name}</h3>
         <div className="flex flex-wrap items-start gap-x-3 gap-y-1"><span className="text-sm">遭遇率</span><EncounterText row={d} total={total.totalMatches} /></div>
-        <div className="flex flex-wrap items-start gap-x-3 gap-y-1"><span className="text-sm">勝率</span><div><WinText row={d} />{d.current.winrate.status === "available" && <p className="mt-1 text-sm text-muted">勝率集計{integer(d.current.winrate.evaluationCount)}件・対象戦績{integer(d.current.winrate.targetRegistrations)}件</p>}</div></div>
+        <div className="flex flex-wrap items-start gap-x-3 gap-y-1"><span className="text-sm">勝率</span><div><WinText row={d} />{d.current.winrate.status === "available" && <p className="mt-1 text-sm text-muted">対象戦績数{integer(d.current.winrate.evaluationCount)}件</p>}</div></div>
         <TrendText trend={d.trend} />
       </article>)}</div>
     </Panel>

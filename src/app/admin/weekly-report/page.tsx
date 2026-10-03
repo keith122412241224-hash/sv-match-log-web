@@ -9,7 +9,7 @@ import { AlertTriangle } from "lucide-react";
 import { WeeklyReportInteractiveSections } from "@/components/admin/WeeklyReportInteractiveSections";
 import { ExportableReportBlock } from "@/components/admin/WeeklyReportClientTools";
 import { WEEKLY_REPORT_CONFIG } from "@/lib/weekly-report-config";
-import { getDefaultWeeklyReportStartDate, getWeeklyReportPeriodDayCount } from "@/lib/weekly-report";
+import { getDefaultWeeklyReportStartDate } from "@/lib/weekly-report";
 import { getEnvironments, getIsAdmin, getWeeklyReport } from "@/lib/data";
 import { formatPercent } from "@/lib/utils";
 
@@ -54,7 +54,6 @@ export default async function AdminWeeklyReportPage({
   }
 
   const rankLabel = getPeriodReportRankLabel(selectedRank);
-  const periodDayCount = getWeeklyReportPeriodDayCount(report.period);
   const isLowComparisonConfidence = report.comparisonConfidence === "low";
   const noPrevious = report.aiJson.summary.comparisonStatus === "no_previous";
 
@@ -65,9 +64,6 @@ export default async function AdminWeeklyReportPage({
         <header className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold text-ink">期間環境レポート</h1>
-            <p className="mt-1 text-sm text-muted">
-              {report.period.startDate} 00:00:00 ～ {report.period.endDate} 23:59:59 / {WEEKLY_REPORT_CONFIG.timeZone} / {periodDayCount}日間
-            </p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Link className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-ink" href="/admin">
@@ -117,11 +113,18 @@ export default async function AdminWeeklyReportPage({
           <MiniStat label="主要対面" value={`${report.unifiedMatchups.filter((row) => row.totalMatches >= WEEKLY_REPORT_CONFIG.majorMatchupMinMatches).length}`} detail={`${WEEKLY_REPORT_CONFIG.majorMatchupMinMatches}戦以上`} />
         </section>
 
-        <p className="text-sm text-muted">
-          環境勝率は使用者側と対戦相手の勝敗反転を合算しています。総試合数・遭遇率は元の登録戦績で集計します。
-          同デッキ対戦はデッキ別勝率に両視点を含みます。双方から登録された対戦はそれぞれ独立した観測データとして扱います。
-          Tier評価ではミラーを除外し、今期・前期とも同じ両側統合基準で評価します。
-        </p>
+        <div className="text-sm text-muted">
+          <p>※ 勝率は使用側・対戦相手側を統合して集計しています。</p>
+          <details className="mt-2 text-xs">
+            <summary className="w-fit cursor-pointer py-2 font-semibold">集計について</summary>
+            <p className="mt-2 leading-relaxed">
+              指定期間はJSTの各日終日です。ランクは登録者本人の対戦時点の値で、「すべて」は未登録も含みます。
+              総試合数・遭遇率は元の登録戦績で集計します。同デッキ対戦はデッキ別勝率に両視点を含みます。
+              双方から登録された対戦はそれぞれ独立した観測データとして扱います。
+              Tier評価ではミラーを除外し、今期・前期とも同じ両側統合基準で評価します。
+            </p>
+          </details>
+        </div>
 
         {isLowComparisonConfidence ? (
           <section className="rounded-md border border-amber-300 bg-amber-50 p-4 text-amber-950">
@@ -138,10 +141,6 @@ export default async function AdminWeeklyReportPage({
         ) : null}
 
         <ExportableReportBlock title="前期間からの環境変化" fileName="period-environment-changes.png">
-          <h3 className="mb-2 font-bold text-ink">前期間からの環境変化</h3>
-          <p className="text-xs text-muted">
-            {report.period.startDate} ～ {report.period.endDate} / 前期間: {report.previousPeriod.startDate} ～ {report.previousPeriod.endDate} / {WEEKLY_REPORT_CONFIG.timeZone} / 全ユーザー / 登録試合数{report.totalMatches}戦（前期間{report.previousTotalMatches}戦）
-          </p>
           {noPrevious ? <p className="mt-3 text-sm text-muted">比較対象なし（選択環境の前期間の戦績が0件）</p> : <div className="mt-3 grid gap-3 lg:grid-cols-3">
             <ChangeList title={isLowComparisonConfidence ? "遭遇率上昇 参考値" : "遭遇率上昇"} rows={report.changes.encounterShareUp.map((row) => `${row.deckName} ${formatSignedPercent(row.shareChange)}${row.comparisonNote ? ` / ${row.comparisonNote}` : ""}`)} />
             <ChangeList title={isLowComparisonConfidence ? "遭遇率下降 参考値" : "遭遇率下降"} rows={report.changes.encounterShareDown.map((row) => `${row.deckName} ${formatSignedPercent(row.shareChange)}${row.comparisonNote ? ` / ${row.comparisonNote}` : ""}`)} />

@@ -46,7 +46,7 @@ test('all leaves the complete report identical; selected environment with no pre
     assert.ok(selected.opponentDeckRanking.every(r=>r.shareChange===null&&r.previousShare===null));
     assert.ok(selected.aiJson.opponentDeckRanking.every(r=>r.previousShare===null));
     assert.match(selected.aiPrompt,/比較対象なし/);assert.ok(selected.aiPrompt.includes(env.name));
-    assert.match(reportDisplayContext(selected.aiJson),/JST・各日終日/);
+    assert.equal(reportDisplayContext(selected.aiJson),`対象期間：2026/9/29〜10/2 ｜ 前期間：9/25〜9/28 ｜ 環境：${env.name} ｜ ランク：すべて`);
   }
   const report=buildWeeklyReport([row],[row],[],p),selected=annotate(report,env);
   assert.equal(selected.changes,report.changes);assert.equal(selected.aiJson.summary,report.aiJson.summary);

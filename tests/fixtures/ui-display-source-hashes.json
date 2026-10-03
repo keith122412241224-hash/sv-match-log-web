@@ -1,0 +1,9 @@
+{
+  "src/app/admin/weekly-report/page.tsx": "d8b2bea2db521a38927da395cd9b26f08cf58c298f01195c1e4f02d7eb558974",
+  "src/components/admin/WeeklyReportAiForm.tsx": "9bd9e0212decfbd565822624b0d8703095ec5a66de0af2f121e4e2121696941b",
+  "src/components/admin/WeeklyReportClientTools.tsx": "5b186934cc5b51e6f834ea58b25ce589d462b1ec73fa228bbaa9b753df375d22",
+  "src/components/admin/WeeklyReportViews.tsx": "96ab3239dcf9191009a8414fc94f70399e1bc0e758e160c0a7232769de4adf19",
+  "src/components/analysis/AnalysisDashboard.tsx": "b6d6d5e0d7f323242d79dbfef9368f4c61751ee795d41358ee27a4171fc9492f",
+  "src/components/environment/EnvironmentData.tsx": "4131fcea5385627a1b274cf136729901848080bf7379335988e55af66fdda6f1",
+  "src/lib/report-display-context.ts": "b06310e10a86663e948bd41733c21433c0b3b6b18a9d4701d194d0f50b1c3e8f"
+}

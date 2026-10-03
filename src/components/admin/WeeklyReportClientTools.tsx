@@ -2,7 +2,7 @@
 
 import { Copy, Download } from "lucide-react";
 import { useContext, useRef, useState, type ReactNode } from "react";
-import { PeriodReportRankContext, PeriodReportDisplayContext } from "@/components/admin/PeriodReportRankContext";
+import { PeriodReportDisplayContext } from "@/components/admin/PeriodReportRankContext";
 import { Button } from "@/components/Button";
 
 export function CopyButton({ text, label }: { text: string; label: string }) {
@@ -43,7 +43,6 @@ export function MarkdownDownloadButton({ markdown, fileName }: { markdown: strin
 
 export function ExportableReportBlock({ title, fileName, children }: { title: string; fileName: string; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
-  const rankLabel = useContext(PeriodReportRankContext);
   const description = useContext(PeriodReportDisplayContext);
 
   async function downloadPng() {
@@ -52,15 +51,37 @@ export function ExportableReportBlock({ title, fileName, children }: { title: st
     }
 
     const { toPng } = await import("html-to-image");
-    const dataUrl = await toPng(ref.current, {
-      cacheBust: true,
-      backgroundColor: "#ffffff",
-      pixelRatio: 2
-    });
-    const link = document.createElement("a");
-    link.download = fileName;
-    link.href = dataUrl;
-    link.click();
+    // Include the title and conditions only in the exported image.
+    const exportNode = ref.current.cloneNode(true) as HTMLDivElement;
+    exportNode.style.width = `${ref.current.getBoundingClientRect().width}px`;
+    const heading = document.createElement("h3");
+    heading.className = "mb-2 font-bold text-ink";
+    heading.textContent = title;
+    exportNode.prepend(heading);
+    if (description) {
+      const context = document.createElement("p");
+      context.className = "mb-3 break-words text-xs text-muted";
+      context.textContent = description;
+      heading.after(context);
+    }
+    const container = document.createElement("div");
+    container.style.cssText = "position:fixed;left:-100000px;top:0;pointer-events:none";
+    container.setAttribute("aria-hidden", "true");
+    container.append(exportNode);
+    document.body.append(container);
+    try {
+      const dataUrl = await toPng(exportNode, {
+        cacheBust: true,
+        backgroundColor: "#ffffff",
+        pixelRatio: 2
+      });
+      const link = document.createElement("a");
+      link.download = fileName;
+      link.href = dataUrl;
+      link.click();
+    } finally {
+      container.remove();
+    }
   }
 
   return (
@@ -73,7 +94,6 @@ export function ExportableReportBlock({ title, fileName, children }: { title: st
         </Button>
       </div>
       <div ref={ref} className="bg-white p-4">
-        {description ? <p className="mb-3 text-xs text-muted">{description}</p> : rankLabel ? <p className="mb-3 text-sm font-semibold text-ink">ランク: {rankLabel}（当期間・前期間共通）</p> : null}
         {children}
       </div>
     </section>

@@ -155,7 +155,6 @@ export function AnalysisDashboard({ initialData, initialQuery }: { initialData: 
                   <th className="px-4 py-3">相手デッキ</th>
                   <th className="px-4 py-3">{winRateMode === "combined" ? "対象件数" : "試合数"}</th>
                   <th className="px-4 py-3">勝率</th>
-                  <th className="px-4 py-3">環境指数</th>
                 </tr>
               </thead>
               <tbody>
@@ -174,7 +173,6 @@ export function AnalysisDashboard({ initialData, initialQuery }: { initialData: 
                           </td>
                           <td className="px-4 py-3">{cell.total}</td>
                           <td className="px-4 py-3">{formatPercent(cell.winRate)}</td>
-                          <td className="px-4 py-3">{cell.environmentIndex ?? "-"}</td>
                         </tr>
                       );
                     })

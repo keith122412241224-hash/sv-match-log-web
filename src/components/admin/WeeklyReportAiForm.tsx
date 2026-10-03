@@ -38,7 +38,6 @@ export function WeeklyReportAiForm({
 
   return (
     <div className="grid gap-3">
-      <p className="text-xs text-muted">{contextLabel}</p>
       <form action={formAction} className="flex flex-wrap gap-2">
         <input type="hidden" name="prompt" value={prompt} />
         <SubmitButton disabled={!hasApiKey} pendingLabel="生成中..." type="submit">

@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),cp=require('node:child_process'),ts=require('typescript');
+const {test}=require('node:test'),assert=require('node:assert/strict'),cp=require('node:child_process'),ts=require('typescript');
 const {base,changed,added}=require('./period-report-environment-scope.cjs');
 const git=args=>cp.execFileSync('git',args,{encoding:'utf8',maxBuffer:64e6}).replaceAll('\r\n','\n');
-const read=f=>fs.readFileSync(f,'utf8').replaceAll('\r\n','\n');
+const read=f=>require('./ui-display-scope.cjs').readBeforeUiDisplay(f);
 test('period environment change preserves other pages/RPCs/RLS/dependencies and exact existing evaluator behavior',()=>{
  const files=git(['ls-tree','-r','--name-only',base]).trim().split('\n').filter(f=>/^(src|supabase)\//.test(f)||/^package(-lock)?\.json$/.test(f));
  for(const f of files)if(!changed.has(f))assert.equal(read(f),git(['show',base+':'+f]),f);

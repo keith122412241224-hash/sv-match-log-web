@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const assert = require('node:assert/strict'), fs = require('node:fs'), cp = require('node:child_process'), ts = require('typescript');
+const assert = require('node:assert/strict'), cp = require('node:child_process'), ts = require('typescript');
 const production = '71b9f3d9190c7108a50b84a02c0dcdeef006d3b1';
-const read = file => fs.readFileSync(file, 'utf8').replaceAll('\r\n', '\n');
+const read = file => require('./ui-display-scope.cjs').readBeforeUiDisplay(file);
 const git = (file, revision = production) => cp.execFileSync('git', ['show', revision + ':' + file], { encoding: 'utf8', maxBuffer: 64e6 }).replaceAll('\r\n', '\n');
 const parse = code => ts.createSourceFile('scope.tsx', code, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 const fn = (tree, name) => tree.statements.find(n => ts.isFunctionDeclaration(n) && n.name?.text === name);
