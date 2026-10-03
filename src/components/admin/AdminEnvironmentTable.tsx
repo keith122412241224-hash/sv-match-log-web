@@ -17,7 +17,7 @@ export function AdminEnvironmentTable({ environments, serverNow }: { environment
       {environments.map((environment) => (
         <section className="rounded-md border border-slate-200 bg-white p-4" key={environment.id}>
           <input name="environment_ids" type="hidden" value={environment.id} />
-          <div className="grid gap-3 sm:grid-cols-[1fr_180px_220px_auto] sm:items-end">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_180px_220px_auto] sm:items-end">
             <FieldLabel>
               環境名
               <Input name={`name_${environment.id}`} defaultValue={environment.name} required />

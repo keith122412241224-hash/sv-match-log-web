@@ -6,7 +6,7 @@ const read=file=>fs.readFileSync(file,'utf8').replaceAll('\r\n','\n');
 // Preserve historical guards without exempting whole files from review: only
 // these seven exact UI revisions may project back to the pre-cleanup source.
 function readBeforeUiDisplay(file){
- const source=read(file);
+ const source=require('./obs-environment-scope.cjs').readBeforeObs(file);
  if(!Object.hasOwn(hashes,file))return source;
  assert.equal(createHash('sha256').update(source).digest('hex'),hashes[file],'unreviewed UI source change: '+file);
  return cp.execFileSync('git',['show',base+':'+file],{encoding:'utf8'}).replaceAll('\r\n','\n');

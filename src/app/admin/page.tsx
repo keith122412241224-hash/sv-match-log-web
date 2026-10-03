@@ -5,6 +5,9 @@ import { AdminArchetypeTable } from "@/components/admin/AdminArchetypeTable";
 import { CreateEnvironmentForm } from "@/components/admin/CreateEnvironmentForm";
 import { CreateArchetypeForm } from "@/components/admin/CreateArchetypeForm";
 import { SuggestionsPanel } from "@/components/admin/SuggestionsPanel";
+import { ObsEnvironmentSettings } from "@/components/admin/ObsEnvironmentSettings";
+import { getAdminNavigation } from "@/lib/admin-navigation";
+import { selectInitialEnvironmentId } from "@/lib/environment-selection";
 import { ClassIcon } from "@/components/ClassIcon";
 import { SHADOWVERSE_CLASSES } from "@/lib/constants";
 import { getAdminArchetypes, getDeckSuggestionsForAdmin, getEnvironments, getIsAdmin } from "@/lib/data";
@@ -38,7 +41,7 @@ const errorNoticeKeys = new Set([
 export default async function AdminPage({
   searchParams
 }: {
-  searchParams: Promise<{ q?: string; class?: string; active?: string; notice?: string; error?: string }>;
+  searchParams: Promise<{ section?: string; deckSection?: string; q?: string; class?: string; active?: string; notice?: string; error?: string }>;
 }) {
   const isAdmin = await getIsAdmin();
 
@@ -54,6 +57,7 @@ export default async function AdminPage({
   ]);
 
   const query = (params.q ?? "").trim().toLowerCase();
+  const { section, deckSection } = getAdminNavigation(params);
   const classFilter = params.class ?? "";
   const activeFilter = params.active ?? "";
   const isErrorNotice = params.notice ? errorNoticeKeys.has(params.notice) : false;
@@ -71,17 +75,21 @@ export default async function AdminPage({
         <header className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold text-ink">管理画面</h1>
-            <p className="mt-1 text-sm text-muted">標準デッキとユーザー提案を管理します。</p>
+            <p className="mt-1 text-sm text-muted">環境・標準デッキの管理と運用ツール。</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Link className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-ink" href="/admin/weekly-report" prefetch={false}>
-              期間レポート
-            </Link>
             <Link className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-ink" href="/">
               通常画面へ
             </Link>
           </div>
         </header>
+
+        <nav aria-label="管理機能" className="flex flex-wrap gap-2">
+          {([["environments", "環境管理"], ["decks", "標準デッキ管理"], ["tools", "運用ツール"]] as const).map(([value, label]) => (
+            <Link key={value} href={`/admin?section=${value}`} prefetch={false} aria-current={section === value ? "page" : undefined}
+              className="inline-flex min-h-11 items-center rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold aria-[current=page]:border-ink aria-[current=page]:bg-ink aria-[current=page]:text-white">{label}</Link>
+          ))}
+        </nav>
 
         {notice ? (
           <div className={isErrorNotice ? "rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800" : "rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-900"}>
@@ -90,26 +98,36 @@ export default async function AdminPage({
           </div>
         ) : null}
 
-        <section className="grid gap-3">
+        {section === "environments" && <section className="grid gap-3">
           <div>
             <h2 className="font-bold text-ink">環境管理</h2>
             <p className="mt-1 text-sm text-muted">ユーザーが戦績入力・分析で選ぶ環境を管理します。</p>
           </div>
           <CreateEnvironmentForm />
           <AdminEnvironmentTable environments={environments} serverNow={Date.now()} />
-        </section>
+        </section>}
 
-        <section>
+        {section === "decks" && <>
+          <nav aria-label="標準デッキ管理" className="flex flex-wrap gap-2">
+            {([["list", "一覧・更新"], ["create", "新規追加"], ["suggestions", "候補承認"]] as const).map(([value, label]) => (
+              <Link key={value} href={`/admin?section=decks&deckSection=${value}`} prefetch={false} aria-current={deckSection === value ? "page" : undefined}
+                className="inline-flex min-h-11 items-center rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold aria-[current=page]:border-sky-700 aria-[current=page]:bg-sky-50 aria-[current=page]:text-sky-900">{label}</Link>
+            ))}
+          </nav>
+
+        {deckSection === "create" && <section>
           <h2 className="mb-3 font-bold text-ink">標準デッキの追加</h2>
           <CreateArchetypeForm />
-        </section>
+        </section>}
 
-        <SuggestionsPanel suggestions={suggestions} />
+        {deckSection === "suggestions" && <SuggestionsPanel suggestions={suggestions} />}
 
+        {deckSection === "list" && <>
         <section className="rounded-md border border-slate-200 bg-white p-4">
           <h2 className="font-bold text-ink">標準デッキ一覧</h2>
           <form className="mt-3 grid gap-3 lg:grid-cols-[1fr_220px_160px_auto]" action="/admin">
-            <input className="min-h-11 rounded-md border border-slate-300 px-3" name="q" placeholder="検索: デッキ名" defaultValue={params.q ?? ""} />
+            <input type="hidden" name="section" value="decks" />
+            <input className="min-h-11 rounded-md border border-slate-300 px-3" name="q" aria-label="デッキ名で検索" placeholder="検索: デッキ名" defaultValue={params.q ?? ""} />
             <select className="min-h-11 rounded-md border border-slate-300 px-3" name="class" defaultValue={classFilter}>
               <option value="">全クラス</option>
               {SHADOWVERSE_CLASSES.map((className) => (
@@ -137,6 +155,17 @@ export default async function AdminPage({
         </section>
 
         <AdminArchetypeTable archetypes={filtered} />
+        </>}
+        </>}
+
+        {section === "tools" && <div className="grid gap-5">
+          <section className="rounded-md border border-slate-200 bg-white p-5">
+            <h2 className="text-lg font-bold">期間レポート</h2>
+            <p className="mt-2 text-sm text-muted">指定した期間の戦績をレポートで確認します。</p>
+            <Link className="mt-4 inline-flex min-h-11 items-center rounded-md border border-slate-300 px-4 text-sm font-semibold" href="/admin/weekly-report" prefetch={false}>期間レポートを開く</Link>
+          </section>
+          <ObsEnvironmentSettings environments={environments.map(({ id, name }) => ({ id, name }))} initialEnvironment={selectInitialEnvironmentId(environments)} />
+        </div>}
 
       </div>
     </main>
