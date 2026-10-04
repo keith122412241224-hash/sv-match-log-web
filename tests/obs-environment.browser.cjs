@@ -7,12 +7,14 @@ const http = require('node:http'), fs = require('node:fs'), path = require('node
 const { spawn, execFile } = require('node:child_process'), { promisify } = require('node:util');
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const fixture = require('./obs-environment-fixture.cjs'), { periodFixture } = require('./period-report-fixture.cjs');
+const { aggregates: matchupFixture } = require('./obs-matchups-fixture.cjs');
 const origin = 'http://localhost:3292', apiPort = 54339, out = path.resolve(process.env.OBS_EVIDENCE_DIR || 'build/obs-evidence');
 fs.mkdirSync(out, { recursive: true });
 const environments = structuredClone(fixture.environments), decks = structuredClone(fixture.decks);
 const user = { id: fixture.id(90), aud: 'authenticated', role: 'authenticated', is_anonymous: false, email: 'fixture@example.test', app_metadata: {}, user_metadata: {} };
 const suggestions = [{ id: fixture.id(91), user_id: user.id, class_name: 'エルフ', suggested_name: '候補デッキ', status: 'pending', memo: null }];
 let admin = true, mode = 'full';
+let sqlState = null;
 const report = { checks: [], events: [], mutations: [], rpc: [], unexpected: [] };
 const api = http.createServer(async (req, res) => {
   try {
@@ -25,7 +27,17 @@ const api = http.createServer(async (req, res) => {
       report.rpc.push({ name: table, args });
       if (table === 'get_environment_dashboard_aggregates_v3') {
         if (mode === 'failure') { res.writeHead(500); res.end(JSON.stringify({ message: 'fixture unavailable' })); return; }
-        data = fixture.dashboard(args, mode);
+        data = sqlState ? await sqlState.h.environment(sqlState.db, args.p_environment_id, args.p_rank_filters, args.p_period) : fixture.dashboard(args, mode);
+        if (sqlState) sqlState.dashboard = data;
+      } else if (table === 'get_analysis_aggregates_v3_exclusive') {
+        const envArgs = report.rpc.filter(r => r.name === 'get_environment_dashboard_aggregates_v3').at(-1).args;
+        const d = sqlState ? sqlState.dashboard : fixture.dashboard(envArgs);
+        assert.deepEqual(args, { p_environment_id: d.environmentId, p_played_from: d.current.start, p_played_to: d.current.end,
+          p_rank_filters: d.rankFilters, p_include_all_users: true, p_include_reversed: false, p_use_archetype: true,
+          p_recent_deck_ids: [], p_my_deck_id: null, p_opponent_deck_id: null, p_result: null, p_turn_order: null });
+        if (mode === 'matchupFailure') { res.writeHead(500); res.end(JSON.stringify({ message: 'fixture matchup unavailable' })); return; }
+        data = sqlState ? await sqlState.h.analysis(sqlState.db, d) : matchupFixture();
+        if (sqlState) sqlState.aggregates = data;
       } else if (/get_period_report_aggregates_v[123]/.test(table)) data = periodFixture([], args);
       else if (table === 'get_home_dashboard') data = { summary: { total: 0, wins: 0, winRate: null, firstWinRate: null, secondWinRate: null }, recent: [] };
       else throw Error('Unexpected RPC: ' + table);
@@ -84,12 +96,32 @@ const api = http.createServer(async (req, res) => {
       fs.writeFileSync(path.join(out, 'agent-browser.txt'), result.stdout); assert.match(result.stdout, /遭遇率TOP5/);
     }
     const titles = ['遭遇率TOP5', '勝率TOP5', '増加TOP3', '減少TOP3'];
+    const matrix = page.getByRole('table', { name: '遭遇率TOP5の相性表' });
+    assert.equal(await matrix.locator('tbody td').count(), 25);
+    assert.deepEqual(await matrix.locator('tbody th').allTextContents(), fixture.decks.slice(0, 5).map(d => d.name));
+    for (const group of matchupFixture().groups) {
+      const cell = matrix.locator(`[data-row="${group.myDeckId}"][data-column="${group.opponentDeckId}"]`);
+      assert.equal(await cell.locator('strong').innerText(), `${(group.wins / group.total * 100).toFixed(1)}%`);
+      assert.ok((await cell.locator('small').innerText()).startsWith(`${group.total}戦`));
+    }
+    report.checks.push('25 cells: row/column direction, exact aggregate counts, percentages, mirrors and encounter order');
     for (const width of [1920, 1440, 1248, 1152, 1056, 390, 320]) {
       await page.setViewportSize({ width, height: 1080 }); await overflow();
       assert.equal(await page.locator('main form, main button, main nav').count(), 0);
+      await page.evaluate(() => scrollTo(0, 0));
       await shot('obs-' + width);
-      if (width >= 1056) { const height = await page.locator('main').evaluate(n => n.scrollHeight); assert.ok(height <= 1080, `panel height ${height} fits at ${width}`); }
-      report.checks.push(`OBS ${width}x1080 fits, read-only`);
+      if (width >= 1056) {
+        const height = await page.locator('main > div').first().evaluate(n => n.getBoundingClientRect().bottom);
+        assert.ok(height <= 1080, `upper panel height ${height} fits at ${width}`);
+      }
+      const dimensions = await matrix.evaluate(el => ({ width: el.getBoundingClientRect().width, pageWidth: document.documentElement.scrollWidth, viewport: innerWidth,
+        rateSize: getComputedStyle(el.querySelector('strong')).fontSize, countSize: getComputedStyle(el.querySelector('small')).fontSize,
+        overflow: [...el.querySelectorAll('th,td,strong,small')].filter(n => n.scrollWidth > n.clientWidth + 1 && getComputedStyle(n).display !== 'inline').map(n => n.textContent) }));
+      assert.ok(dimensions.pageWidth <= width); assert.deepEqual(dimensions.overflow, []);
+      await page.getByRole('heading', { name: '遭遇率TOP5｜相性関係', exact: true }).evaluate(n => n.scrollIntoView());
+      assert.ok(await page.evaluate(() => scrollY > 0));
+      await page.screenshot({ path: path.join(out, `matrix-${width}.png`) });
+      report.checks.push({ viewport: `${width}x1080`, dimensions, verticalScroll: true });
     }
     await page.setViewportSize({ width: 1152, height: 1080 });
     const obsRows = {};
@@ -121,6 +153,7 @@ const api = http.createServer(async (req, res) => {
     assert.equal(await page.locator('a[href*="/obs/"]').count(), 0);
     assert.equal(report.mutations.length, mutationsBefore);
     report.checks.push('Normal/OBS: same RPC args, total, ordered TOP5/TOP3, percentages/deltas, actual encounter counts and combined evaluation counts; no OBS links in normal page');
+    if (process.env.PGLITE_MODULE) await require('./obs-matchups-browser-sql.cjs').verifySqlMatchups({ page, origin, out, report, setState: value => { sqlState = value; } });
     for (const width of [1920, 1440, 768, 390, 320]) {
       await page.setViewportSize({ width, height: 1080 });
       for (const [suffix, label] of [['', 'environments'], ['?section=decks', 'decks'], ['?section=decks&deckSection=create', 'create'], ['?section=decks&deckSection=suggestions', 'suggestions'], ['?section=tools', 'tools']]) {
@@ -167,6 +200,8 @@ const api = http.createServer(async (req, res) => {
     assert.ok(obs.url().includes('period=3d')); assert.ok(obs.url().includes('ranks=master')); assert.match(await obs.locator('main').innerText(), /直近3日.*Master/s); await obs.close();
     await page.getByRole('link', { name: '通常画面へ', exact: true }).click(); await page.waitForURL(origin + '/');
     report.checks.push('Tools period/rank selection produces fixed URL, new tab renders matching conditions, normal-screen link works');
+    mode = 'matchupFailure'; await go('/admin/obs/environment' + query); assert.match(await page.locator('main').getByRole('alert').innerText(), /相性データを取得できませんでした/);
+    assert.equal(await page.getByRole('region', { name: '遭遇率TOP5', exact: true }).locator('li').count(), 5);
     mode = 'empty'; await go('/admin/obs/environment' + query); assert.match(await page.locator('main').innerText(), /データなし/);
     mode = 'failure'; await go('/admin/obs/environment' + query); assert.match(await page.locator('main').getByRole('alert').innerText(), /取得できませんでした/);
     mode = 'full'; await go('/admin/obs/environment?ranks=invalid'); assert.match(await page.locator('main').getByRole('alert').innerText(), /条件が不正/);

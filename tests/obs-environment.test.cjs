@@ -86,6 +86,7 @@ test('OBS page denies unsigned/member access before aggregation and handles inva
   mock('next/navigation', { redirect: href => { throw Error('REDIRECT:' + href); } });
   mock('../src/lib/data', { getCurrentUser: async () => user, getIsAdmin: async () => admin, getEnvironments: async () => environments });
   mock('../src/lib/environment-dashboard-data', { getEnvironmentDashboard: async s => { calls.push(s); if (fail) throw Error('down'); return dashboard({ p_environment_id: s.environment, p_period: s.period, p_rank_filters: s.ranks }); } });
+  mock('../src/lib/obs-environment-matchups', { getObsEnvironmentMatchups: async () => { throw Error('matchup unavailable'); } });
   const page = require('../src/app/admin/obs/environment/page').default;
   const open = params => page({ searchParams: Promise.resolve(params) });
   await assert.rejects(() => open({}), /REDIRECT:\/login/);
@@ -95,6 +96,7 @@ test('OBS page denies unsigned/member access before aggregation and handles inva
   assert.match(render(await open({ ranks: 'bad' })), /条件が不正/); assert.equal(calls.length, 0);
   const result = await open({ period: '3d', rank: 'master' });
   assert.equal(result.type, ObsEnvironmentView); assert.equal(calls.length, 1); assert.equal(calls[0].period, '3d'); assert.equal(calls[0].environment, environments[0].id);
+  assert.equal(result.props.matchups, null); assert.match(render(result), /相性データを取得できませんでした/); assert.match(render(result), /総対戦数/);
   fail = true; assert.match(render(await open({})), /取得できませんでした/);
   await assert.rejects(() => open({ period: 'bad' }), /REDIRECT:\/admin\/obs\/environment\?/);
 });

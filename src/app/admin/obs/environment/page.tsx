@@ -6,6 +6,7 @@ import { environmentHrefV2 } from "@/lib/environment-dashboard-v2";
 import { selectInitialEnvironmentId } from "@/lib/environment-selection";
 import { parseRankSelection } from "@/lib/rank-selection";
 import { ObsEnvironmentView } from "@/components/environment/ObsEnvironmentView";
+import { getObsEnvironmentMatchups, type ObsMatchups } from "@/lib/obs-environment-matchups";
 
 export const metadata = { title: "OBS 環境データ", robots: { index: false, follow: false } };
 
@@ -30,5 +31,8 @@ export default async function ObsEnvironmentPage({ searchParams }: { searchParam
   let dashboard;
   try { dashboard = await getEnvironmentDashboard(selection); }
   catch { return <Message>環境データを取得できませんでした。時間をおいてページを再読み込みしてください。</Message>; }
-  return <ObsEnvironmentView data={dashboard} environmentName={environments.find(e => e.id === environment)!.name} />;
+  let matchups: ObsMatchups | null = null;
+  try { matchups = await getObsEnvironmentMatchups(dashboard); }
+  catch { /* Preserve the upper dashboard and display a separate matchup error. */ }
+  return <ObsEnvironmentView data={dashboard} environmentName={environments.find(e => e.id === environment)!.name} matchups={matchups} />;
 }

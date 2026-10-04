@@ -3,6 +3,8 @@ import { ENVIRONMENT_PERIODS, formatEnvironmentPercent as percent } from "@/lib/
 import { ATOMIC_RANK_GROUPS, getRankSelectionLabel } from "@/lib/rank-selection";
 import { formatJstDateTime } from "@/lib/utils";
 import styles from "./ObsEnvironmentView.module.css";
+import { ObsMatchupMatrix } from "./ObsMatchupMatrix";
+import type { ObsMatchups } from "@/lib/obs-environment-matchups";
 
 type Row = ReturnType<typeof buildEnvironmentViewV3>["rows"][number];
 
@@ -21,7 +23,7 @@ function Ranking({ title, rows, metric, total }: { title: string; rows: Row[]; m
   </section>;
 }
 
-export function ObsEnvironmentView({ data, environmentName }: { data: EnvironmentDashboardV3; environmentName: string }) {
+export function ObsEnvironmentView({ data, environmentName, matchups }: { data: EnvironmentDashboardV3; environmentName: string; matchups?: ObsMatchups | null }) {
   const view = buildEnvironmentViewV3(data);
   const rankLabel = getRankSelectionLabel(data.rankFilters);
   const ranks = rankLabel.startsWith("カスタム")
@@ -48,5 +50,6 @@ export function ObsEnvironmentView({ data, environmentName }: { data: Environmen
         <span>勝率TOP5：対象登録戦績10件以上</span>
       </footer>
     </div>
+    {matchups !== undefined && <ObsMatchupMatrix rows={matchups} />}
   </main>;
 }
