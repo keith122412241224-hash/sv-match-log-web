@@ -4,6 +4,44 @@ const h = require('./obs-matchups-db.cjs');
 const { parseAnalysisAggregates, buildAnalysisFromAggregates } = require('../src/lib/analysis-aggregates');
 const { buildWinRateMatrix } = require('../src/lib/analytics');
 const { buildEnvironmentViewV3 } = require('../src/lib/environment-dashboard-v3');
+const { analysisPerspectives } = require('../src/lib/match-perspectives');
+
+test('existing combined RPC gives each registration once per non-mirror direction, complementary wins, and unchanged mirror evaluations', async t => {
+  const db = await h.createDb(); t.after(() => db.close());
+  await db.exec(h.read(h.migration)); await h.identity(db);
+  const anchor = await h.environment(db), source = [];
+  for (let i = 0; i < 5; i++) for (let j = 0; j < 5; j++) for (let k = 0; k < 1 + i * 3 + j; k++)
+    source.push(h.row({ played_at: anchor.current.start, my_archetype_id: h.decks[i].id, opponent_archetype_id: h.decks[j].id,
+      my_deck_id: h.decks[i].id, opponent_deck_id: h.decks[j].id, result: k % 3 ? 'win' : 'lose', turn_order: k % 2 ? 'first' : 'second' }));
+  await h.seed(db, source);
+  const d = await h.environment(db), raw = await h.analysis(db, d, { combined: true });
+  const aggregates = parseAnalysisAggregates(raw, []);
+  assert.equal(aggregates.registeredMatches, source.length);
+  assert.equal(aggregates.perspectives, source.length * 2);
+  assert.equal(d.current.total.totalMatches, source.length);
+  const top = buildEnvironmentViewV3(d).encounters.map(r => ({ id: r.key, name: r.name, class_name: r.className ?? '' }));
+  const cells = buildAnalysisFromAggregates(aggregates, top, top).matrix.flatMap(r => r.cells);
+  const views = analysisPerspectives(source, 'combined');
+  assert.deepEqual(buildAnalysisFromAggregates(aggregates, top, top).matrix, buildWinRateMatrix(views, top, top));
+  assert.equal(cells.length, 25);
+  for (const cell of cells) {
+    const direct = source.filter(m => m.my_archetype_id === cell.myDeckId && m.opponent_archetype_id === cell.opponentDeckId);
+    if (cell.myDeckId === cell.opponentDeckId) {
+      assert.equal(cell.total, direct.length * 2); assert.equal(cell.wins, direct.length); assert.equal(cell.winRate, 50);
+      continue;
+    }
+    const pair = source.filter(m => (m.my_archetype_id === cell.myDeckId && m.opponent_archetype_id === cell.opponentDeckId)
+      || (m.my_archetype_id === cell.opponentDeckId && m.opponent_archetype_id === cell.myDeckId));
+    const side = views.filter(m => m.my_archetype_id === cell.myDeckId && m.opponent_archetype_id === cell.opponentDeckId);
+    assert.equal(new Set(side.map(m => m.id)).size, side.length, 'No registration repeated within one directional cell');
+    assert.deepEqual(side.map(m => m.id).sort(), pair.map(m => m.id).sort());
+    assert.equal(cell.total, pair.length);
+    const opposite = cells.find(c => c.myDeckId === cell.opponentDeckId && c.opponentDeckId === cell.myDeckId);
+    assert.equal(cell.total, opposite.total); assert.equal(cell.wins + opposite.wins, cell.total);
+    assert.ok(Math.abs(cell.winRate + opposite.winRate - 100) < 1e-10);
+    assert.ok(Math.abs(Number(cell.winRate.toFixed(1)) + Number(opposite.winRate.toFixed(1)) - 100) <= 0.100001);
+  }
+});
 test('exclusive RPC: actual SQL metadata, RLS/ACL, boundaries and all 25 existing matrix cells', async t => {
   const db = await h.createDb();
   t.after(() => db.close());

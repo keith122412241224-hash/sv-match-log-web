@@ -5,6 +5,8 @@
 // All test requests and writes use an in-memory localhost stub.
 const http = require('node:http'), fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
 const { spawn, execFile } = require('node:child_process'), { promisify } = require('node:util');
+const nativeFetch = globalThis.fetch; require('./register.cjs'); globalThis.fetch = nativeFetch;
+const { buildAnalysisFromAggregates } = require('../src/lib/analysis-aggregates');
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const fixture = require('./obs-environment-fixture.cjs'), { periodFixture } = require('./period-report-fixture.cjs');
 const { aggregates: matchupFixture } = require('./obs-matchups-fixture.cjs');
@@ -33,10 +35,10 @@ const api = http.createServer(async (req, res) => {
         const envArgs = report.rpc.filter(r => r.name === 'get_environment_dashboard_aggregates_v3').at(-1).args;
         const d = sqlState ? sqlState.dashboard : fixture.dashboard(envArgs);
         assert.deepEqual(args, { p_environment_id: d.environmentId, p_played_from: d.current.start, p_played_to: d.current.end,
-          p_rank_filters: d.rankFilters, p_include_all_users: true, p_include_reversed: false, p_use_archetype: true,
+          p_rank_filters: d.rankFilters, p_include_all_users: true, p_include_reversed: true, p_use_archetype: true,
           p_recent_deck_ids: [], p_my_deck_id: null, p_opponent_deck_id: null, p_result: null, p_turn_order: null });
         if (mode === 'matchupFailure') { res.writeHead(500); res.end(JSON.stringify({ message: 'fixture matchup unavailable' })); return; }
-        data = sqlState ? await sqlState.h.analysis(sqlState.db, d) : matchupFixture();
+        data = sqlState ? await sqlState.h.analysis(sqlState.db, d, { combined: args.p_include_reversed }) : matchupFixture();
         if (sqlState) sqlState.aggregates = data;
       } else if (/get_period_report_aggregates_v[123]/.test(table)) data = periodFixture([], args);
       else if (table === 'get_home_dashboard') data = { summary: { total: 0, wins: 0, winRate: null, firstWinRate: null, secondWinRate: null }, recent: [] };
@@ -99,10 +101,14 @@ const api = http.createServer(async (req, res) => {
     const matrix = page.getByRole('table', { name: '遭遇率TOP5の相性表' });
     assert.equal(await matrix.locator('tbody td').count(), 25);
     assert.deepEqual(await matrix.locator('tbody th').allTextContents(), fixture.decks.slice(0, 5).map(d => d.name));
-    for (const group of matchupFixture().groups) {
+    for (const group of buildAnalysisFromAggregates(matchupFixture(), fixture.decks.slice(0, 5), fixture.decks.slice(0, 5)).matrix.flatMap(r => r.cells)) {
       const cell = matrix.locator(`[data-row="${group.myDeckId}"][data-column="${group.opponentDeckId}"]`);
-      assert.equal(await cell.locator('strong').innerText(), `${(group.wins / group.total * 100).toFixed(1)}%`);
-      assert.ok((await cell.locator('small').innerText()).startsWith(`${group.total}戦`));
+      if (group.myDeckId === group.opponentDeckId) {
+        assert.equal(await cell.locator('strong').innerText(), '—'); assert.equal(await cell.locator('small').count(), 0);
+      } else {
+        assert.equal(await cell.locator('strong').innerText(), `${group.winRate.toFixed(1)}%`);
+        assert.ok((await cell.locator('small').innerText()).startsWith(`${group.total}戦`));
+      }
     }
     report.checks.push('25 cells: row/column direction, exact aggregate counts, percentages, mirrors and encounter order');
     for (const width of [1920, 1440, 1248, 1152, 1056, 390, 320]) {

@@ -27,6 +27,7 @@ async function verifySqlMatchups({ page, origin, out, report, setState }) {
     assert.ok(state.aggregates, 'browser called actual SQL RPC');
     assert.equal(state.dashboard.current.total.totalMatches, source.length);
     assert.equal(state.aggregates.registeredMatches, source.length);
+    assert.equal(state.aggregates.perspectives, source.length * 2);
     const table = page.getByRole('table', { name: '遭遇率TOP5の相性表' });
     assert.equal(await table.locator('tbody td').count(), 25);
     const cells = [];
@@ -34,10 +35,20 @@ async function verifySqlMatchups({ page, origin, out, report, setState }) {
       const row = await cell.getAttribute('data-row'), column = await cell.getAttribute('data-column');
       const groups = state.aggregates.groups.filter(g => g.myDeckId === row && g.opponentDeckId === column);
       const count = groups.reduce((s, g) => s + g.total, 0), wins = groups.reduce((s, g) => s + g.wins, 0);
-      const expected = (wins / count * 100).toFixed(1) + '%';
+      const expected = row === column ? '—' : (wins / count * 100).toFixed(1) + '%';
       assert.equal(await cell.locator('strong').innerText(), expected);
-      assert.ok((await cell.locator('small').innerText()).startsWith(count + '戦'));
-      cells.push({ row, column, rate: expected, count });
+      if (row === column) {
+        assert.equal(await cell.locator('small').count(), 0); assert.equal(wins * 2, count);
+        assert.equal(count, source.filter(m => m.my_archetype_id === row && m.opponent_archetype_id === row).length * 2);
+      } else {
+        assert.ok((await cell.locator('small').innerText()).startsWith(count + '戦'));
+        const reverse = state.aggregates.groups.filter(g => g.myDeckId === column && g.opponentDeckId === row);
+        assert.equal(count, reverse.reduce((s, g) => s + g.total, 0));
+        assert.equal(wins + reverse.reduce((s, g) => s + g.wins, 0), count);
+        assert.equal(count, source.filter(m => (m.my_archetype_id === row && m.opponent_archetype_id === column)
+          || (m.my_archetype_id === column && m.opponent_archetype_id === row)).length);
+      }
+      cells.push({ row, column, rate: expected, internalCount: count, internalWins: wins });
     }
     const top = await page.getByRole('region', { name: '遭遇率TOP5', exact: true }).locator('li').allTextContents();
     const names = await table.locator('tbody th').allTextContents();

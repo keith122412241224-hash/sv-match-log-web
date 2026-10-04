@@ -13,16 +13,18 @@ export function ObsMatchupMatrix({ rows }: { rows: ObsMatchups | null }) {
           <thead><tr><th scope="col">使用デッキ<br />↓ ／ 対面 →</th>{rows.map(row => <th scope="col" key={row.myDeck.id}>{row.myDeck.name}</th>)}</tr></thead>
           <tbody>{rows.map(row => <tr key={row.myDeck.id}>
             <th scope="row">{row.myDeck.name}</th>
-            {row.cells.map((cell, index) => <td key={cell.opponentDeckId} className={styles[cell.band]} data-row={cell.myDeckId} data-column={cell.opponentDeckId}>
+            {row.cells.map((cell, index) => {
+              const mirror = cell.myDeckId === cell.opponentDeckId;
+              return <td key={cell.opponentDeckId} className={styles[mirror ? "empty" : cell.band]} data-row={cell.myDeckId} data-column={cell.opponentDeckId}>
               <span className={styles.mobileOpponent} aria-hidden="true">対 {rows[index].myDeck.name}</span>
               <span className={styles.values}>
-                <strong>{cell.winRate === null ? "—" : `${cell.winRate.toFixed(1)}%`}</strong>
-                <small>{cell.total.toLocaleString("ja-JP")}戦{cell.isLowSample ? " · 参考" : ""}</small>
+                <strong>{mirror || cell.winRate === null ? "—" : `${cell.winRate.toFixed(1)}%`}</strong>
+                {!mirror && <small>{cell.total.toLocaleString("ja-JP")}戦{cell.isLowSample ? " · 参考" : ""}</small>}
               </span>
-            </td>)}
+            </td>; })}
           </tr>)}</tbody>
         </table>
-        <p className={styles.description}>{LOW_SAMPLE_THRESHOLD}戦未満は参考表示 · ミラー対戦を含む</p>
+        <p className={styles.description}>反転込み · {LOW_SAMPLE_THRESHOLD}戦未満は参考表示 · ミラーは—</p>
       </>}
   </section>;
 }

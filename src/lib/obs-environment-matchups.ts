@@ -18,13 +18,13 @@ export async function getObsEnvironmentMatchups(dashboard: EnvironmentDashboardV
     p_played_to: dashboard.current.end,
     p_rank_filters: dashboard.rankFilters,
     p_include_all_users: true,
-    p_include_reversed: false,
+    p_include_reversed: true,
     p_use_archetype: true,
     p_recent_deck_ids: [],
     p_my_deck_id: null, p_opponent_deck_id: null, p_result: null, p_turn_order: null
   });
   if (error) throw new AnalysisDataError("database", error.code);
   const aggregates = parseAnalysisAggregates(data, []);
-  if (aggregates.perspectives !== aggregates.registeredMatches) throw new AnalysisDataError("invalid_response");
+  if (aggregates.perspectives !== aggregates.registeredMatches * 2) throw new AnalysisDataError("invalid_response");
   return buildAnalysisFromAggregates(aggregates, decks, decks).matrix;
 }
