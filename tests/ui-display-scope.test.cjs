@@ -6,5 +6,5 @@ test('UI cleanup changes only seven pinned presentation files; all RPC, SQL, typ
  const files=git(['ls-tree','-r','--name-only',base]).trim().split('\n').filter(f=>/^(src|supabase)\//.test(f)||/^package(-lock)?\.json$/.test(f));
  assert.equal(Object.keys(hashes).length,7);
  for(const file of files)assert.equal(readBeforeUiDisplay(file),git(['show',base+':'+file]),file);
- assert.deepEqual(git(['ls-files','--cached','--others','--exclude-standard','--','src','supabase']).trim().split('\n').filter(f=>!require('./obs-environment-scope.cjs').added.has(f)).sort(),files.filter(f=>/^(src|supabase)\//.test(f)).sort(),'no unrelated new app or migration files');
+ assert.deepEqual(git(['ls-files','--cached','--others','--exclude-standard','--','src','supabase']).trim().split('\n').filter(f=>!require('./obs-environment-scope.cjs').added.has(f) && !require('./match-mutations-scope.cjs').added.has(f)).sort(),files.filter(f=>/^(src|supabase)\//.test(f)).sort(),'no unrelated new app or migration files');
 });

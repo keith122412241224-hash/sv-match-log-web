@@ -8,6 +8,7 @@ import { isEnvironmentInputEnabled as isInputOpen } from "@/lib/environment-inpu
 import { validateMatchRank } from "@/lib/match-rank";
 import type { GuestImportResult, StoredGuestMatch } from "@/lib/guest-storage";
 import type { Database, MatchResult, TurnOrder } from "@/types/database";
+import type { MatchEditData, MatchMutationResult } from "@/lib/match-edit";
 
 type CreateMatchResult = {
   ok: boolean;
@@ -171,6 +172,44 @@ export async function createMatch(formData: FormData) {
 export async function createMatchInline(formData: FormData): Promise<CreateMatchResult> {
   // Preserve the existing home-save cache invalidation before client navigation.
   return saveMatchFromForm(formData, { revalidate: formData.get("next_action") === "home" });
+}
+
+export async function getMatchForEdit(id: string): Promise<{ data?: MatchEditData; message?: string }> {
+  if (typeof id !== "string" || !id) return { message: "戦績を指定してください。" };
+  const supabase = await createSupabaseServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { message: "ログインし直してください。" };
+  const { data: match, error } = await supabase.from("matches").select("*")
+    .eq("id", id).eq("user_id", user.id).maybeSingle();
+  if (error || !match) return { message: "戦績が見つからないか、操作する権限がありません。" };
+  const [decks, archetypes, environments] = await Promise.all([
+    supabase.from("decks").select("*").eq("user_id", user.id).order("sort_order"),
+    supabase.from("deck_archetypes").select("*").order("sort_order"),
+    supabase.from("environments").select("*").order("created_at")
+  ]);
+  if (decks.error || archetypes.error || environments.error) return { message: "編集用データを取得できませんでした。" };
+  return { data: { match, decks: decks.data ?? [], environments: environments.data ?? [],
+    archetypes: (archetypes.data ?? []).filter(row => row.is_active || row.id === match.my_archetype_id || row.id === match.opponent_archetype_id) } };
+}
+
+export async function updateMatchInline(id: string, formData: FormData): Promise<MatchMutationResult> {
+  if (typeof id !== "string" || !id) return { ok: false, message: "戦績を指定してください。" };
+  return saveMatchFromForm(formData, { revalidate: true, matchId: id });
+}
+
+export async function deleteMatchInline(id: string): Promise<MatchMutationResult> {
+  if (typeof id !== "string" || !id) return { ok: false, message: "戦績を指定してください。" };
+  const supabase = await createSupabaseServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, message: "ログインし直してください。" };
+  const { data, error } = await supabase.from("matches").delete()
+    .eq("id", id).eq("user_id", user.id).select("id").maybeSingle();
+  if (error || !data) return { ok: false, message: "削除できませんでした。戦績が存在し、操作する権限があるか確認してください。" };
+  revalidateMatchDerivedPaths();
+  revalidatePath("/environment");
+  revalidatePath("/admin/weekly-report");
+  revalidatePath("/admin/obs/environment");
+  return { ok: true };
 }
 
 export async function importGuestMatches(formData: FormData): Promise<GuestImportResult> {
@@ -347,7 +386,7 @@ async function requireAdminClient() {
 
 async function saveMatchFromForm(
   formData: FormData,
-  { revalidate }: { revalidate: boolean }
+  { revalidate, matchId }: { revalidate: boolean; matchId?: string }
 ): Promise<CreateMatchResult> {
   const supabase = await createSupabaseServerClient();
   const {
@@ -362,7 +401,16 @@ async function saveMatchFromForm(
   const result = String(formData.get("result") ?? "") as MatchResult;
 
   if (!user) {
+    if (matchId !== undefined) return { ok: false, message: "ログインし直してください。" };
     redirect("/login");
+  }
+
+  // Read through the user's session and restrict explicitly, including admins.
+  // Never accept ownership, creation time or other system fields from the form.
+  const existing = matchId !== undefined ? await supabase.from("matches").select("*")
+    .eq("id", matchId).eq("user_id", user.id).maybeSingle() : null;
+  if (existing && (existing.error || !existing.data)) {
+    return { ok: false, message: "戦績が見つからないか、操作する権限がありません。" };
   }
 
   if (!environmentId || !["first", "second"].includes(turnOrder) || !["win", "lose"].includes(result)) {
@@ -383,18 +431,27 @@ async function saveMatchFromForm(
   const archetypeDecks = await ensureCompatDecksForSelectedArchetypes(
     supabase,
     user.id,
-    [myArchetypeId, opponentArchetypeId].filter(Boolean)
+    [myArchetypeId, opponentArchetypeId].filter(id => Boolean(id)
+      && id !== existing?.data?.my_archetype_id && id !== existing?.data?.opponent_archetype_id)
   );
 
+  // Previously selected inactive archetypes can be retained, without creating decks.
+  for (const [archetypeId, deckId] of [[existing?.data?.my_archetype_id, existing?.data?.my_deck_id],
+    [existing?.data?.opponent_archetype_id, existing?.data?.opponent_deck_id]]) {
+    if (archetypeId && deckId) archetypeDecks.set(archetypeId, deckId);
+  }
+
   if (myArchetypeId) {
-    myDeckId = archetypeDecks.get(myArchetypeId) ?? "";
-  } else if (myDeckId) {
+    myDeckId = myArchetypeId === existing?.data?.my_archetype_id
+      ? existing.data.my_deck_id : archetypeDecks.get(myArchetypeId) ?? "";
+  } else if (myDeckId && !existing) {
     myArchetypeId = await findArchetypeForDeck(supabase, myDeckId);
   }
 
   if (opponentArchetypeId) {
-    opponentDeckId = archetypeDecks.get(opponentArchetypeId) ?? "";
-  } else if (opponentDeckId) {
+    opponentDeckId = opponentArchetypeId === existing?.data?.opponent_archetype_id
+      ? existing.data.opponent_deck_id : archetypeDecks.get(opponentArchetypeId) ?? "";
+  } else if (opponentDeckId && !existing) {
     opponentArchetypeId = await findArchetypeForDeck(supabase, opponentDeckId);
   }
 
@@ -406,25 +463,33 @@ async function saveMatchFromForm(
     return { ok: false, message: "この環境は現在戦績を入力できません。入力画面を更新してください。" };
   }
 
-  const { error } = await supabase.from("matches").insert({
+  const values = {
     ...rank.value,
-    user_id: user.id,
     environment_id: environmentId,
     my_deck_id: myDeckId,
     opponent_deck_id: opponentDeckId,
     my_archetype_id: myArchetypeId || null,
     opponent_archetype_id: opponentArchetypeId || null,
     turn_order: turnOrder,
-    result,
-    played_at: new Date().toISOString()
-  });
+    result
+  };
+  const response = existing
+    ? await supabase.from("matches").update(values).eq("id", matchId!).eq("user_id", user.id).select("id").maybeSingle()
+    : await supabase.from("matches").insert({ ...values, user_id: user.id, played_at: new Date().toISOString() });
+  const { error } = response;
 
   if (error) {
     return { ok: false, message: error.message };
   }
+  if (existing && !response.data) return { ok: false, message: "戦績が見つからないか、操作する権限がありません。" };
 
   if (revalidate) {
     revalidateMatchDerivedPaths();
+  }
+  if (existing) {
+    revalidatePath("/environment");
+    revalidatePath("/admin/weekly-report");
+    revalidatePath("/admin/obs/environment");
   }
 
   return { ok: true };

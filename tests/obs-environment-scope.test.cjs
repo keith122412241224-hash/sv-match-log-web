@@ -7,5 +7,5 @@ test('OBS changes only reviewed admin presentation; existing actions, normal pag
   assert.deepEqual(Object.keys(hashes).sort(), [...changed, ...added].sort());
   for (const file of Object.keys(hashes)) assert.equal(createHash('sha256').update(read(file)).digest('hex'), hashes[file], file);
   for (const file of files) assert.equal(readBeforeObs(file), git(['show', base + ':' + file]), file);
-  assert.deepEqual(git(['ls-files', '--cached', '--others', '--exclude-standard', '--', 'src', 'supabase']).trim().split('\n').sort(), [...files.filter(f => /^(src|supabase)\//.test(f)), ...added].sort());
+  assert.deepEqual(git(['ls-files', '--cached', '--others', '--exclude-standard', '--', 'src', 'supabase']).trim().split('\n').filter(f => !require('./match-mutations-scope.cjs').added.has(f)).sort(), [...files.filter(f => /^(src|supabase)\//.test(f)), ...added].sort());
 });

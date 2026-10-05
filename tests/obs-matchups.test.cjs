@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const { test } = require('node:test'), assert = require('node:assert/strict'), fs = require('node:fs'), cp = require('node:child_process');
+const { test } = require('node:test'), assert = require('node:assert/strict'), cp = require('node:child_process');
 const React = require('react'), { renderToStaticMarkup: render } = require('react-dom/server');
 require.extensions['.css'] = module => { module.exports = { __esModule: true, default: new Proxy({}, { get: (_, key) => String(key) }) }; };
 const { dashboard, environments } = require('./obs-environment-fixture.cjs');
@@ -8,7 +8,7 @@ const { buildEnvironmentViewV3 } = require('../src/lib/environment-dashboard-v3'
 const { buildAnalysisFromAggregates, parseAnalysisAggregates } = require('../src/lib/analysis-aggregates');
 const { ObsMatchupMatrix } = require('../src/components/environment/ObsMatchupMatrix');
 const migration = 'supabase/migrations/20261004022333_analysis_aggregates_v3_exclusive.sql';
-const read = f => fs.readFileSync(f, 'utf8').replaceAll('\r\n', '\n');
+const read = f => require('./match-mutations-scope.cjs').readBeforeMatchMutations(f);
 test('exclusive SQL definition and ACL are v3-identical after only name and end comparison normalization', () => {
   const old = read('supabase/migrations/20260930071612_multi_rank_aggregates.sql');
   const sql = read(migration), normalized = sql.replaceAll('get_analysis_aggregates_v3_exclusive', 'get_analysis_aggregates_v3').replace('m.played_at < p_played_to', 'm.played_at <= p_played_to');
@@ -75,7 +75,7 @@ test('exclusive RPC scope: existing SQL and all ordinary routes/aggregation stay
   const changed = ['src/app/admin/obs/environment/page.tsx', 'src/components/environment/ObsEnvironmentView.tsx'];
   for (const f of files.filter(f => !changed.includes(f))) assert.equal(read(f), git(['show', base + ':' + f]), f);
   const added = [migration, 'src/lib/obs-environment-matchups.ts', 'src/components/environment/ObsMatchupMatrix.tsx', 'src/components/environment/ObsMatchupMatrix.module.css'];
-  assert.deepEqual(git(['ls-files', '--cached', '--others', '--exclude-standard', '--', 'src', 'supabase']).trim().split('\n').sort(), [...files.filter(f => /^(src|supabase)\//.test(f)), ...added].sort());
+  assert.deepEqual(git(['ls-files', '--cached', '--others', '--exclude-standard', '--', 'src', 'supabase']).trim().split('\n').filter(f => !require('./match-mutations-scope.cjs').added.has(f)).sort(), [...files.filter(f => /^(src|supabase)\//.test(f)), ...added].sort());
   const usages = [...files.filter(f => f.startsWith('src/')), ...added.filter(f => f.startsWith('src/'))].filter(f => read(f).includes('get_analysis_aggregates_v3_exclusive'));
   assert.deepEqual(usages, ['src/lib/obs-environment-matchups.ts']);
 });
@@ -86,5 +86,5 @@ test('OBS combined/mirror correction changes only its loader and table; every ex
   const files = git(['ls-tree', '-r', '--name-only', base]).trim().split('\n').filter(f => /^(src|supabase)\//.test(f) || /^package(-lock)?\.json$/.test(f));
   const allowed = ['src/lib/obs-environment-matchups.ts', 'src/components/environment/ObsMatchupMatrix.tsx'];
   for (const file of files.filter(f => !allowed.includes(f))) assert.equal(read(file), git(['show', base + ':' + file]), file);
-  assert.deepEqual(git(['ls-files', '--cached', '--others', '--exclude-standard', '--', 'src', 'supabase']).trim().split('\n').sort(), files.filter(f => /^(src|supabase)\//.test(f)).sort());
+  assert.deepEqual(git(['ls-files', '--cached', '--others', '--exclude-standard', '--', 'src', 'supabase']).trim().split('\n').filter(f => !require('./match-mutations-scope.cjs').added.has(f)).sort(), files.filter(f => /^(src|supabase)\//.test(f)).sort());
 });

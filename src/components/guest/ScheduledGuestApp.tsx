@@ -10,5 +10,5 @@ export function ScheduledGuestApp({ archetypes, environments, serverNow }: {
   serverNow: number;
 }) {
   const enabled = useScheduledEnvironments(environments, serverNow);
-  return <GuestApp archetypes={archetypes} environments={enabled} />;
+  return <GuestApp archetypes={archetypes} environments={enabled} allEnvironments={environments} />;
 }

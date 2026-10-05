@@ -1,5 +1,5 @@
 import type { StoredGuestMatch } from "@/lib/guest-storage";
-import { GUEST_MATCHES_STORAGE_KEY } from "@/lib/guest-storage";
+import { GUEST_MATCHES_STORAGE_KEY, identifyGuestMatches } from "@/lib/guest-storage";
 import { validateMatchRank } from "@/lib/match-rank";
 
 export function readGuestRecords(raw: string): unknown[] {
@@ -30,4 +30,32 @@ export function appendGuestMatch(storage: Pick<Storage, "getItem" | "setItem">, 
   const next = [match, ...records];
   storage.setItem(GUEST_MATCHES_STORAGE_KEY, JSON.stringify(next));
   return displayGuestMatches(next);
+}
+
+// Reuse the import identity migration before exposing edit/delete controls.
+export function loadIdentifiedGuestMatches(storage: Pick<Storage, "getItem" | "setItem">): StoredGuestMatch[] {
+  const raw = storage.getItem(GUEST_MATCHES_STORAGE_KEY) ?? "[]";
+  const identified = identifyGuestMatches(raw);
+  if (identified !== raw) storage.setItem(GUEST_MATCHES_STORAGE_KEY, identified);
+  return displayGuestMatches(readGuestRecords(identified));
+}
+
+export function mutateGuestMatch(storage: Pick<Storage, "getItem" | "setItem">, id: string, draft?: Omit<StoredGuestMatch, "local_id">): StoredGuestMatch[] {
+  const records = readGuestRecords(storage.getItem(GUEST_MATCHES_STORAGE_KEY) ?? "[]");
+  const indexes = records.flatMap((row, index) => row && typeof row === "object" && "local_id" in row && row.local_id === id ? [index] : []);
+  if (!id || indexes.length !== 1) throw new Error("戦績を一意に確認できません。画面を再読み込みしてください。");
+  const index = indexes[0];
+  if (draft) {
+    const rank = validateMatchRank(draft);
+    if (!rank.ok) throw new Error(rank.message);
+    const old = records[index] as StoredGuestMatch;
+    const updated = { ...old, ...rank.value, environment_id: draft.environment_id,
+      my_deck_id: draft.my_deck_id, opponent_deck_id: draft.opponent_deck_id,
+      my_archetype_id: draft.my_archetype_id, opponent_archetype_id: draft.opponent_archetype_id,
+      result: draft.result, turn_order: draft.turn_order };
+    if (displayGuestMatches([updated]).length !== 1) throw new Error("入力内容を確認してください。");
+    records[index] = updated;
+  } else records.splice(index, 1);
+  storage.setItem(GUEST_MATCHES_STORAGE_KEY, JSON.stringify(records));
+  return displayGuestMatches(records);
 }

@@ -10,7 +10,7 @@ test('route loading UX changes only the two fallbacks and exact Toast/Indicator 
   for (const file of files) assert.equal(readBeforeRouteLoading(file), git(['show', base+':'+file]), file);
   for (const dir of ['src', 'supabase']) {
     const actual = git(['ls-files', '--cached', '--others', '--exclude-standard', '--', dir]).trim().split('\n')
-      .filter(file => fs.existsSync(file) && !require('./environment-dashboard-v3-scope.cjs').added.has(file) && !require('./period-report-environment-scope.cjs').added.has(file) && !require('./obs-environment-scope.cjs').added.has(file)).sort();
+      .filter(file => fs.existsSync(file) && !require('./environment-dashboard-v3-scope.cjs').added.has(file) && !require('./period-report-environment-scope.cjs').added.has(file) && !require('./obs-environment-scope.cjs').added.has(file) && !require('./match-mutations-scope.cjs').added.has(file)).sort();
     assert.deepEqual(actual, files.filter(f => f.startsWith(dir+'/') && !removed.has(f)).sort(), 'no new production files: '+dir);
   }
 });

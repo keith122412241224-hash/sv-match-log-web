@@ -1,4 +1,5 @@
 import { RankBadge } from "@/components/RankBadge";
+import { MatchActions, MatchActionsProvider } from "@/components/matches/MatchActions";
 import { selectInitialEnvironmentId } from "@/lib/environment-selection";
 import Link from "next/link";
 import { BarChart3, BookOpen, Grid3X3, ListPlus, LogIn, Swords, Trophy } from "lucide-react";
@@ -67,7 +68,7 @@ export default async function HomePage({
           <StatCard label="後攻勝率" value={formatPercent(summary.secondWinRate)} />
         </section>
 
-        <section className="rounded-md border border-slate-200 bg-white">
+        <MatchActionsProvider><section className="rounded-md border border-slate-200 bg-white">
           <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
             <h2 className="font-bold text-ink">最近10戦</h2>
             <Link className="text-sm font-semibold text-muted hover:text-ink" href="/matches">
@@ -101,7 +102,7 @@ export default async function HomePage({
                       </div>
                     </div>
                     <div className="mt-2"><RankBadge rank={match} /></div>
-                    <div className="mt-2 text-xs font-semibold text-muted">{TURN_ORDER_LABELS[match.turn_order]}</div>
+                    <div className="mt-2 flex items-center justify-between text-xs font-semibold text-muted">{TURN_ORDER_LABELS[match.turn_order]}<MatchActions matchId={match.id} /></div>
                   </article>
                 ))}
               </div>
@@ -116,6 +117,7 @@ export default async function HomePage({
                       <th className="px-4 py-3">自分のランク</th>
                       <th className="px-4 py-3">先後</th>
                       <th className="px-4 py-3">結果</th>
+                      <th className="px-2 py-3"><span className="sr-only">操作</span></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -136,6 +138,7 @@ export default async function HomePage({
                             {RESULT_LABELS[match.result]}
                           </span>
                         </td>
+                        <td className="px-2 py-3"><MatchActions matchId={match.id} /></td>
                       </tr>
                     ))}
                   </tbody>
@@ -143,7 +146,7 @@ export default async function HomePage({
               </div>
             </>
           )}
-        </section>
+        </section></MatchActionsProvider>
 
         <GuideLinkCard />
       </div>

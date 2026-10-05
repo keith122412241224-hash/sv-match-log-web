@@ -38,7 +38,7 @@ const client = {
 const load = Module._load;
 Module._load = function (name, ...args) {
   if (name === '@/lib/supabase/server') return { createSupabaseServerClient: async () => client };
-  if (name === 'next/navigation') return { redirect(url) { throw Error('REDIRECT:' + url); } };
+  if (name === 'next/navigation') return { useRouter: () => ({ refresh() {} }), redirect(url) { throw Error('REDIRECT:' + url); } };
   if (name === 'next/cache') return { revalidatePath() {} };
   if (name === '@/components/AppShell') return { AppShell: ({ children }) => React.createElement('main', null, children) };
   return load.call(this, name, ...args);

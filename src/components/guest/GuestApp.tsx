@@ -1,6 +1,8 @@
 "use client";
 
-import { appendGuestMatch, displayGuestMatches, readGuestRecords } from "@/lib/guest-records";
+import { appendGuestMatch, loadIdentifiedGuestMatches, mutateGuestMatch } from "@/lib/guest-records";
+import { MatchActions, MatchActionsProvider } from "@/components/matches/MatchActions";
+import { isEnvironmentInputEnabled } from "@/lib/environment-input";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { DeckAnalysisCards } from "@/components/analysis/DeckAnalysisCards";
@@ -10,7 +12,7 @@ import { QuickMatchForm } from "@/components/matches/QuickMatchForm";
 import type { GuestMatchDraft } from "@/components/matches/QuickMatchForm";
 import { StatCard } from "@/components/StatCard";
 import { buildDeckAnalysisSummaries, buildWinRateMatrix, summarizeMatches } from "@/lib/analytics";
-import { GUEST_MATCHES_STORAGE_KEY, type StoredGuestMatch } from "@/lib/guest-storage";
+import { type StoredGuestMatch } from "@/lib/guest-storage";
 import { formatPercent } from "@/lib/utils";
 import type { Deck, DeckArchetype, Environment, Match } from "@/types/database";
 
@@ -18,10 +20,12 @@ type Tab = "home" | "input" | "analysis" | "matrix";
 
 export function GuestApp({
   archetypes,
-  environments
+  environments,
+  allEnvironments = environments
 }: {
   archetypes: DeckArchetype[];
   environments: Environment[];
+  allEnvironments?: Environment[];
 }) {
   const [tab, setTab] = useState<Tab>("home");
   const [matches, setMatches] = useState<Match[]>([]);
@@ -30,8 +34,7 @@ export function GuestApp({
 
   useEffect(() => {
     try {
-      const records = readGuestRecords(window.localStorage.getItem(GUEST_MATCHES_STORAGE_KEY) ?? "[]");
-      setMatches(displayGuestMatches(records).map(toGuestMatch));
+      setMatches(loadIdentifiedGuestMatches(window.localStorage).map(toGuestMatch));
     } catch {
       setStorageError("端末の戦績を読み込めません。既存データは削除していません。保存設定とデータ形式を確認してください。");
     }
@@ -77,6 +80,20 @@ export function GuestApp({
     }
   }
 
+  function changeGuestMatch(id: string, draft?: GuestMatchDraft) {
+    try {
+      if (draft && !environments.some(row => row.id === draft.environment_id && isEnvironmentInputEnabled(row))) {
+        return { ok: false, message: "この環境は現在戦績を入力できません。" };
+      }
+      const next = mutateGuestMatch(window.localStorage, id, draft);
+      setMatches(next.map(toGuestMatch));
+      setStorageError("");
+      return { ok: true };
+    } catch {
+      return { ok: false, message: "端末の戦績を変更できませんでした。保存設定・容量を確認し、再読み込みしてください。" };
+    }
+  }
+
   return (
     <div className="min-h-screen bg-surface">
       <header className="border-b border-slate-200 bg-white">
@@ -108,7 +125,7 @@ export function GuestApp({
         {storageError ? <p role={tab === "input" ? undefined : "alert"} className="text-sm font-semibold text-red-700">{storageError}</p> : null}
 
         {tab === "home" ? (
-          <>
+          <MatchActionsProvider onGuestMutation={changeGuestMatch}>
             <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
               <StatCard label="総試合数" value={`${summary.total}`} />
               <StatCard label="勝利数" value={`${summary.wins}`} />
@@ -125,18 +142,21 @@ export function GuestApp({
                   {matches.slice(0, 5).map((match) => {
                     const myDeck = guestDecks.find((deck) => deck.id === match.my_deck_id);
                     const opponentDeck = guestDecks.find((deck) => deck.id === match.opponent_deck_id);
-                    const environmentName = environments.find((environment) => environment.id === match.environment_id)?.name ?? "-";
+                    const environmentName = allEnvironments.find((environment) => environment.id === match.environment_id)?.name ?? "-";
                     return (
-                      <div className="rounded bg-slate-50 px-3 py-2 text-sm" key={match.id}>
+                      <div className="flex items-center justify-between gap-2 rounded bg-slate-50 px-3 py-2 text-sm" key={match.id}>
+                        <div className="min-w-0 break-words">
                         <span className="font-semibold text-ink">{match.result === "win" ? "勝ち" : "負け"}</span>
                         <span className="text-muted"> / {environmentName} / {myDeck?.name ?? "-"} vs {opponentDeck?.name ?? "-"}</span>
+                        </div>
+                        <MatchActions matchId={match.id} guestData={{ match, decks: guestDecks, environments: allEnvironments, archetypes }} />
                       </div>
                     );
                   })}
                 </div>
               </section>
             )}
-          </>
+          </MatchActionsProvider>
         ) : null}
 
         {tab === "input" ? (

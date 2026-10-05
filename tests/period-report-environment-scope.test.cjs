@@ -6,7 +6,7 @@ const read=f=>require('./ui-display-scope.cjs').readBeforeUiDisplay(f);
 test('period environment change preserves other pages/RPCs/RLS/dependencies and exact existing evaluator behavior',()=>{
  const files=git(['ls-tree','-r','--name-only',base]).trim().split('\n').filter(f=>/^(src|supabase)\//.test(f)||/^package(-lock)?\.json$/.test(f));
  for(const f of files)if(!changed.has(f))assert.equal(read(f),git(['show',base+':'+f]),f);
- const actual=git(['ls-files','--cached','--others','--exclude-standard','--','src','supabase']).trim().split('\n').filter(f=>!require('./obs-environment-scope.cjs').added.has(f)).sort();
+ const actual=git(['ls-files','--cached','--others','--exclude-standard','--','src','supabase']).trim().split('\n').filter(f=>!require('./obs-environment-scope.cjs').added.has(f) && !require('./match-mutations-scope.cjs').added.has(f)).sort();
  assert.deepEqual(actual,[...files.filter(f=>/^(src|supabase)\//.test(f)),...added].sort());
  const source=read('src/lib/weekly-report.ts')
  .replace('  previousShare: number | null;','  previousShare: number;').replace('  shareChange: number | null;','  shareChange: number;')
