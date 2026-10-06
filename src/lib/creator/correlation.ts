@@ -1,8 +1,9 @@
 import { UUID, type TierDocument } from "./model";
+import { parseDataSelection, parseDataSnapshot, type DataSelection, type DataSnapshot } from "./matchup-data";
 
 export type CorrelationNode = { id: string; imageId: string; x: number; y: number; width: number; height: number };
-export type CorrelationEdge = { id: string; sourceNodeId: string; targetNodeId: string; origin: "manual"; label: string; visible: boolean; type?: "forward" | "bidirectional"; winRate?: number | null; matchCount?: number | null };
-export type CorrelationDocument = { version: 1; title?: string; showTitle: boolean; showNames: boolean; showLabels?: boolean; showStats?: boolean; nodes: CorrelationNode[]; edges: CorrelationEdge[] };
+export type CorrelationEdge = { id: string; sourceNodeId: string; targetNodeId: string; origin: "manual"; label: string; visible: boolean; type?: "forward" | "bidirectional"; winRate?: number | null; matchCount?: number | null; dataSource?: "manual" | "auto"; dataSnapshot?: DataSnapshot };
+export type CorrelationDocument = { version: 1; title?: string; showTitle: boolean; showNames: boolean; showLabels?: boolean; showStats?: boolean; nodes: CorrelationNode[]; edges: CorrelationEdge[]; dataSelection?: DataSelection };
 export type CorrelationWork = { id: string; tier_work_id: string; document: CorrelationDocument; revision: number; created_at: string; updated_at: string };
 const validId = (id: unknown): id is string => typeof id === "string" && UUID.test(id);
 
@@ -22,10 +23,12 @@ export function parseCorrelation(input: unknown, legacyTitle = ""): CorrelationD
     if (e.type !== undefined && e.type !== "forward" && e.type !== "bidirectional") throw Error("矢印の種類が不正です。");
     if (e.winRate != null && (typeof e.winRate !== "number" || !Number.isFinite(e.winRate) || e.winRate < 0 || e.winRate > 100)) throw Error("勝率は0〜100で入力してください。");
     if (e.matchCount != null && (typeof e.matchCount !== "number" || !Number.isSafeInteger(e.matchCount) || e.matchCount < 0)) throw Error("対戦数は0以上の整数で入力してください。");
+    if (e.dataSource !== undefined && e.dataSource !== "auto" && e.dataSource !== "manual") throw Error("データソースが不正です。");
     edgeIds.add(e.id); pairs.add(pair);
-    return { id: e.id, sourceNodeId: e.sourceNodeId, targetNodeId: e.targetNodeId, origin: "manual" as const, label: e.label, visible: e.visible, type: e.type ?? "forward", winRate: e.winRate ?? null, matchCount: e.matchCount ?? null };
+    return { id: e.id, sourceNodeId: e.sourceNodeId, targetNodeId: e.targetNodeId, origin: "manual" as const, label: e.label, visible: e.visible, type: e.type ?? "forward", winRate: e.winRate ?? null, matchCount: e.matchCount ?? null,
+      ...(e.dataSource === undefined ? {} : {dataSource:e.dataSource}), ...(e.dataSnapshot === undefined ? {} : {dataSnapshot:parseDataSnapshot(e.dataSnapshot)}) };
   });
-  return { version: 1, title: d.title ?? legacyTitle, showTitle: d.showTitle, showNames: d.showNames, showLabels: d.showLabels ?? true, showStats: d.showStats ?? true, nodes, edges };
+  return { version: 1, title: d.title ?? legacyTitle, showTitle: d.showTitle, showNames: d.showNames, showLabels: d.showLabels ?? true, showStats: d.showStats ?? true, nodes, edges, ...(d.dataSelection === undefined ? {} : {dataSelection:parseDataSelection(d.dataSelection)}) };
 }
 
 /** First occurrence of each library image wins; Tier order becomes vertical bands. */

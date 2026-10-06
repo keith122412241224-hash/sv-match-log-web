@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { CreatorError, creatorClient, databaseError, getCreatorData, cleanCreatorStorage } from "@/lib/creator/server";
 import { IMAGE_BUCKET, MAX_IMAGE_BYTES, UUID, parseTierDocument, validateImageFile } from "@/lib/creator/model";
 import { correlationFromTier, parseCorrelation } from "@/lib/creator/correlation";
+import { getCreatorMatchups } from "@/lib/creator/matchup-server";
 
 export const runtime = "nodejs";
 const response = (data: unknown, status = 200) => NextResponse.json(data, { status, headers: { "Cache-Control": "private, no-store" } });
@@ -95,6 +96,7 @@ export async function POST(request: NextRequest) {
     } else {
       const body = await bodyRequest.json();
       switch (body.action) {
+        case "load-matchups": return response(await getCreatorMatchups(client,body.selection,body.imageIds));
         case "save": {
           const document = parseTierDocument(body.document);
           const result = body.id

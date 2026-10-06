@@ -54,8 +54,16 @@ export function validateImageFile(file: { name: string; type: string; size: numb
 
 /** Fixed artwork dimensions; larger documents fit uniformly instead of clipping. */
 export function tierLayout(doc: TierDocument) {
-  const heights = doc.rows.map(r => Math.max(148, Math.ceil(r.imageIds.length / 12) * 136 + 16));
-  const contentHeight = heights.reduce((sum, h) => sum + h, 0) + Math.max(0, heights.length - 1) * 8;
   const available = doc.showTitle ? 912 : 984;
-  return { heights, contentHeight, scale: Math.min(1, available / contentHeight) };
+  const baseHeight = Math.max(148, (available - (doc.rows.length - 1) * 8) / doc.rows.length);
+  const imageSize = Math.floor(baseHeight * 0.82), gap = 12;
+  const padding = Math.round((baseHeight - imageSize) / 2);
+  const columns = Math.max(1, Math.floor((1664 - padding * 2 + gap) / (imageSize + gap)));
+  const heights = doc.rows.map(r => Math.max(baseHeight, Math.ceil(r.imageIds.length / columns) * (imageSize + gap) - gap + padding * 2));
+  const contentHeight = heights.reduce((sum, h) => sum + h, 0) + Math.max(0, heights.length - 1) * 8;
+  return { heights, contentHeight, imageSize, gap, padding, columns, scale: Math.min(1, available / contentHeight) };
+}
+
+export function tierImagePosition(layout: ReturnType<typeof tierLayout>, index: number) {
+  return { left: layout.padding + (index % layout.columns) * (layout.imageSize + layout.gap), top: layout.padding + Math.floor(index / layout.columns) * (layout.imageSize + layout.gap), width: layout.imageSize, height: layout.imageSize };
 }

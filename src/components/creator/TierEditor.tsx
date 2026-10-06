@@ -123,14 +123,17 @@ export function TierEditor({ initial, initialDocument, initialWorkId }: { initia
       <span className={styles.muted}>{dirty ? "未保存の変更あり" : current ? "保存済み" : "新規作品"}</span>
       {dirty && current && <span className={styles.muted}>相関図へ進む前にTier表を保存してください。</span>}
     </div>
-    <section className={styles.panel} aria-label="Tier編集">
+    <section className={`${styles.panel} ${styles.productionBoard}`} aria-label="Tier編集">
+      <div className={styles.boardHeading}>
       <label>作品タイトル<input value={doc.title} maxLength={120} disabled={busy} onChange={e=>edit({...doc,title:e.target.value})} /></label>
       <div className={styles.toolbar}>
         <label className={styles.check}><input type="checkbox" checked={doc.showTitle} disabled={busy} onChange={e=>edit({...doc,showTitle:e.target.checked})} />タイトルを表示</label>
         <label className={styles.check}><input type="checkbox" checked={transparent} disabled={busy} onChange={e=>setTransparent(e.target.checked)} />PNG・OBSの背景を透明にする</label>
       </div>
+      </div>
       <div ref={preview}><TierCanvas document={doc} images={data.images} transparent={transparent} disabled={busy} selected={selected} onSelect={setSelected} onRow={setActiveRow} onName={(id,name)=>setRow(id,{name})} onPlace={place} /></div>
-      <p className={styles.muted}>画像をドラッグして配置・並び替え。行名は表の上で直接編集できます。1920×1080でPNG・OBSに出力します。</p>
+      <ImageLibrary images={data.images} decks={data.decks} busy={busy} pending={pending} onUpload={upload} onMutation={mutation} onSelect={setSelected} />
+      <p className={styles.muted}>画像をTierへドラッグ。表全体を画面に合わせて表示しています。PNG・OBSは1920×1080です。</p>
       <div className={styles.toolbar}>
         <label>編集するTier<select aria-label="編集するTier" value={row.id} disabled={busy} onChange={e=>setActiveRow(e.target.value)}>{doc.rows.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}</select></label>
         <label>背景色<input aria-label={(rowIndex+1)+"行目の背景色"} type="color" value={row.color} disabled={busy} onChange={e=>setRow(row.id,{color:e.target.value})} /></label>
@@ -152,7 +155,6 @@ export function TierEditor({ initial, initialDocument, initialWorkId }: { initia
         </div>
       </div>}
     </section>
-    <ImageLibrary images={data.images} decks={data.decks} busy={busy} pending={pending} onUpload={upload} onMutation={mutation} onSelect={setSelected} />
     <section className={styles.panel} aria-label="保存済み作品"><h2>保存済みTier表</h2>{!data.works.length && <p className={styles.muted}>保存した作品がここに表示されます。</p>}{data.works.map(work => <div key={work.id} className={styles.work}><div><strong>{work.document.title || "無題のTier表"}</strong><p className={styles.muted}>{new Date(work.updated_at).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })}（日本時間）</p></div><div className={styles.toolbar}><button disabled={busy} onClick={() => openWork(work)}>再編集</button><button disabled={busy} onClick={() => openCorrelation(work)}>{hasCorrelation(work.id) ? "相関図を編集" : "相関図を追加"}</button><button disabled={busy} onClick={() => mutation({ action: "delete-work", id: work.id, revision: work.revision }, "保存済みのTier表を削除しますか？関連する相関図がある場合は先に相関図を削除してください。")}>作品を削除</button></div></div>)}</section>
   </main>;
 }

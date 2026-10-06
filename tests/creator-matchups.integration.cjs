@@ -1,0 +1,24 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
+const {test}=require('node:test'),assert=require('node:assert/strict');
+const h=require('./obs-matchups-db.cjs');
+const {parseAnalysisAggregates,buildAnalysisFromAggregates}=require('../src/lib/analysis-aggregates');
+test('creator: actual existing SQL equals combined Matrix for direct/reversed, period/environment/rank and exclusive end',async t=>{
+ const db=await h.createDb();t.after(()=>db.close());await db.exec(h.read(h.migration));await h.identity(db);const anchor=await h.environment(db),[a,b]=h.decks,images=[{id:h.uuid(801),archetype_id:a.id},{id:h.uuid(802),archetype_id:b.id}];
+ const client={from:()=>({select:()=>({in:async()=>({data:images,error:null})})}),rpc:async(name,p)=>{try{const data=name==='get_environment_dashboard_aggregates_v3'?await h.environment(db,p.p_environment_id,p.p_rank_filters,p.p_period):await h.analysis(db,{environmentId:p.p_environment_id,current:{start:p.p_played_from,end:p.p_played_to},rankFilters:p.p_rank_filters},{combined:p.p_include_reversed,all:p.p_include_all_users,recent:p.p_recent_deck_ids});return{data,error:null};}catch(e){return{data:null,error:{code:e.code}};}}};
+ const serverId=require.resolve('../src/lib/supabase/server');require.cache[serverId]={id:serverId,filename:serverId,loaded:true,exports:{createSupabaseServerClient:async()=>client}};
+ const {getCreatorMatchups}=require('../src/lib/creator/matchup-server');
+ const rows=Array.from({length:42},(_,i)=>{const reverse=i%2===1,awin=i<24;return h.row({played_at:anchor.current.start,my_archetype_id:reverse?b.id:a.id,opponent_archetype_id:reverse?a.id:b.id,my_deck_id:reverse?b.id:a.id,opponent_deck_id:reverse?a.id:b.id,result:(reverse?!awin:awin)?'win':'lose'});});
+ rows.push(h.row({played_at:anchor.current.end,my_archetype_id:a.id,opponent_archetype_id:b.id}),h.row({played_at:anchor.current.start,environment_id:h.OLD,my_archetype_id:a.id,opponent_archetype_id:b.id,rank_tier:'master',master_group:'ruby'}));await h.seed(db,rows);
+ for(const environment of [h.NEW,h.OLD])for(const period of ['24h','7d','30d'])for(const ranks of [['unranked'],['master:ruby'],['unranked','master:ruby']]){
+  const selection={environment,period,ranks},data=await getCreatorMatchups(client,selection,images.map(i=>i.id));const dashboard=await h.environment(db,environment,ranks,period),matrix=buildAnalysisFromAggregates(parseAnalysisAggregates(await h.analysis(db,dashboard,{combined:true}),[]),[a,b],[a,b]).matrix;
+  for(const c of data.cells){const expected=matrix.find(r=>r.myDeck.id===c.sourceDeckId).cells.find(v=>v.opponentDeckId===c.targetDeckId);assert.equal(c.winRate,expected.winRate);assert.equal(c.matchCount,expected.total);}
+  if(environment===h.NEW&&period==='7d'&&ranks.length===1&&ranks[0]==='unranked'){const x=data.cells.find(c=>c.sourceDeckId===a.id&&c.targetDeckId===b.id),y=data.cells.find(c=>c.sourceDeckId===b.id&&c.targetDeckId===a.id);assert.equal(x.matchCount,42);assert.equal(x.winRate,24/42*100);assert.equal(y.winRate,18/42*100);}
+ }
+});
+test('creator: existing Production migrations save automatic snapshots without migration; legacy manual fields untouched',async t=>{
+ const c=require('./creator-db.cjs'),db=await c.createDb();t.after(()=>db.close());const {newTierDocument}=require('../src/lib/creator/model'),{correlationFromTier,parseCorrelation}=require('../src/lib/creator/correlation');
+ await db.query('insert into public.creator_images(id,name,object_path) values($1,$2,$3)',[c.uuid(10),'image',c.uuid(10)+'.png']);const tier=newTierDocument();tier.rows[0].imageIds=[c.uuid(10)];await db.query('insert into public.creator_tier_works(id,document) values($1,$2)',[c.uuid(20),tier]);
+ const graph=correlationFromTier(tier);graph.nodes.push({...graph.nodes[0],id:c.uuid(30),x:200});graph.dataSelection={environment:c.uuid(90),period:'7d',ranks:['unranked']};graph.edges=[{id:c.uuid(40),sourceNodeId:graph.nodes[0].id,targetNodeId:c.uuid(30),origin:'manual',label:'manual adoption',visible:true,dataSource:'auto',winRate:57.1,matchCount:42,dataSnapshot:{selection:graph.dataSelection,start:'2026-10-01T00:00:00Z',end:'2026-10-02T00:00:00Z',aggregatedAt:'2026-10-02T00:01:00Z',sourceDeckId:c.uuid(50),targetDeckId:c.uuid(51)}}];
+ const parsed=parseCorrelation(graph);await db.query('insert into public.creator_correlations(id,tier_work_id,document) values($1,$2,$3)',[c.uuid(21),c.uuid(20),parsed]);assert.deepEqual((await db.query('select document from public.creator_correlations')).rows[0].document,parsed);
+ const legacy={...graph,edges:[{...graph.edges[0],dataSource:undefined,dataSnapshot:undefined,winRate:63.2,matchCount:7}],dataSelection:undefined};await db.query('update public.creator_correlations set document=$1',[legacy]);const saved=parseCorrelation((await db.query('select document from public.creator_correlations')).rows[0].document);assert.equal(saved.edges[0].winRate,63.2);assert.equal(saved.edges[0].dataSource,undefined);
+});

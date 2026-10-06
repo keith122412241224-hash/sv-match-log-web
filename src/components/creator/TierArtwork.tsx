@@ -1,5 +1,5 @@
 /* eslint-disable @next/next/no-img-element */
-import { imageUrl, tierLayout, tierTextColor, type CreatorImage, type TierDocument } from "@/lib/creator/model";
+import { imageUrl, tierLayout, tierImagePosition, tierTextColor, type CreatorImage, type TierDocument } from "@/lib/creator/model";
 
 /** The only artwork renderer: editor preview, PNG and OBS all use this DOM. */
 export function TierArtwork({ document: doc, images, transparent = false }: { document: TierDocument; images: CreatorImage[]; transparent?: boolean }) {
@@ -11,10 +11,11 @@ export function TierArtwork({ document: doc, images, transparent = false }: { do
     <div style={{ width: 1824, transform: `scale(${layout.scale})`, transformOrigin: "top center", display: "grid", gap: 8 }}>
       {doc.rows.map((row, rowIndex) => <div key={row.id} style={{ display: "flex", height: layout.heights[rowIndex], borderRadius: 8, overflow: "hidden", background: "#1e293b" }}>
         <div style={{ width: 160, flexShrink: 0, background: row.color, color: tierTextColor(row.color), padding: 12, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", fontSize: Math.min(28, Math.floor(Math.sqrt(136 * (layout.heights[rowIndex] - 24) / Math.max(1, row.name.length)) * 0.8)), lineHeight: 1.2, fontWeight: 700, overflowWrap: "anywhere" }}>{row.name}</div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, padding: 8, alignContent: "flex-start", flex: 1 }}>
+        <div style={{ position: "relative", flex: 1 }}>
           {row.imageIds.map((id, index) => {
             const image = byId.get(id);
-            return image ? <img key={`${id}-${index}`} alt={image.name} src={imageUrl(image)} width={128} height={128} loading="eager" style={{ width: 128, height: 128, objectFit: "contain", flexShrink: 0 }} /> : <div key={`${id}-${index}`} style={{ width: 128, height: 128, fontSize: 16, padding: 8 }}>画像が見つかりません</div>;
+            const frame = tierImagePosition(layout,index);
+            return image ? <img key={`${id}-${index}`} alt={image.name} src={imageUrl(image)} width={layout.imageSize} height={layout.imageSize} loading="eager" style={{ position: "absolute", ...frame, objectFit: "contain" }} /> : <div key={`${id}-${index}`} style={{ position: "absolute", ...frame, fontSize: 16, padding: 8 }}>画像が見つかりません</div>;
           })}
         </div>
       </div>)}

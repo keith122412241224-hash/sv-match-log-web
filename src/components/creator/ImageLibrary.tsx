@@ -19,15 +19,14 @@ export function ImageLibrary({ images, decks, busy, pending = [], onUpload, onMu
   const [selected,setSelected] = useState("");
   const image = images.find(i=>i.id===selected);
   function filesSelected(files: FileList | null) { if (files?.length) onUpload(Array.from(files)); }
-  return <section className={styles.panel} aria-label="画像ライブラリ">
-    <h2>画像ライブラリ</h2>
-    <p className={styles.muted}>画像をTierへドラッグ。クリックで配置先の選択・画像の管理ができます。</p>
+  return <section className={styles.boardLibrary} aria-label="画像ライブラリ">
+    <div className={styles.libraryHeading} data-library-heading><h2>画像ライブラリ</h2>
     <div className={styles.drop} onDragOver={e => { if (e.dataTransfer.types.includes("Files")) e.preventDefault(); }} onDrop={e => { e.preventDefault(); if (!busy) filesSelected(e.dataTransfer.files); }}>
-      <label>画像をドロップ / ファイル選択<input aria-label="画像アップロード" type="file" accept=".jpg,.jpeg,.png,.webp" multiple disabled={busy} onChange={e => { filesSelected(e.target.files); e.target.value = ""; }} /></label>
-      <p className={styles.muted}>JPG・PNG・WEBP / 1枚4MBまで。透明PNG対応。</p>
+      <label>画像を追加<input aria-label="画像アップロード" type="file" accept=".jpg,.jpeg,.png,.webp" multiple disabled={busy} onChange={e => { filesSelected(e.target.files); e.target.value = ""; }} /></label>
+    </div>
     </div>
     {!images.length && !pending.length && <p className={styles.muted}>まずデッキ画像を追加してください。</p>}
-    <div className={styles.library}>
+    <div className={`${styles.library} ${styles.libraryStrip}`} data-library-strip tabIndex={0} aria-label="画像一覧（横スクロール）">
       {pending.map(p=><article key={p.id} className={styles.asset} aria-busy={!p.error}>{p.url && <img src={p.url} alt="" width={96} height={96} />}<span>{p.name}</span><small className={p.error?styles.error:styles.muted}>{p.error?`失敗：${p.error}`:"処理中…"}</small></article>)}
       {images.map(asset => <article className={styles.asset} key={asset.id}>
         <button type="button" className={styles.thumbnail} aria-label={`${asset.name}を選択`} aria-pressed={selected===asset.id} disabled={busy} draggable={!busy} onDragStart={e=>beginImageDrag(e,{imageId:asset.id})} onClick={()=>{setSelected(asset.id);onSelect({imageId:asset.id});}}>

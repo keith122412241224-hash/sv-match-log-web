@@ -16,6 +16,10 @@ const user = () => ({ id: mode === 'member' ? MEMBER : ADMIN, aud: 'authenticate
 function json(res, status, body) { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(body)); }
 async function main() {
   const db = await createDb();
+  const fixture=require('./obs-environment-fixture.cjs');
+  if(process.env.CREATOR_BOARD==='1'){
+    await db.exec('reset role');for(const deck of fixture.decks)await db.query('insert into public.deck_archetypes(id,name) values($1,$2)',[deck.id,deck.name]);await identity(db);
+  }
   const api = http.createServer((req, res) => {
     chain = chain.then(async () => {
       let url;
@@ -25,6 +29,13 @@ async function main() {
         const bytes = Buffer.concat(buffers);
         if (url.pathname === '/auth/v1/user') return json(res, 200, user());
         await identity(db, mode === 'member' ? MEMBER : ADMIN, 'authenticated', mode === 'guest');
+        if(url.pathname==='/rest/v1/environments')return json(res,200,[...fixture.environments,{...fixture.environments[0],id:fixture.id(2),name:'以前の環境',created_at:'2026-09-01T00:00:00Z'}]);
+        if(url.pathname.startsWith('/rest/v1/rpc/')){
+          const args=JSON.parse(bytes);report.rpcCalls??=[];report.rpcCalls.push({name:url.pathname.split('/').at(-1),args});
+          if(url.pathname.endsWith('/get_environment_dashboard_aggregates_v3'))return json(res,200,fixture.dashboard(args));
+          if(url.pathname.endsWith('/get_analysis_aggregates_v3_exclusive'))return json(res,200,args.p_environment_id===fixture.id(2)||Date.parse(args.p_played_to)-Date.parse(args.p_played_from)<2*86400000?{version:1,registeredMatches:0,perspectives:0,totalWins:0,groups:[],recent:[]}:require('./obs-matchups-fixture.cjs').aggregates());
+          throw Error('Unexpected RPC');
+        }
         if (url.pathname.startsWith('/storage/v1/object')) {
           const objectPath = decodeURIComponent(url.pathname.split('/creator-images/')[1] || '');
           if (req.method === 'POST') {
@@ -100,6 +111,10 @@ async function main() {
     const transparent = await sharp({ create: { width: 128, height: 128, channels: 4, background: { r: 255, g: 0, b: 0, alpha: 0.5 } } }).png().toBuffer();
     const jpeg = await sharp(png).jpeg().toBuffer(), webp = await sharp(png).webp().toBuffer();
     const files = [{ name: 'デッキ.png', mimeType: 'image/png', buffer: png }, { name: '透明.png', mimeType: 'image/png', buffer: transparent }, { name: 'デッキ.jpg', mimeType: 'image/jpeg', buffer: jpeg }, { name: 'デッキ.webp', mimeType: 'image/webp', buffer: webp }];
+    if(process.env.CREATOR_BOARD==='1'){
+      await require('./creator-board.browser.cjs')({page,context,browser,db,origin,report,out,observe,setMode:v=>{mode=v;},files});
+      assert.deepEqual(report.events,[]);assert.deepEqual(report.unexpected,[]);return;
+    }
     if (process.env.CREATOR_PERF === '1') {
       await require('./creator-performance.browser.cjs')({page,files,report,out});
       return;
@@ -167,7 +182,7 @@ async function main() {
     for (const width of [1920,1440,768,390,320]) {
       await page.setViewportSize({ width, height: 1080 });
       await page.screenshot({ path: path.join(out, `editor-${width}.png`), fullPage: true });
-      const escaped = await page.locator('main').evaluate(el => [...el.querySelectorAll('button,input,select,a')].filter(n => { const b = n.getBoundingClientRect(); return b.width && (b.right > innerWidth + 1 || b.left < -1); }).map(n => n.outerHTML.slice(0,100)));
+      const escaped = await page.locator('main').evaluate(el => [...el.querySelectorAll('button,input,select,a')].filter(n => { const b = n.getBoundingClientRect(); return !n.closest('[data-library-strip]') && b.width && (b.right > innerWidth + 1 || b.left < -1); }).map(n => n.outerHTML.slice(0,100)));
       assert.deepEqual(escaped, [], `${width}px controls fit`);
     }
     await page.setViewportSize({ width: 1920, height: 1080 });

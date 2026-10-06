@@ -50,3 +50,18 @@
 .canvasName:focus { outline: 4px solid #38bdf8; outline-offset: -4px; }
 .page .canvasImage { position: absolute; width: 128px; height: 128px; padding: 0; border: 0; border-radius: 0; background: transparent; cursor: grab; }
 .page .canvasImage:hover, .page .canvasImage:focus-visible, .page .canvasImage[data-selected=true] { background: #38bdf822; outline: 3px solid #38bdf8; outline-offset: -3px; }
+.productionBoard { gap: 10px; background: #f8fafc; }
+.boardHeading, .libraryHeading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; }
+.boardHeading > label { flex: 1; min-width: min(260px,100%); }
+.boardLibrary { display: grid; gap: 8px; min-width: 0; }
+.libraryHeading .drop { padding: 4px 8px; border-width: 1px; }
+.libraryHeading .drop label { position: relative; display: flex; align-items: center; justify-content: center; min-width: 140px; height: 44px; cursor: pointer; }
+.page .libraryHeading input[type=file] { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; opacity: 0; cursor: pointer; }
+.libraryHeading .drop:focus-within { outline: 2px solid #2563eb; }
+.libraryStrip { display: flex; justify-content: safe center; overflow-x: auto; overscroll-behavior-x: contain; padding: 3px 3px 8px; }
+.libraryStrip .asset { flex: 0 0 100px; }
+.libraryStrip .asset img { width: 76px; height: 76px; }
+.tierFit { margin-inline: auto; }
+@media(min-width: 901px) { .tierFit { max-width: calc(max(180px, 100dvh - 410px) * 16 / 9); } }
+.dataFilters { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(200px,100%),1fr)); gap: 12px; align-items: end; }
+.candidates { max-height: 300px; overflow: auto; display: grid; gap: 8px; }
