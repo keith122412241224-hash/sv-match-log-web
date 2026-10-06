@@ -5,6 +5,7 @@ module.exports=async({page,context,browser,db,origin,report,out,observe,setMode,
  const post=async data=>{const r=await context.request.post(origin+'/admin/creator/api',{headers:{Origin:origin},data});assert.equal(r.status(),200,await r.text());return r.json();};
  const row=n=>page.getByRole('region',{name:'Tier '+n,exact:true}).locator('[class*="canvasItems"]');
  const library=page.getByRole('region',{name:'画像ライブラリ'});
+ const waitForFit=()=>page.waitForFunction(()=>{const canvas=document.querySelector('[data-tier-preview]').getBoundingClientRect(),strip=document.querySelector('[data-library-strip]').getBoundingClientRect();return canvas.top>=0&&canvas.bottom<=innerHeight&&strip.bottom<=innerHeight;},null,{timeout:5000});
  const wide={name:'wide.png',mimeType:'image/png',buffer:await sharp({create:{width:800,height:80,channels:4,background:'#8044cc'}}).png().toBuffer()};
  const tall={name:'tall.png',mimeType:'image/png',buffer:await sharp({create:{width:80,height:200,channels:4,background:'#ee9900'}}).png().toBuffer()};
  const uploads=[...files,wide,tall];await page.getByLabel('画像アップロード').setInputFiles(uploads);await page.getByRole('status').filter({hasText:'6枚の画像を保存しました'}).waitFor();
@@ -14,6 +15,7 @@ module.exports=async({page,context,browser,db,origin,report,out,observe,setMode,
  if(process.env.CREATOR_BROWSER_HOLD==='1'){console.log('READY_FOR_INITIAL_BOARD_CHECK');await new Promise(r=>setTimeout(r,45000));}
  for(const [width,height]of [[1920,1080],[1440,900],[1366,768]]){
   await page.setViewportSize({width,height});await page.getByRole('button',{name:'新しいTier表',exact:true}).click();await page.evaluate(()=>scrollTo(0,0));
+  await waitForFit();
   const preview=await page.locator('[data-tier-preview]').boundingBox(),strip=await library.locator('[aria-label="画像一覧（横スクロール）"]').boundingBox();
   await page.screenshot({path:path.join(out,'board-fit-'+width+'.png'),fullPage:true});
   assert.ok(preview.y>=0&&preview.y+preview.height<=height,JSON.stringify({width,height,preview}));assert.ok(strip.y>=preview.y+preview.height&&strip.y+strip.height<=height,JSON.stringify({width,height,strip}));
@@ -27,6 +29,9 @@ module.exports=async({page,context,browser,db,origin,report,out,observe,setMode,
  await page.setViewportSize({width:1920,height:1080});await page.getByRole('button',{name:'新しいTier表',exact:true}).click();
  for(let i=0;i<images.length;i++){await library.getByRole('button',{name:images[i].name+'を選択',exact:true}).dragTo(row(['S','A','B','C','D','S'][i]));}
  await page.getByLabel('作品タイトル',{exact:true}).fill('制作ボード検証');await page.getByRole('button',{name:'Tier表を保存',exact:true}).click();await page.getByRole('status').filter({hasText:'Tier表を保存しました'}).waitFor();let tier=(await db.query('select * from public.creator_tier_works')).rows[0];
+ await page.goto(origin+'/admin/creator/tier?work='+tier.id,{waitUntil:'networkidle'});
+ for(const [width,height]of [[1920,1080],[1366,768]]){await page.setViewportSize({width,height});await page.evaluate(()=>scrollTo(0,0));await waitForFit();const preview=await page.locator('[data-tier-preview]').boundingBox(),strip=await library.locator('[data-library-strip]').boundingBox();await page.screenshot({path:path.join(out,'saved-fit-'+width+'.png'),fullPage:true});assert.ok(preview.y+preview.height<=height,JSON.stringify({width,height,preview,strip}));assert.ok(strip.y+strip.height<=height,JSON.stringify({width,height,preview,strip}));}
+ await page.setViewportSize({width:1920,height:1080});
  await page.reload({waitUntil:'networkidle'});await page.getByRole('button',{name:'再編集',exact:true}).click();assert.equal(await page.locator('[data-tier-artwork] img').count(),6);
  const {tierLayout,tierImagePosition}=require('../src/lib/creator/model');const layout=tierLayout(tier.document);for(const n of [0,1,2,3,4]){assert.ok(layout.imageSize/layout.heights[n]>=.75);}
  const artwork=async p=>p.locator('[data-tier-artwork]').evaluate(el=>[...el.querySelectorAll('img')].map(img=>({src:img.getAttribute('src'),width:getComputedStyle(img).width,height:getComputedStyle(img).height,fit:getComputedStyle(img).objectFit,natural:[img.naturalWidth,img.naturalHeight]})));
@@ -57,5 +62,8 @@ module.exports=async({page,context,browser,db,origin,report,out,observe,setMode,
  for(const role of ['member','guest']){setMode(role);const r=await context.request.post(origin+'/admin/creator/api',{headers:{Origin:origin},data:{action:'load-matchups',selection:payload.selection,imageIds:images.map(i=>i.id)}});assert.equal(r.status(),role==='member'?403:401);}setMode('admin');const anon=await browser.newContext();assert.equal((await anon.request.post(origin+'/admin/creator/api',{headers:{Origin:origin},data:{action:'load-matchups'}})).status(),401);await anon.close();
  report.checks.push('auto on connect, RPC-direction reverse, period/environment explicit refresh, zero data not0%, unlinked image/manual fallback, manual preservation, candidates selectable without deleting manual edges, sources/snapshots save/reload, PNG/OBS, admin/member/guest/anon');
  await page.screenshot({path:path.join(out,'board-correlation-editor.png'),fullPage:true});
+ await page.goto(origin+'/admin/creator/tier?work='+tier.id,{waitUntil:'networkidle'});
+ await page.getByLabel('画像アップロード').setInputFiles(Array.from({length:8},(_,i)=>({...files[0],name:'[Board previous] material '+i+'.png'})));await page.getByRole('status').filter({hasText:'8枚の画像を保存しました'}).waitFor();await page.reload({waitUntil:'networkidle'});
+ for(const [width,height]of [[1920,1080],[1366,768]]){await page.setViewportSize({width,height});await page.evaluate(()=>scrollTo(0,0));await waitForFit();const preview=await page.locator('[data-tier-preview]').boundingBox(),strip=await library.locator('[data-library-strip]').boundingBox();await page.screenshot({path:path.join(out,'saved-graph-fit-'+width+'.png'),fullPage:true});assert.ok(preview.y+preview.height<=height,JSON.stringify({width,height,preview,strip}));assert.ok(strip.y+strip.height<=height,JSON.stringify({width,height,preview,strip}));}
  console.log('READY_FOR_BOARD_BROWSER');if(process.env.CREATOR_BROWSER_HOLD==='1')await new Promise(r=>setTimeout(r,45000));await obs.close();
 };
