@@ -1,14 +1,15 @@
 import { UUID, type TierDocument } from "./model";
 
 export type CorrelationNode = { id: string; imageId: string; x: number; y: number; width: number; height: number };
-export type CorrelationEdge = { id: string; sourceNodeId: string; targetNodeId: string; origin: "manual"; label: string; visible: boolean };
-export type CorrelationDocument = { version: 1; showTitle: boolean; showNames: boolean; nodes: CorrelationNode[]; edges: CorrelationEdge[] };
+export type CorrelationEdge = { id: string; sourceNodeId: string; targetNodeId: string; origin: "manual"; label: string; visible: boolean; type?: "forward" | "bidirectional"; winRate?: number | null; matchCount?: number | null };
+export type CorrelationDocument = { version: 1; title?: string; showTitle: boolean; showNames: boolean; showLabels?: boolean; showStats?: boolean; nodes: CorrelationNode[]; edges: CorrelationEdge[] };
 export type CorrelationWork = { id: string; tier_work_id: string; document: CorrelationDocument; revision: number; created_at: string; updated_at: string };
 const validId = (id: unknown): id is string => typeof id === "string" && UUID.test(id);
 
-export function parseCorrelation(input: unknown): CorrelationDocument {
+export function parseCorrelation(input: unknown, legacyTitle = ""): CorrelationDocument {
   const d = input as CorrelationDocument;
   if (!d || d.version !== 1 || typeof d.showTitle !== "boolean" || typeof d.showNames !== "boolean" || !Array.isArray(d.nodes) || d.nodes.length > 300 || !Array.isArray(d.edges) || d.edges.length > 600) throw Error("相関図の形式が不正です（画像300個・矢印600本まで）。");
+  if ((d.title !== undefined && (typeof d.title !== "string" || d.title.length > 120)) || [d.showLabels,d.showStats].some(v=>v!==undefined && typeof v!=="boolean")) throw Error("相関図のタイトル・表示設定が不正です。");
   const ids = new Set<string>(), edgeIds = new Set<string>(), pairs = new Set<string>();
   const nodes = d.nodes.map(n => {
     if (!n || !validId(n.id) || ids.has(n.id) || !validId(n.imageId) || ![n.x,n.y,n.width,n.height].every(v => typeof v === "number" && Number.isFinite(v)) || n.width < 24 || n.height < 24 || n.width > 480 || n.height > 480 || n.x < 0 || n.y < 0 || n.x + n.width > 1920 || n.y + n.height > 1080) throw Error("ノードのID・座標・サイズが不正です。キャンバス内に配置してください。");
@@ -18,10 +19,13 @@ export function parseCorrelation(input: unknown): CorrelationDocument {
     if (!e || !validId(e.id) || edgeIds.has(e.id) || !ids.has(e.sourceNodeId) || !ids.has(e.targetNodeId) || e.sourceNodeId === e.targetNodeId || e.origin !== "manual" || typeof e.label !== "string" || e.label.length > 60 || typeof e.visible !== "boolean") throw Error("矢印の接続先・ラベル・形式が不正です。自己接続はできません。");
     const pair = [e.sourceNodeId, e.targetNodeId].sort().join(":");
     if (pairs.has(pair)) throw Error("同じ2つのノードには矢印を1本だけ設定できます。方向反転をご利用ください。");
+    if (e.type !== undefined && e.type !== "forward" && e.type !== "bidirectional") throw Error("矢印の種類が不正です。");
+    if (e.winRate != null && (typeof e.winRate !== "number" || !Number.isFinite(e.winRate) || e.winRate < 0 || e.winRate > 100)) throw Error("勝率は0〜100で入力してください。");
+    if (e.matchCount != null && (typeof e.matchCount !== "number" || !Number.isSafeInteger(e.matchCount) || e.matchCount < 0)) throw Error("対戦数は0以上の整数で入力してください。");
     edgeIds.add(e.id); pairs.add(pair);
-    return { id: e.id, sourceNodeId: e.sourceNodeId, targetNodeId: e.targetNodeId, origin: "manual" as const, label: e.label, visible: e.visible };
+    return { id: e.id, sourceNodeId: e.sourceNodeId, targetNodeId: e.targetNodeId, origin: "manual" as const, label: e.label, visible: e.visible, type: e.type ?? "forward", winRate: e.winRate ?? null, matchCount: e.matchCount ?? null };
   });
-  return { version: 1, showTitle: d.showTitle, showNames: d.showNames, nodes, edges };
+  return { version: 1, title: d.title ?? legacyTitle, showTitle: d.showTitle, showNames: d.showNames, showLabels: d.showLabels ?? true, showStats: d.showStats ?? true, nodes, edges };
 }
 
 /** First occurrence of each library image wins; Tier order becomes vertical bands. */
@@ -42,7 +46,7 @@ export function correlationFromTier(tier: TierDocument): CorrelationDocument {
     const rowOffset = offset; offset += lines * cellHeight;
     return ids.map((imageId, index) => ({ id: crypto.randomUUID(), imageId, x: Math.round(60 + (index % columns) * cellWidth + (cellWidth - width) / 2), y: Math.round(120 + rowOffset + Math.floor(index / columns) * cellHeight + (cellHeight - height) / 2), width: Math.round(width), height: Math.round(height) }));
   });
-  return { version: 1, showTitle: tier.showTitle, showNames: true, nodes, edges: [] };
+  return { version: 1, title: tier.title, showTitle: tier.showTitle, showNames: true, showLabels: true, showStats: true, nodes, edges: [] };
 }
 
 export function boundNode(node: CorrelationNode, patch: Partial<Pick<CorrelationNode, "x" | "y" | "width" | "height">>): CorrelationNode {

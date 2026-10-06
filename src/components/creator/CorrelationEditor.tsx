@@ -61,14 +61,17 @@ export function CorrelationEditor({ tier, initial, images }: { tier: TierWork; i
     <div className={styles.correlationColumns}>
       <section className={styles.panel} aria-label="相関図キャンバス">
         <h2>画像を動かして、矢印でつなぐ</h2>
-        <p className={styles.muted}>A → B は「AがBに有利」。すべて手動の解説です。画像をドラッグ、または選択して矢印キーで移動できます（Shiftで10px）。</p>
+        <label>相関図タイトル<input value={doc.title ?? ""} maxLength={120} disabled={busy} onChange={e=>edit({...doc,title:e.target.value})} /></label>
+        <p className={styles.muted}>矢印・数値はすべて手入力です。両方向の意味も自由に設定できます。画像をドラッグ、または選択して矢印キーで移動できます（Shiftで10px）。</p>
         <div ref={preview}><CorrelationCanvas document={doc} images={images} title={tier.document.title} transparent={transparent} selectedId={selected} onSelect={setSelected} onMove={move} disabled={busy} /></div>
         <div className={styles.toolbar}>
-          <label className={styles.check}><input type="checkbox" checked={doc.showTitle} disabled={busy} onChange={e => edit({ ...doc,showTitle:e.target.checked })} />共通タイトルを表示</label>
+          <label className={styles.check}><input type="checkbox" checked={doc.showTitle} disabled={busy} onChange={e => edit({ ...doc,showTitle:e.target.checked })} />相関図タイトルを表示</label>
           <label className={styles.check}><input type="checkbox" checked={doc.showNames} disabled={busy} onChange={e => edit({ ...doc,showNames:e.target.checked })} />デッキ名を表示</label>
+          <label className={styles.check}><input type="checkbox" checked={doc.showLabels !== false} disabled={busy} onChange={e=>edit({...doc,showLabels:e.target.checked})} />矢印ラベルを表示</label>
+          <label className={styles.check}><input type="checkbox" checked={doc.showStats !== false} disabled={busy} onChange={e=>edit({...doc,showStats:e.target.checked})} />勝率・対戦数を表示</label>
           <label className={styles.check}><input type="checkbox" checked={transparent} disabled={busy} onChange={e => setTransparent(e.target.checked)} />PNG・OBSの背景を透明にする</label>
         </div>
-        <p className={styles.muted}>1920×1080で保存します。重なったノード同士の矢印は、離すと表示されます。タイトルはTier表で変更できます。</p>
+        <p className={styles.muted}>1920×1080で保存します。重なったノード同士の矢印は、離すと表示されます。タイトルはTier表と独立して保存されます。</p>
       </section>
       <section className={styles.panel} aria-label="ノード設定"><h2>画像・位置</h2>
         <label>選択ノード<select aria-label="選択ノード" value={selected} disabled={busy} onChange={e => setSelected(e.target.value)}><option value="">選択してください</option>{doc.nodes.map(n => <option key={n.id} value={n.id}>{nodeName(n.id)}</option>)}</select></label>
@@ -90,8 +93,10 @@ export function CorrelationEditor({ tier, initial, images }: { tier: TierWork; i
       </div>
       {!doc.edges.length && <p className={styles.muted}>接続元・接続先を選んで矢印を追加してください。1ペア1本です。</p>}
       {doc.edges.map((edge,index) => <div key={edge.id} className={styles.edgeRow} data-edge-editor={edge.id}>
-        <p className="break-words">{nodeName(edge.sourceNodeId)} → {nodeName(edge.targetNodeId)}</p>
+        <p className="break-words">{nodeName(edge.sourceNodeId)} {edge.type === "bidirectional" ? "↔" : "→"} {nodeName(edge.targetNodeId)}</p>
+        <label>種類<select aria-label={`矢印${index+1}の種類`} value={edge.type ?? "forward"} disabled={busy} onChange={e=>edit({...doc,edges:doc.edges.map(v=>v.id===edge.id?{...v,type:e.target.value as "forward"|"bidirectional"}:v)})}><option value="forward">片方向</option><option value="bidirectional">両方向</option></select></label>
         <label>ラベル<input aria-label={`矢印${index+1}のラベル`} value={edge.label} maxLength={60} disabled={busy} onChange={e => edit({ ...doc,edges:doc.edges.map(v => v.id === edge.id ? {...v,label:e.target.value} : v) })} /></label>
+        <div className={styles.toolbar}>{(["winRate","matchCount"] as const).map(key=><label key={key}>{key === "winRate" ? "勝率（%・手入力）" : "対戦数（手入力）"}<input aria-label={`矢印${index+1}の${key === "winRate" ? "勝率" : "対戦数"}`} type="number" min={0} max={key === "winRate" ? 100 : Number.MAX_SAFE_INTEGER} step={key === "winRate" ? "any" : 1} value={edge[key] ?? ""} disabled={busy} onChange={e=>edit({...doc,edges:doc.edges.map(v=>v.id===edge.id?{...v,[key]:e.target.value === "" ? null : Number(e.target.value)}:v)})} /></label>)}</div>
         <div className={styles.toolbar}><label className={styles.check}><input type="checkbox" aria-label={`矢印${index+1}を表示`} checked={edge.visible} disabled={busy} onChange={e => edit({ ...doc,edges:doc.edges.map(v => v.id === edge.id ? {...v,visible:e.target.checked} : v) })} />表示</label>
           <button disabled={busy} onClick={() => edit({ ...doc,edges:doc.edges.map(v => v.id === edge.id ? {...v,sourceNodeId:v.targetNodeId,targetNodeId:v.sourceNodeId} : v) })}>方向を反転</button>
           <button disabled={busy} onClick={() => edit({ ...doc,edges:doc.edges.filter(v => v.id !== edge.id) })}>矢印を削除</button>

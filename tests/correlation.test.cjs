@@ -14,7 +14,7 @@ test('correlation: Tier order, no duplicate image selection, bounded initial lay
 });
 test('correlation: rejects malformed IDs, nonfinite/outside coordinates, invalid endpoints, self/duplicate/reverse edges and generated origin',()=>{
  const d=sample(),[a,b]=d.nodes,e={id:id(10),sourceNodeId:a.id,targetNodeId:b.id,origin:'manual',label:'57% / 42戦',visible:true};
- assert.deepEqual(parseCorrelation({...d,edges:[e]}).edges,[e]);
+ assert.deepEqual(parseCorrelation({...d,edges:[e]}).edges,[{...e,type:'forward',winRate:null,matchCount:null}]);
  for(const nodes of [[{...a,x:-1}], [{...a,x:1920}], [{...a,width:Infinity}], [{...a,height:0}], [a,a]])assert.throws(()=>parseCorrelation({...d,nodes}));
  for(const edges of [[{...e,targetNodeId:a.id}], [{...e,targetNodeId:id(999)}], [e,{...e,id:id(11),sourceNodeId:b.id,targetNodeId:a.id}], [{...e,origin:'generated'}], [{...e,label:'x'.repeat(61)}]])assert.throws(()=>parseCorrelation({...d,edges}));
 });

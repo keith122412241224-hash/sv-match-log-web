@@ -18,8 +18,9 @@ module.exports=async({page,db,objects,report})=>{
     await sharp(object.bytes).stats();
   }
   // Replacement goes through the same normalization path and preserves the ID.
-  const chosen=created[0],article=page.getByRole('region',{name:'画像ライブラリ'}).locator('article').filter({has:page.getByRole('heading',{name:chosen.name,exact:true})});
-  await article.locator('summary').click();await article.getByLabel('画像を差し替え').setInputFiles(files[0]);
+  const chosen=created[0];
+  await page.getByRole('region',{name:'画像ライブラリ'}).getByRole('button',{name:chosen.name+'を選択',exact:true}).click();
+  await page.getByRole('region',{name:'選択画像の管理'}).getByLabel('画像を差し替え').setInputFiles(files[0]);
   await page.getByRole('status').filter({hasText:'1枚の画像を保存しました。'}).waitFor();
   const updated=(await db.query('select * from public.creator_images where id=$1',[chosen.id])).rows[0];assert.equal(updated.id,chosen.id);assert.equal(updated.revision,chosen.revision+1);assert.equal((await sharp(objects.get(updated.object_path).bytes).metadata()).format,'png');
   report.checks.push(`Upload regression: ${files.length} mislabeled AVIF files upload as decoded PNG with dimensions/alpha preserved; replacement preserves image ID`);

@@ -2,7 +2,8 @@
 import { imageUrl, type CreatorImage } from "@/lib/creator/model";
 import { edgeGeometry, type CorrelationDocument } from "@/lib/creator/correlation";
 
-export function CorrelationArtwork({ document: doc, title, images, transparent = false }: { document: CorrelationDocument; title: string; images: CreatorImage[]; transparent?: boolean }) {
+export function CorrelationArtwork({ document: doc, title: legacyTitle, images, transparent = false }: { document: CorrelationDocument; title: string; images: CreatorImage[]; transparent?: boolean }) {
+  const title = doc.title ?? legacyTitle;
   const byId = new Map(images.map(image => [image.id,image]));
   const nodes = new Map(doc.nodes.map(node => [node.id,node]));
   const titleUnits = Array.from(title).reduce((sum,c) => sum + (c.charCodeAt(0) < 128 ? 0.65 : 1),0);
@@ -16,7 +17,9 @@ export function CorrelationArtwork({ document: doc, title, images, transparent =
         return <g key={edge.id} data-edge-id={edge.id}>
           <line x1={geometry.start.x} y1={geometry.start.y} x2={geometry.end.x} y2={geometry.end.y} stroke="#38bdf8" strokeWidth="4" />
           <polygon points={geometry.points} fill="#38bdf8" />
-          {edge.label && <text x={geometry.label.x} y={geometry.label.y} textAnchor="middle" fill="#f8fafc" stroke="#0f172a" strokeWidth="5" paintOrder="stroke" fontSize="24" fontWeight="700">{edge.label}</text>}
+          {edge.type === "bidirectional" && <polygon points={edgeGeometry(target!,source!)!.points} fill="#38bdf8" />}
+          {doc.showLabels !== false && edge.label && <text x={geometry.label.x} y={geometry.label.y} textAnchor="middle" fill="#f8fafc" stroke="#0f172a" strokeWidth="5" paintOrder="stroke" fontSize="24" fontWeight="700">{edge.label}</text>}
+          {doc.showStats !== false && (edge.winRate != null || edge.matchCount != null) && <text x={geometry.label.x} y={geometry.label.y + 46} textAnchor="middle" fill="#f8fafc" stroke="#0f172a" strokeWidth="5" paintOrder="stroke" fontSize="24" fontWeight="700">{[edge.winRate != null ? `${edge.winRate}%` : null,edge.matchCount != null ? `${edge.matchCount}戦` : null].filter(v=>v!==null).join(" / ")}</text>}
         </g>;
       })}
     </svg>

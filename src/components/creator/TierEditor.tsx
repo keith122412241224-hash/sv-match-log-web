@@ -1,12 +1,11 @@
 "use client";
-/* eslint-disable @next/next/no-img-element */
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useUnsavedChanges } from "./useUnsavedChanges";
-import { newTierDocument, imageUrl, placeImage, parseTierDocument, validateImageFile, type CreatorImage, type ImageDrag, type TierDocument, type TierRow, type TierWork } from "@/lib/creator/model";
-import { ImageLibrary, beginImageDrag, DRAG_TYPE } from "./ImageLibrary";
-import { TierPreview } from "./TierPreview";
+import { newTierDocument, placeImage, parseTierDocument, type CreatorImage, type ImageDrag, type TierDocument, type TierRow, type TierWork } from "@/lib/creator/model";
+import { ImageLibrary, type UploadPreview } from "./ImageLibrary";
+import { TierCanvas } from "./TierCanvas";
 import { saveTierPng } from "@/lib/creator/png";
 import { prepareCreatorUpload } from "@/lib/creator/upload";
 import styles from "./Creator.module.css";
@@ -24,6 +23,13 @@ export function TierEditor({ initial, initialDocument, initialWorkId }: { initia
   const [notice, setNotice] = useState<{ error: boolean; text: string } | null>(null);
   const [selected, setSelected] = useState<ImageDrag | null>(null);
   const [transparent, setTransparent] = useState(false);
+  const [activeRow,setActiveRow] = useState(doc.rows[0]?.id ?? "");
+  const [pending,setPending] = useState<UploadPreview[]>([]);
+  const urls = useRef(new Set<string>());
+  useEffect(()=>{const activeUrls=urls.current;return ()=>{activeUrls.forEach(url=>URL.revokeObjectURL(url));};},[]);
+  const row = doc.rows.find(r=>r.id===activeRow) ?? doc.rows[0];
+  const rowIndex = doc.rows.indexOf(row);
+  const selectedRow = doc.rows.find(r=>r.id===selected?.rowId);
   const preview = useRef<HTMLDivElement>(null);
   const confirmLeave = useUnsavedChanges(dirty);
   const hasCorrelation = (tierId: string) => data.correlations.some(c => c.tier_work_id === tierId);
@@ -60,18 +66,31 @@ export function TierEditor({ initial, initialDocument, initialWorkId }: { initia
   }
   function upload(files: File[], image?: CreatorImage) {
     void run(async () => {
-      files.forEach(validateImageFile);
-      let count = 0;
-      for (const file of files) {
-        try {
-          const prepared = await prepareCreatorUpload(file);
-          const form = new FormData(); form.set("file", prepared); form.set("name", file.name.slice(0, 120));
-          if (image) { form.set("id", image.id); form.set("revision", String(image.revision)); }
-          const result = await request(form); setData(result); count++;
+      const jobs=files.map(file=>({file,id:crypto.randomUUID()}));
+      setPending(jobs.map(j=>({id:j.id,name:j.file.name})));
+      let cursor=0, count=0;
+      const errors:string[]=[], warnings:string[]=[];
+      await Promise.all(Array.from({length:Math.min(image?1:3,jobs.length)},async()=>{
+        while(cursor<jobs.length) {
+          const {file,id}=jobs[cursor++]; let url:string|undefined;
+          try {
+            const prepared=await prepareCreatorUpload(file);
+            url=URL.createObjectURL(prepared); urls.current.add(url);
+            setPending(old=>old.map(p=>p.id===id?{...p,url}:p));
+            const form=new FormData();form.set("file",prepared);form.set("name",file.name.slice(0,120));
+            if(image){form.set("id",image.id);form.set("revision",String(image.revision));}
+            const result=await request(form);
+            setData(old=>({...old,images:[result.image,...old.images.filter(i=>i.id!==result.image.id)]}));
+            setPending(old=>old.filter(p=>p.id!==id)); count++;
+            if(result.warning)warnings.push(result.warning);
+          } catch(error) {
+            const message=error instanceof Error?error.message:"アップロードに失敗しました。";
+            errors.push(file.name+"："+message);
+            setPending(old=>old.map(p=>p.id===id?{...p,url:undefined,error:message}:p));
+          } finally {if(url){URL.revokeObjectURL(url);urls.current.delete(url);}}
         }
-        catch (error) { throw Error(`${count}枚保存済み。${error instanceof Error ? error.message : "アップロードに失敗しました。"}`); }
-      }
-      setNotice({ error: false, text: `${count}枚の画像を保存しました。` });
+      }));
+      setNotice({error:errors.length>0,text:count+"枚の画像を保存しました。"+(errors.length?errors.length+"枚失敗。"+errors.join(" / "):"")+[...new Set(warnings)].join(" ")});
     });
   }
   function setRow(rowId: string, change: Partial<TierRow>) { edit({ ...doc, rows: doc.rows.map(r => r.id === rowId ? { ...r, ...change } : r) }); }
@@ -83,10 +102,6 @@ export function TierEditor({ initial, initialDocument, initialWorkId }: { initia
     const next = placeImage(doc, drag, rowId, index);
     try { parseTierDocument(next); edit(next); setSelected(null); }
     catch (error) { setNotice({ error: true, text: (error as Error).message }); }
-  }
-  function drop(e: React.DragEvent, rowId: string, index: number) {
-    e.preventDefault(); e.stopPropagation();
-    try { place(JSON.parse(e.dataTransfer.getData(DRAG_TYPE)), rowId, index); } catch { /* Ignore external drags. */ }
   }
   function openWork(work: TierWork | null) {
     if (dirty && !window.confirm("未保存の変更があります。破棄して切り替えますか？")) return;
@@ -108,39 +123,36 @@ export function TierEditor({ initial, initialDocument, initialWorkId }: { initia
       <span className={styles.muted}>{dirty ? "未保存の変更あり" : current ? "保存済み" : "新規作品"}</span>
       {dirty && current && <span className={styles.muted}>相関図へ進む前にTier表を保存してください。</span>}
     </div>
-    <div className={styles.columns}>
-      <ImageLibrary images={data.images} decks={data.decks} busy={busy} onUpload={upload} onMutation={mutation} onSelect={setSelected} />
-      <div className="grid gap-5">
-        <section className={styles.panel}>
-          <label>作品タイトル<input value={doc.title} maxLength={120} disabled={busy} onChange={e => edit({ ...doc, title: e.target.value })} /></label>
-          <div className={styles.toolbar}><label className={styles.check}><input type="checkbox" checked={doc.showTitle} disabled={busy} onChange={e => edit({ ...doc, showTitle: e.target.checked })} />タイトルを表示</label><label className={styles.check}><input type="checkbox" checked={transparent} disabled={busy} onChange={e => setTransparent(e.target.checked)} />PNG・OBSの背景を透明にする</label></div>
-        </section>
-        <section className={styles.panel} aria-label="Tier編集">
-          <div className={styles.header}><h2>Tierを編集</h2><button disabled={busy || doc.rows.length >= 30} onClick={() => edit({ ...doc, rows: [...doc.rows, { id: crypto.randomUUID(), name: `Tier ${doc.rows.length + 1}`, color: "#c4b5fd", imageIds: [] }] })}>Tier行を追加</button></div>
-          {selected && <div role="status" className={styles.notice}>配置先の「ここに配置」を選んでください。<button onClick={() => setSelected(null)}>キャンセル</button></div>}
-          {doc.rows.map((row, rowIndex) => <section key={row.id} aria-label={`Tier ${row.name}`} className={styles.row} style={{ borderLeftColor: row.color }} onDragOver={e => { if (e.dataTransfer.types.includes(DRAG_TYPE)) e.preventDefault(); }} onDrop={e => drop(e, row.id, row.imageIds.length)}>
-            <div className={styles.rowControls}>
-              <input aria-label={`${rowIndex + 1}行目のTier名`} value={row.name} maxLength={40} disabled={busy} onChange={e => setRow(row.id, { name: e.target.value })} />
-              <input aria-label={`${rowIndex + 1}行目の背景色`} type="color" value={row.color} disabled={busy} onChange={e => setRow(row.id, { color: e.target.value })} />
-              <div className={styles.toolbar}><button aria-label={`${rowIndex + 1}行目を上へ`} disabled={busy || rowIndex === 0} onClick={() => moveRow(rowIndex, -1)}>↑</button><button aria-label={`${rowIndex + 1}行目を下へ`} disabled={busy || rowIndex === doc.rows.length - 1} onClick={() => moveRow(rowIndex, 1)}>↓</button><button disabled={busy || doc.rows.length === 1} onClick={() => { if (!row.imageIds.length || window.confirm("このTier行と画像の配置を削除しますか？ライブラリの画像は残ります。")) edit({ ...doc, rows: doc.rows.filter(r => r.id !== row.id) }); }}>行を削除</button></div>
-            </div>
-            <div className={styles.items}>
-              {!row.imageIds.length && <p className={styles.muted}>ここへ画像をドロップ</p>}
-              {row.imageIds.map((id, index) => { const image = data.images.find(i => i.id === id); const drag = { imageId: id, rowId: row.id, index }; return <div key={`${id}-${index}`} className={styles.item} onDrop={e => drop(e, row.id, index)}>
-                {image ? <img src={imageUrl(image)} alt={image.name} width={96} height={96} draggable={!busy} onDragStart={e => beginImageDrag(e, drag)} /> : <span>画像なし</span>}
-                <div className={styles.toolbar}><button disabled={busy || index === 0} aria-label={`${image?.name ?? "画像"}を左へ`} onClick={() => place(drag, row.id, index - 1)}>←</button><button disabled={busy || index === row.imageIds.length - 1} aria-label={`${image?.name ?? "画像"}を右へ`} onClick={() => place(drag, row.id, index + 2)}>→</button></div>
-                <button disabled={busy} onClick={() => setSelected(drag)}>別Tierへ移動</button><button disabled={busy} onClick={() => setRow(row.id, { imageIds: row.imageIds.filter((_, i) => i !== index) })}>取り除く</button>
-              </div>; })}
-            </div>
-            {selected && <button disabled={busy} onClick={() => place(selected, row.id, row.imageIds.length)}>ここに配置：{row.name}</button>}
-          </section>)}
-        </section>
-        <section className={styles.panel}>
-          <h2>プレビュー</h2><div ref={preview}><TierPreview document={doc} images={data.images} transparent={transparent} /></div>
-          <p className={styles.muted}>1920×1080。行・画像が多い場合は全体を縮小します。OBSは保存済み内容を表示します。</p>
-        </section>
+    <section className={styles.panel} aria-label="Tier編集">
+      <label>作品タイトル<input value={doc.title} maxLength={120} disabled={busy} onChange={e=>edit({...doc,title:e.target.value})} /></label>
+      <div className={styles.toolbar}>
+        <label className={styles.check}><input type="checkbox" checked={doc.showTitle} disabled={busy} onChange={e=>edit({...doc,showTitle:e.target.checked})} />タイトルを表示</label>
+        <label className={styles.check}><input type="checkbox" checked={transparent} disabled={busy} onChange={e=>setTransparent(e.target.checked)} />PNG・OBSの背景を透明にする</label>
       </div>
-    </div>
+      <div ref={preview}><TierCanvas document={doc} images={data.images} transparent={transparent} disabled={busy} selected={selected} onSelect={setSelected} onRow={setActiveRow} onName={(id,name)=>setRow(id,{name})} onPlace={place} /></div>
+      <p className={styles.muted}>画像をドラッグして配置・並び替え。行名は表の上で直接編集できます。1920×1080でPNG・OBSに出力します。</p>
+      <div className={styles.toolbar}>
+        <label>編集するTier<select aria-label="編集するTier" value={row.id} disabled={busy} onChange={e=>setActiveRow(e.target.value)}>{doc.rows.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}</select></label>
+        <label>背景色<input aria-label={(rowIndex+1)+"行目の背景色"} type="color" value={row.color} disabled={busy} onChange={e=>setRow(row.id,{color:e.target.value})} /></label>
+        <button aria-label={(rowIndex+1)+"行目を上へ"} disabled={busy||rowIndex===0} onClick={()=>moveRow(rowIndex,-1)}>↑</button>
+        <button aria-label={(rowIndex+1)+"行目を下へ"} disabled={busy||rowIndex===doc.rows.length-1} onClick={()=>moveRow(rowIndex,1)}>↓</button>
+        <button disabled={busy||doc.rows.length===1} onClick={()=>{if(!row.imageIds.length||window.confirm("このTier行と画像の配置を削除しますか？ライブラリの画像は残ります。"))edit({...doc,rows:doc.rows.filter(r=>r.id!==row.id)});}}>行を削除</button>
+        <button disabled={busy||doc.rows.length>=30} onClick={()=>{const id=crypto.randomUUID();edit({...doc,rows:[...doc.rows,{id,name:"Tier "+(doc.rows.length+1),color:"#c4b5fd",imageIds:[]}]});setActiveRow(id);}}>Tier行を追加</button>
+      </div>
+      {selected && <div className={styles.selection} aria-label="選択画像の配置">
+        <p>{data.images.find(i=>i.id===selected.imageId)?.name} の配置</p>
+        <div className={styles.toolbar}>{doc.rows.map(r=><button key={r.id} disabled={busy} onClick={()=>place(selected,r.id,r.imageIds.length)}>ここに配置：{r.name}</button>)}</div>
+        <div className={styles.toolbar}>
+          {selectedRow && <>
+            <button disabled={busy||selected.index===0} onClick={()=>place(selected,selectedRow.id,selected.index!-1)}>左へ</button>
+            <button disabled={busy||selected.index===selectedRow.imageIds.length-1} onClick={()=>place(selected,selectedRow.id,selected.index!+2)}>右へ</button>
+            <button disabled={busy} onClick={()=>{setRow(selectedRow.id,{imageIds:selectedRow.imageIds.filter((_,i)=>i!==selected.index)});setSelected(null);}}>取り除く</button>
+          </>}
+          <button onClick={()=>setSelected(null)}>選択を解除</button>
+        </div>
+      </div>}
+    </section>
+    <ImageLibrary images={data.images} decks={data.decks} busy={busy} pending={pending} onUpload={upload} onMutation={mutation} onSelect={setSelected} />
     <section className={styles.panel} aria-label="保存済み作品"><h2>保存済みTier表</h2>{!data.works.length && <p className={styles.muted}>保存した作品がここに表示されます。</p>}{data.works.map(work => <div key={work.id} className={styles.work}><div><strong>{work.document.title || "無題のTier表"}</strong><p className={styles.muted}>{new Date(work.updated_at).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })}（日本時間）</p></div><div className={styles.toolbar}><button disabled={busy} onClick={() => openWork(work)}>再編集</button><button disabled={busy} onClick={() => openCorrelation(work)}>{hasCorrelation(work.id) ? "相関図を編集" : "相関図を追加"}</button><button disabled={busy} onClick={() => mutation({ action: "delete-work", id: work.id, revision: work.revision }, "保存済みのTier表を削除しますか？関連する相関図がある場合は先に相関図を削除してください。")}>作品を削除</button></div></div>)}</section>
   </main>;
 }

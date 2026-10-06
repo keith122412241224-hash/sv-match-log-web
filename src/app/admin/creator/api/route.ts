@@ -33,10 +33,15 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const timings: Record<string, number> = {};
+  let last = performance.now();
+  const mark = (stage: string) => { const now = performance.now(); timings[stage] = now - last; last = now; };
+  const measured = (data: unknown) => { const result = response(data); result.headers.set("Server-Timing", Object.entries(timings).map(([stage, duration]) => `${stage};dur=${duration.toFixed(2)}`).join(", ")); return result; };
   try {
     // Cookie-authenticated writes must originate from this application.
     if (request.headers.get("origin") !== request.nextUrl.origin) throw new CreatorError("操作元を確認できませんでした。", 403);
     const { client, user } = await creatorClient();
+    mark("auth");
     if (Number(request.headers.get("content-length")) > MAX_IMAGE_BYTES + 65536) throw new CreatorError("画像は1枚4MB以下にしてください。", 413);
     // Enforce the same bound for chunked requests without a Content-Length header.
     const reader = request.body?.getReader();
@@ -54,27 +59,39 @@ export async function POST(request: NextRequest) {
     if (request.headers.get("content-type")?.startsWith("multipart/form-data")) {
       const form = await bodyRequest.formData();
       const file = form.get("file");
+      mark("body");
       if (!(file instanceof File)) throw new CreatorError("画像を選択してください。");
       const { mime, extension } = validateImageFile(file);
+      mark("validation");
       const bytes = Buffer.from(await file.arrayBuffer());
       const decoder = sharp(bytes, { limitInputPixels: 24000000, animated: false, failOn: "warning" });
       const metadata = await decoder.metadata();
+      mark("metadata");
       if (metadata.format !== (extension === "jpg" ? "jpeg" : extension) || (metadata.pages ?? 1) > 1) throw new CreatorError("画像の内容が形式と一致しないか、アニメーション画像です。");
       // Fully decode before upload. Metadata inspection alone accepts truncated files.
       await decoder.clone().stats();
+      mark("decode");
       const imageId = form.get("id") ? id(form.get("id")) : randomUUID();
       const oldRevision = form.get("id") ? revision(form.get("revision")) : null;
       const objectPath = `${randomUUID()}.${extension}`;
       // Register before uploading, so interruption at any later step is recoverable.
       const pending = await client.from("creator_storage_cleanup").insert({ object_path: objectPath, ready_after: new Date(Date.now() + 3600000).toISOString() });
       databaseError(pending.error);
+      mark("outbox");
       const upload = await client.storage.from(IMAGE_BUCKET).upload(objectPath, bytes, { contentType: mime, upsert: false });
       if (upload.error) throw new CreatorError("画像アップロードに失敗しました。旧画像は保持されています。", 503);
+      mark("storage");
       const result = oldRevision
-        ? await client.from("creator_images").update({ object_path: objectPath }).eq("id", imageId).eq("revision", oldRevision).select("id").maybeSingle()
-        : await client.from("creator_images").insert({ id: imageId, name: name(form.get("name") || file.name), object_path: objectPath, created_by: user.id }).select("id").single();
+        ? await client.from("creator_images").update({ object_path: objectPath }).eq("id", imageId).eq("revision", oldRevision).select("*").maybeSingle()
+        : await client.from("creator_images").insert({ id: imageId, name: name(form.get("name") || file.name), object_path: objectPath, created_by: user.id }).select("*").single();
       databaseError(result.error); conflict(result.data);
+      mark("database");
       await client.from("creator_storage_cleanup").delete().eq("object_path", objectPath);
+      mark("outbox_ack");
+      // New uploads have no obsolete object. Replacement retains durable cleanup.
+      const cleaned = oldRevision ? await cleanCreatorStorage(client) : true;
+      mark("cleanup");
+      return measured({ image: result.data, warning: cleaned ? null : "画像は保存されました。旧ファイルの削除は「ストレージ整理を再試行」で再実行できます。" });
     } else {
       const body = await bodyRequest.json();
       switch (body.action) {
@@ -123,6 +140,9 @@ export async function POST(request: NextRequest) {
       }
     }
     const cleaned = await cleanCreatorStorage(client);
-    return response({ ...(await getCreatorData(client)), warning: cleaned ? null : "操作は保存されました。旧ファイルの削除が保留中です。「ストレージ整理を再試行」で再実行できます。" });
+    mark("cleanup");
+    const data = await getCreatorData(client);
+    mark("refresh");
+    return measured({ ...data, warning: cleaned ? null : "操作は保存されました。旧ファイルの削除が保留中です。「ストレージ整理を再試行」で再実行できます。" });
   } catch (error) { return failure(error); }
 }

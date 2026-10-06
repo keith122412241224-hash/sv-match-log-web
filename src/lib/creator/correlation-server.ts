@@ -12,5 +12,5 @@ export async function getCorrelationSet(client: Awaited<ReturnType<typeof creato
   ]);
   [tier,correlation,images].forEach(r => databaseError(r.error));
   if (!tier.data) notFound();
-  return { tier: tier.data as TierWork, correlation: correlation.data ? { ...correlation.data, document: parseCorrelation(correlation.data.document) } as CorrelationWork : null, images: (images.data ?? []) as CreatorImage[] };
+  return { tier: tier.data as TierWork, correlation: correlation.data ? { ...correlation.data, document: parseCorrelation(correlation.data.document, tier.data.document.title) } as CorrelationWork : null, images: (images.data ?? []) as CreatorImage[] };
 }
