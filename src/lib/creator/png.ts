@@ -1,5 +1,13 @@
 /** Reuse html-to-image, but rasterize only the fixed 1920×1080 artwork. */
 export async function saveArtworkPng(source: HTMLElement, kind: "tier" | "correlation" = "tier") {
+  // Wait for intrinsic ratios to be reflected in React's DOM before taking a snapshot.
+  if (source.dataset.layoutReady === "false") await new Promise<void>((resolve, reject) => {
+    const observer = new MutationObserver(() => {
+      if (source.dataset.layoutReady === "true") { clearTimeout(timeout); observer.disconnect(); resolve(); }
+    });
+    const timeout = window.setTimeout(() => { observer.disconnect(); reject(Error("画像の読み込み完了後に、PNG出力を再試行してください。")); }, 15000);
+    observer.observe(source, { attributes: true, attributeFilter: ["data-layout-ready"] });
+  });
   const host = document.createElement("div");
   host.inert = true;
   host.setAttribute("aria-hidden", "true");

@@ -37,6 +37,7 @@ export function ImageLibrary({ images, decks, busy, pending = [], onUpload, onMu
     </div>
     {image && <section aria-label="選択画像の管理" className={styles.selection}>
       <div className={styles.header}><h3>{image.name}</h3><button type="button" onClick={()=>setSelected("")}>管理を閉じる</button></div>
+      <p className={styles.muted}>透明余白は表示時に自動で除去します。元画像は保持しています。 <a className="underline" href={imageUrl(image,"original")} target="_blank" rel="noreferrer">元画像を開く</a></p>
       <form key={`${image.id}-${image.revision}`} className={styles.manageForm} onSubmit={e=>{e.preventDefault();const form=new FormData(e.currentTarget);onMutation({action:"edit-image",id:image.id,revision:image.revision,name:form.get("name"),archetypeId:form.get("archetypeId")});}}>
         <label>画像名<input name="name" defaultValue={image.name} maxLength={120} required disabled={busy} /></label>
         <label>標準デッキ<select name="archetypeId" defaultValue={image.archetype_id??""} disabled={busy}><option value="">関連付けなし</option>{decks.map(d=><option key={d.id} value={d.id}>{d.name}</option>)}</select></label>

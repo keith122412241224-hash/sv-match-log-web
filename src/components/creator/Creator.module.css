@@ -59,8 +59,10 @@
 .page .libraryHeading input[type=file] { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; opacity: 0; cursor: pointer; }
 .libraryHeading .drop:focus-within { outline: 2px solid #2563eb; }
 .libraryStrip { display: flex; justify-content: safe center; overflow-x: auto; overscroll-behavior-x: contain; padding: 3px 3px 8px; }
-.libraryStrip .asset { flex: 0 0 100px; }
-.libraryStrip .asset img { width: 76px; height: 76px; }
+.libraryStrip .asset { flex: 0 0 auto; }
+.libraryStrip .asset img { width: auto; height: 76px; }
+.libraryStrip .thumbnail { width: max-content; }
+.libraryStrip .thumbnail span { width: 0; min-width: 100%; }
 .tierFit { margin-inline: auto; }
 @media(min-width: 901px) { .tierFit { max-width: calc(max(180px, 100dvh - 410px) * 16 / 9); } }
 .dataFilters { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(200px,100%),1fr)); gap: 12px; align-items: end; }
