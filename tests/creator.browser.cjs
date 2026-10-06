@@ -46,7 +46,7 @@ async function main() {
           res.writeHead(200, { 'Content-Type': object.type }); res.end(object.bytes); return;
         }
         const table = url.pathname.split('/').at(-1);
-        if (!['admin_users', 'deck_archetypes', 'creator_images', 'creator_tier_works', 'creator_tier_image_refs', 'creator_storage_cleanup'].includes(table)) throw Error('Unexpected table: ' + table);
+        if (!['admin_users', 'deck_archetypes', 'creator_images', 'creator_tier_works', 'creator_tier_image_refs', 'creator_storage_cleanup', 'creator_correlations', 'creator_correlation_image_refs'].includes(table)) throw Error('Unexpected table: ' + table);
         const values = [], where = [];
         for (const [column, filter] of url.searchParams) {
           if (['select', 'order', 'limit', 'offset'].includes(column)) continue;
@@ -74,7 +74,7 @@ async function main() {
         if (req.headers.accept?.includes('vnd.pgrst.object')) return result.length ? json(res, 200, result[0]) : json(res, 406, { code: 'PGRST116', details: 'The result contains 0 rows', message: '0 rows' });
         return json(res, 200, result);
       } catch (error) {
-        if (!['23503', '23514', '42501'].includes(error.code)) report.unexpected.push(`${req.method} ${url?.pathname}: ${error.message}`);
+        if (!['23503', '23505', '23514', '42501'].includes(error.code)) report.unexpected.push(`${req.method} ${url?.pathname}: ${error.message}`);
         json(res, 400, { code: error.code, message: error.message });
       }
     }).catch(error => { report.unexpected.push(error.message); res.end(); });
@@ -215,7 +215,8 @@ async function main() {
     const anon = await browser.newContext();
     assert.equal((await anon.request.get(origin+'/admin/creator/api')).status(),401);
     assert.equal((await anon.request.get(origin+obsHref,{maxRedirects:0})).status(),307); await anon.close();
-    await page.reload({waitUntil:'networkidle'});
+    if (process.env.CREATOR_PHASE2 === '1') await require('./correlation.browser.cjs')({page,context,browser,db,origin,report,out,observe,setMode:value=>{mode=value;},files});
+    await page.goto(origin+'/admin/creator/tier',{waitUntil:'networkidle'});
     await page.getByRole('button',{name:'作品を削除',exact:true}).click();
     await page.getByRole('status').filter({hasText:'変更を保存しました'}).waitFor();
     assert.equal((await db.query('select * from public.creator_tier_works')).rows.length,0);

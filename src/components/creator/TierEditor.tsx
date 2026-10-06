@@ -1,18 +1,22 @@
 "use client";
 /* eslint-disable @next/next/no-img-element */
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useUnsavedChanges } from "./useUnsavedChanges";
 import { newTierDocument, imageUrl, placeImage, parseTierDocument, validateImageFile, type CreatorImage, type ImageDrag, type TierDocument, type TierRow, type TierWork } from "@/lib/creator/model";
 import { ImageLibrary, beginImageDrag, DRAG_TYPE } from "./ImageLibrary";
 import { TierPreview } from "./TierPreview";
 import { saveTierPng } from "@/lib/creator/png";
 import styles from "./Creator.module.css";
 
-type Data = { images: CreatorImage[]; works: TierWork[]; decks: { id: string; name: string }[] };
-export function TierEditor({ initial, initialDocument }: { initial: Data; initialDocument: TierDocument }) {
+type Data = { images: CreatorImage[]; works: TierWork[]; decks: { id: string; name: string }[]; correlations: { id: string; tier_work_id: string }[] };
+export function TierEditor({ initial, initialDocument, initialWorkId }: { initial: Data; initialDocument: TierDocument; initialWorkId?: string }) {
+  const router = useRouter();
+  const initialWork = initial.works.find(w => w.id === initialWorkId) ?? null;
   const [data, setData] = useState(initial);
-  const [doc, setDoc] = useState(initialDocument);
-  const [current, setCurrent] = useState<TierWork | null>(null);
+  const [doc, setDoc] = useState(initialWork?.document ?? initialDocument);
+  const [current, setCurrent] = useState<TierWork | null>(initialWork);
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false);
   const operation = useRef(false);
@@ -20,12 +24,16 @@ export function TierEditor({ initial, initialDocument }: { initial: Data; initia
   const [selected, setSelected] = useState<ImageDrag | null>(null);
   const [transparent, setTransparent] = useState(false);
   const preview = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!dirty) return;
-    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, [dirty]);
+  const confirmLeave = useUnsavedChanges(dirty);
+  const hasCorrelation = (tierId: string) => data.correlations.some(c => c.tier_work_id === tierId);
+  function openCorrelation(work: TierWork) {
+    if (!confirmLeave()) return;
+    void run(async () => {
+      if (!hasCorrelation(work.id)) await request({ action: "create-correlation", tierId: work.id, tierRevision: work.revision });
+      setDirty(false);
+      router.push(`/admin/creator/tier/${work.id}/correlation`);
+    });
+  }
   const edit = (next: TierDocument) => { setDoc(next); setDirty(true); };
   async function request(body: Record<string, unknown> | FormData) {
     const response = await fetch("/admin/creator/api", { method: "POST", ...(body instanceof FormData ? { body } : { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }) });
@@ -91,7 +99,10 @@ export function TierEditor({ initial, initialDocument }: { initial: Data; initia
       })}>{busy ? "処理中…" : "Tier表を保存"}</button>
       <button disabled={busy} onClick={() => void run(async () => { const artwork = preview.current?.querySelector<HTMLElement>("[data-tier-artwork]"); if (!artwork) return; await saveTierPng(artwork); setNotice({ error: false, text: "1920×1080 PNGを出力しました。" }); })}>PNG出力</button>
       {current && <a className={styles.button} href={`/admin/obs/tier/${current.id}${transparent ? "?transparent=1" : ""}`} target="_blank" rel="noreferrer">OBS表示を開く</a>}
+      {current && <button disabled={busy || dirty} onClick={() => openCorrelation(current)}>{hasCorrelation(current.id) ? "相関図を編集" : "相関図を追加"}</button>}
+      {current && hasCorrelation(current.id) && <a className={styles.button} href={`/admin/obs/set/${current.id}${transparent ? "?transparent=1" : ""}`} target="_blank" rel="noreferrer">セットOBS</a>}
       <span className={styles.muted}>{dirty ? "未保存の変更あり" : current ? "保存済み" : "新規作品"}</span>
+      {dirty && current && <span className={styles.muted}>相関図へ進む前にTier表を保存してください。</span>}
     </div>
     <div className={styles.columns}>
       <ImageLibrary images={data.images} decks={data.decks} busy={busy} onUpload={upload} onMutation={mutation} onSelect={setSelected} />
@@ -126,6 +137,6 @@ export function TierEditor({ initial, initialDocument }: { initial: Data; initia
         </section>
       </div>
     </div>
-    <section className={styles.panel} aria-label="保存済み作品"><h2>保存済みTier表</h2>{!data.works.length && <p className={styles.muted}>保存した作品がここに表示されます。</p>}{data.works.map(work => <div key={work.id} className={styles.work}><div><strong>{work.document.title || "無題のTier表"}</strong><p className={styles.muted}>{new Date(work.updated_at).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })}（日本時間）</p></div><div className={styles.toolbar}><button disabled={busy} onClick={() => openWork(work)}>再編集</button><button disabled={busy} onClick={() => mutation({ action: "delete-work", id: work.id, revision: work.revision }, "保存済みのTier表を削除しますか？この作品のOBS URLは使えなくなります。")}>作品を削除</button></div></div>)}</section>
+    <section className={styles.panel} aria-label="保存済み作品"><h2>保存済みTier表</h2>{!data.works.length && <p className={styles.muted}>保存した作品がここに表示されます。</p>}{data.works.map(work => <div key={work.id} className={styles.work}><div><strong>{work.document.title || "無題のTier表"}</strong><p className={styles.muted}>{new Date(work.updated_at).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })}（日本時間）</p></div><div className={styles.toolbar}><button disabled={busy} onClick={() => openWork(work)}>再編集</button><button disabled={busy} onClick={() => openCorrelation(work)}>{hasCorrelation(work.id) ? "相関図を編集" : "相関図を追加"}</button><button disabled={busy} onClick={() => mutation({ action: "delete-work", id: work.id, revision: work.revision }, "保存済みのTier表を削除しますか？関連する相関図がある場合は先に相関図を削除してください。")}>作品を削除</button></div></div>)}</section>
   </main>;
 }

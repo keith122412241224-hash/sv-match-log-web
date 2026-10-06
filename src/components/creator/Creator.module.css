@@ -31,5 +31,9 @@
 .error { background: #fef2f2; color: #991b1b; }
 .work { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; border-bottom: 1px solid #e2e8f0; padding: 10px 0; }
 .work strong { overflow-wrap: anywhere; }
+.correlationColumns { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 20px; align-items: start; }
+.edgeComposer { display: grid; grid-template-columns: 1fr 1fr auto; gap: 12px; align-items: end; }
+.edgeRow { display: grid; grid-template-columns: minmax(0,1fr) minmax(120px,1fr) auto; align-items: center; gap: 12px; border-top: 1px solid #e2e8f0; padding-top: 12px; }
+@media(max-width: 900px) { .correlationColumns, .edgeRow, .edgeComposer { grid-template-columns: 1fr; } }
 @media(max-width: 900px) { .columns { grid-template-columns: 1fr; } .library { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); max-height: 500px; } }
 @media(max-width: 450px) { .page { padding: 16px 10px; } .panel { padding: 12px; } .rowControls { grid-template-columns: 1fr 44px; } .rowControls .toolbar { grid-column: 1 / -1; } }

@@ -1,5 +1,5 @@
 /** Reuse html-to-image, but rasterize only the fixed 1920×1080 artwork. */
-export async function saveTierPng(source: HTMLElement) {
+export async function saveArtworkPng(source: HTMLElement, kind: "tier" | "correlation" = "tier") {
   const host = document.createElement("div");
   host.inert = true;
   host.setAttribute("aria-hidden", "true");
@@ -14,8 +14,10 @@ export async function saveTierPng(source: HTMLElement) {
     if (!blob) throw Error("PNG生成に失敗しました。");
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    link.href = url; link.download = `tier-${Date.now()}.png`;
+    link.href = url; link.download = `${kind}-${Date.now()}.png`;
     document.body.append(link); link.click(); link.remove();
     window.setTimeout(() => URL.revokeObjectURL(url), 60000);
   } finally { host.remove(); }
 }
+
+export const saveTierPng = (source: HTMLElement) => saveArtworkPng(source, "tier");

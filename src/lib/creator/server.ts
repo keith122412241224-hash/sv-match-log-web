@@ -26,19 +26,21 @@ export async function requireCreatorPage() {
 
 export function databaseError(error: { code?: string; message: string } | null) {
   if (!error) return;
-  if (error.code === "23503") throw new CreatorError("保存済み作品で使用中の画像は削除できません。または参照先が削除されています。再読み込みして確認してください。", 409);
+  if (error.code === "23503") throw new CreatorError("Tier表・相関図で使用中の画像は削除できません。または参照先が削除されています。再読み込みして確認してください。", 409);
+  if (error.code === "23505") throw new CreatorError("同じTier表の相関図が既に存在します。再読み込みして編集してください。", 409);
   if (error.code === "23514" || error.code === "22P02") throw new CreatorError("保存データが不正です。入力内容を確認してください。");
   throw new CreatorError("データを処理できませんでした。接続と制作ツール用migrationの適用状況を確認してください。", 503);
 }
 
 export async function getCreatorData(client: Awaited<ReturnType<typeof creatorClient>>["client"]) {
-  const [images, works, decks] = await Promise.all([
+  const [images, works, decks, correlations] = await Promise.all([
     client.from("creator_images").select("*").order("created_at", { ascending: false }),
     client.from("creator_tier_works").select("*").order("updated_at", { ascending: false }),
-    client.from("deck_archetypes").select("id,name").order("sort_order")
+    client.from("deck_archetypes").select("id,name").order("sort_order"),
+    client.from("creator_correlations").select("id,tier_work_id")
   ]);
-  [images, works, decks].forEach(r => databaseError(r.error));
-  return { images: (images.data ?? []) as CreatorImage[], works: (works.data ?? []) as TierWork[], decks: (decks.data ?? []) as { id: string; name: string }[] };
+  [images, works, decks, correlations].forEach(r => databaseError(r.error));
+  return { images: (images.data ?? []) as CreatorImage[], works: (works.data ?? []) as TierWork[], decks: (decks.data ?? []) as { id: string; name: string }[], correlations: (correlations.data ?? []) as { id: string; tier_work_id: string }[] };
 }
 
 /** Durable outbox: failed Storage removal remains retryable, never a broken live image. */

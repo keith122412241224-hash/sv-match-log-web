@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const fs = require('node:fs'), cp = require('node:child_process'), assert = require('node:assert/strict');
+const cp = require('node:child_process'), assert = require('node:assert/strict');
 const { createHash } = require('node:crypto');
 const base = '71d9b43';
 const hashes = require('./fixtures/creator-source-hashes.json');
@@ -10,10 +10,10 @@ const added = new Set([
   'src/components/creator/ImageLibrary.tsx', 'src/components/creator/TierArtwork.tsx',
   'src/components/creator/TierEditor.tsx', 'src/components/creator/TierPreview.tsx',
   'src/lib/creator/model.ts', 'src/lib/creator/png.ts', 'src/lib/creator/server.ts',
-  'supabase/migrations/20261006025457_creator_tier_tools.sql'
+  'supabase/migrations/20261006025457_creator_tier_tools.sql', ...require('./correlation-scope.cjs').added
 ]);
 function readBeforeCreator(file) {
-  const source = fs.readFileSync(file, 'utf8').replaceAll('\r\n', '\n');
+  const source = require('./correlation-scope.cjs').readBeforeCorrelation(file);
   if (!Object.hasOwn(hashes, file)) return source;
   assert.equal(createHash('sha256').update(source).digest('hex'), hashes[file], 'unreviewed creator change: ' + file);
   return cp.execFileSync('git', ['show', base + ':' + file], { encoding: 'utf8' }).replaceAll('\r\n', '\n');

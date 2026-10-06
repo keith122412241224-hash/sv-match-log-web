@@ -25,6 +25,8 @@ async function createDb() {
     insert into public.admin_users(user_id) values('${ADMIN}');
     insert into public.deck_archetypes(id,name) values('${uuid(50)}','標準デッキA');`);
   await db.exec(fs.readFileSync('supabase/migrations/' + migration, 'utf8'));
+  const correlationMigration = fs.readdirSync('supabase/migrations').find(f => f.endsWith('_creator_correlations.sql'));
+  if (correlationMigration) await db.exec(fs.readFileSync('supabase/migrations/' + correlationMigration, 'utf8'));
   await identity(db);
   return db;
 }

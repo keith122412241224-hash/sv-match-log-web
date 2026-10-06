@@ -1,0 +1,11 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
+const {test}=require('node:test'),assert=require('node:assert/strict'),cp=require('node:child_process');
+const {base,hashes,added,readBeforeCorrelation}=require('./correlation-scope.cjs');
+test('correlation scope: checkpoint Tier migration/dependencies/auth/aggregates untouched; only reviewed creator changes',()=>{
+ const git=args=>cp.execFileSync('git',args,{encoding:'utf8',maxBuffer:64e6}).replaceAll('\r\n','\n');
+ assert.deepEqual(Object.keys(hashes).sort(),['src/app/admin/creator/api/route.ts','src/app/admin/creator/tier/page.tsx','src/components/creator/Creator.module.css','src/components/creator/TierEditor.tsx','src/lib/creator/png.ts','src/lib/creator/server.ts']);
+ const files=git(['ls-tree','-r','--name-only',base]).trim().split('\n').filter(f=>/^(src|supabase)\//.test(f)||/^package(-lock)?\.json$/.test(f));
+ for(const file of files)assert.equal(readBeforeCorrelation(file),git(['show',base+':'+file]),file);
+ const actual=git(['ls-files','--cached','--others','--exclude-standard','--','src','supabase']).trim().split('\n').sort();
+ assert.deepEqual(actual,[...files.filter(f=>/^(src|supabase)\//.test(f)),...added].sort());
+});

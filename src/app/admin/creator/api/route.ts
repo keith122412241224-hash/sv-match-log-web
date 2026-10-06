@@ -3,6 +3,7 @@ import sharp from "sharp";
 import { randomUUID } from "node:crypto";
 import { CreatorError, creatorClient, databaseError, getCreatorData, cleanCreatorStorage } from "@/lib/creator/server";
 import { IMAGE_BUCKET, MAX_IMAGE_BYTES, UUID, parseTierDocument, validateImageFile } from "@/lib/creator/model";
+import { correlationFromTier, parseCorrelation } from "@/lib/creator/correlation";
 
 export const runtime = "nodejs";
 const response = (data: unknown, status = 200) => NextResponse.json(data, { status, headers: { "Cache-Control": "private, no-store" } });
@@ -87,7 +88,27 @@ export async function POST(request: NextRequest) {
         }
         case "delete-work": {
           const result = await client.from("creator_tier_works").delete().eq("id", id(body.id)).eq("revision", revision(body.revision)).select("id").maybeSingle();
+          if (result.error?.code === "23503") throw new CreatorError("関連する相関図があります。先に相関図を削除してからTier表を削除してください。", 409);
           databaseError(result.error); conflict(result.data); break;
+        }
+        case "create-correlation": {
+          const tier = await client.from("creator_tier_works").select("*").eq("id", id(body.tierId)).eq("revision", revision(body.tierRevision)).maybeSingle();
+          databaseError(tier.error); conflict(tier.data);
+          const document = parseCorrelation(correlationFromTier(parseTierDocument(tier.data!.document)));
+          const result = await client.from("creator_correlations").insert({ tier_work_id: tier.data!.id, document, created_by: user.id }).select("*").single();
+          databaseError(result.error);
+          return response({ correlation: result.data });
+        }
+        case "save-correlation": {
+          const document = parseCorrelation(body.document);
+          const result = await client.from("creator_correlations").update({ document }).eq("id", id(body.id)).eq("revision", revision(body.revision)).select("*").maybeSingle();
+          databaseError(result.error); conflict(result.data);
+          return response({ correlation: result.data });
+        }
+        case "delete-correlation": {
+          const result = await client.from("creator_correlations").delete().eq("id", id(body.id)).eq("revision", revision(body.revision)).select("id").maybeSingle();
+          databaseError(result.error); conflict(result.data);
+          return response({ deleted: true });
         }
         case "edit-image": {
           const result = await client.from("creator_images").update({ name: name(body.name), archetype_id: body.archetypeId ? id(body.archetypeId) : null }).eq("id", id(body.id)).eq("revision", revision(body.revision)).select("id").maybeSingle();
