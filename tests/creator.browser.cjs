@@ -223,6 +223,7 @@ async function main() {
     const remaining=(await db.query('select * from public.creator_images where id=$1',[referenced.id])).rows[0];
     assert.equal((await apiPost({action:'delete-image',id:remaining.id,revision:remaining.revision})).status(),200);
     report.checks.push('admin/member/guest/anon direct routes and API permissions, work deletion and now-unused image deletion');
+    await require('./creator-upload.browser.cjs')({page,db,objects,report});
     assert.deepEqual(report.unexpected,[]); assert.deepEqual(report.events,[]);
     if(process.env.CREATOR_BROWSER_HOLD==='1') { console.log('READY_FOR_AGENT_BROWSER'); await new Promise(r=>setTimeout(r,45000)); }
     console.log(JSON.stringify(report,null,2));

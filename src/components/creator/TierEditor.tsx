@@ -8,6 +8,7 @@ import { newTierDocument, imageUrl, placeImage, parseTierDocument, validateImage
 import { ImageLibrary, beginImageDrag, DRAG_TYPE } from "./ImageLibrary";
 import { TierPreview } from "./TierPreview";
 import { saveTierPng } from "@/lib/creator/png";
+import { prepareCreatorUpload } from "@/lib/creator/upload";
 import styles from "./Creator.module.css";
 
 type Data = { images: CreatorImage[]; works: TierWork[]; decks: { id: string; name: string }[]; correlations: { id: string; tier_work_id: string }[] };
@@ -62,9 +63,12 @@ export function TierEditor({ initial, initialDocument, initialWorkId }: { initia
       files.forEach(validateImageFile);
       let count = 0;
       for (const file of files) {
-        const form = new FormData(); form.set("file", file); form.set("name", file.name.slice(0, 120));
-        if (image) { form.set("id", image.id); form.set("revision", String(image.revision)); }
-        try { const result = await request(form); setData(result); count++; }
+        try {
+          const prepared = await prepareCreatorUpload(file);
+          const form = new FormData(); form.set("file", prepared); form.set("name", file.name.slice(0, 120));
+          if (image) { form.set("id", image.id); form.set("revision", String(image.revision)); }
+          const result = await request(form); setData(result); count++;
+        }
         catch (error) { throw Error(`${count}枚保存済み。${error instanceof Error ? error.message : "アップロードに失敗しました。"}`); }
       }
       setNotice({ error: false, text: `${count}枚の画像を保存しました。` });
