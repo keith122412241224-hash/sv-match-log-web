@@ -11,6 +11,6 @@ export async function CorrelationObs({ tierId, transparent, standalone = false }
   return <main style={{ width: "100%", background: transparent ? "transparent" : "#0f172a" }}>
     <style>{`html,body{background:${transparent ? "transparent" : "#0f172a"} !important;scrollbar-width:none;}body::-webkit-scrollbar{display:none;}`}</style>
     {!standalone && <section aria-label="Tier表" data-obs-section="tier"><TierPreview document={data.tier.document} images={data.images} transparent={transparent} obs /></section>}
-    <section aria-label="相関図" data-obs-section="correlation"><CorrelationCanvas document={data.correlation.document} title={data.tier.document.title} images={data.images} transparent={transparent} /></section>
+    <section aria-label="相関図" data-obs-section="correlation"><CorrelationCanvas document={data.correlation.document} title={data.tier.document.title} images={data.images} displayNames={data.displayNames} transparent={transparent} /></section>
   </main>;
 }

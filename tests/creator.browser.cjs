@@ -111,6 +111,10 @@ async function main() {
     const transparent = await sharp({ create: { width: 128, height: 128, channels: 4, background: { r: 255, g: 0, b: 0, alpha: 0.5 } } }).png().toBuffer();
     const jpeg = await sharp(png).jpeg().toBuffer(), webp = await sharp(png).webp().toBuffer();
     const files = [{ name: 'デッキ.png', mimeType: 'image/png', buffer: png }, { name: '透明.png', mimeType: 'image/png', buffer: transparent }, { name: 'デッキ.jpg', mimeType: 'image/jpeg', buffer: jpeg }, { name: 'デッキ.webp', mimeType: 'image/webp', buffer: webp }];
+    if(process.env.CREATOR_CORRELATION_DISPLAY==='1'){
+      await require('./correlation-display.browser.cjs')({page,context,db,origin,report,out,observe});
+      assert.deepEqual(report.events,[]);assert.deepEqual(report.unexpected,[]);return;
+    }
     if(process.env.CREATOR_TRIM==='1'){
       await require('./creator-trim.browser.cjs')({page,context,browser,db,objects,origin,report,out,observe,setMode:v=>{mode=v;}});
       assert.deepEqual(report.events,[]);assert.deepEqual(report.unexpected,[]);return;

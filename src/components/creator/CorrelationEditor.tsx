@@ -14,11 +14,12 @@ import { useUnsavedChanges } from "./useUnsavedChanges";
 import { CorrelationCanvas } from "./CorrelationCanvas";
 import styles from "./Creator.module.css";
 
-export function CorrelationEditor({ tier, initial, images, environments, defaultEnvironment }: { tier: TierWork; initial: CorrelationWork; images: CreatorImage[]; environments: {id:string;name:string}[]; defaultEnvironment:string }) {
+export function CorrelationEditor({ tier, initial, images, displayNames = {}, environments, defaultEnvironment }: { tier: TierWork; initial: CorrelationWork; images: CreatorImage[]; displayNames?: Record<string,string>; environments: {id:string;name:string}[]; defaultEnvironment:string }) {
   const router = useRouter();
   const [work,setWork] = useState(initial), [doc,setDoc] = useState(initial.document);
   const [dirty,setDirty] = useState(false), [busy,setBusy] = useState(false), [transparent,setTransparent] = useState(false);
   const [selected,setSelected] = useState(initial.document.nodes[0]?.id ?? "");
+  const [actualSize,setActualSize] = useState(false);
   const [source,setSource] = useState(initial.document.nodes[0]?.id ?? ""), [target,setTarget] = useState(initial.document.nodes[1]?.id ?? "");
   const [asset,setAsset] = useState(images[0]?.id ?? "");
   const [notice,setNotice] = useState<{ error: boolean; text: string } | null>(null);
@@ -27,7 +28,7 @@ export function CorrelationEditor({ tier, initial, images, environments, default
   const selection:DataSelection=doc.dataSelection??{environment:defaultEnvironment,period:"7d",ranks:RANK_ATOMS};
   const operation = useRef(false), preview = useRef<HTMLDivElement>(null);
   const confirmLeave = useUnsavedChanges(dirty);
-  const name = (imageId: string) => images.find(i => i.id === imageId)?.name ?? "画像なし";
+  const name = (imageId: string) => displayNames[imageId] ?? images.find(i => i.id === imageId)?.name ?? "画像なし";
   const nodeName = (nodeId: string) => { const index = doc.nodes.findIndex(n => n.id === nodeId); return index < 0 ? "削除済み" : `${index + 1}. ${name(doc.nodes[index].imageId)}`; };
   const selectedNode = doc.nodes.find(n => n.id === selected);
   function edit(next: CorrelationDocument) { setDoc(next); setDirty(true); setCandidates(null); }
@@ -94,7 +95,11 @@ export function CorrelationEditor({ tier, initial, images, environments, default
         <h2>画像を動かして、矢印でつなぐ</h2>
         <label>相関図タイトル<input value={doc.title ?? ""} maxLength={120} disabled={busy} onChange={e=>edit({...doc,title:e.target.value})} /></label>
         <p className={styles.muted}>標準デッキを設定した画像同士をつなぐと、接続元から見た勝率・対戦数が入ります。両方向矢印も数値は接続元側の視点です。画像はドラッグ・矢印キーで移動できます。</p>
-        <div ref={preview}><CorrelationCanvas document={doc} images={images} title={tier.document.title} transparent={transparent} selectedId={selected} onSelect={setSelected} onMove={move} disabled={busy} /></div>
+        <button type="button" aria-pressed={actualSize} onClick={() => setActualSize(value => !value)}>原寸で確認</button>
+        {actualSize && <p className={styles.muted}>上下左右にスクロールして、PNG・OBSと同じ文字サイズを確認できます。</p>}
+        <div ref={preview} data-correlation-preview style={{ overflow: "auto", maxHeight: actualSize ? "70vh" : undefined }}>
+          <div style={{ width: actualSize ? 1920 : "100%" }}><CorrelationCanvas document={doc} images={images} displayNames={displayNames} title={tier.document.title} transparent={transparent} selectedId={selected} onSelect={setSelected} onMove={move} disabled={busy} /></div>
+        </div>
         <div className={styles.toolbar}>
           <label className={styles.check}><input type="checkbox" checked={doc.showTitle} disabled={busy} onChange={e => edit({ ...doc,showTitle:e.target.checked })} />相関図タイトルを表示</label>
           <label className={styles.check}><input type="checkbox" checked={doc.showNames} disabled={busy} onChange={e => edit({ ...doc,showNames:e.target.checked })} />デッキ名を表示</label>

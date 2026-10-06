@@ -12,5 +12,5 @@ export default async function CorrelationPage({ params }: { params: Promise<{ id
   const data = await getCorrelationSet(client,id);
   if (!data.correlation) redirect(`/admin/creator/tier?work=${id}`);
   const environments=await getEnvironments();
-  return <CorrelationEditor tier={data.tier} initial={data.correlation} images={data.images} environments={environments.map(e=>({id:e.id,name:e.name}))} defaultEnvironment={selectInitialEnvironmentId(environments)} />;
+  return <CorrelationEditor tier={data.tier} initial={data.correlation} images={data.images} displayNames={data.displayNames} environments={environments.map(e=>({id:e.id,name:e.name}))} defaultEnvironment={selectInitialEnvironmentId(environments)} />;
 }
