@@ -160,6 +160,11 @@ export default async function AdminPage({
 
         {section === "tools" && <div className="grid gap-5">
           <section className="rounded-md border border-slate-200 bg-white p-5">
+            <h2 className="text-lg font-bold">コンテンツ制作</h2>
+            <p className="mt-2 text-sm text-muted">画像ライブラリからTier表を作成し、PNG・OBSで利用します。</p>
+            <Link className="mt-4 inline-flex min-h-11 items-center rounded-md border border-slate-300 px-4 text-sm font-semibold" href="/admin/creator" prefetch={false}>クリエイターツールを開く</Link>
+          </section>
+          <section className="rounded-md border border-slate-200 bg-white p-5">
             <h2 className="text-lg font-bold">期間レポート</h2>
             <p className="mt-2 text-sm text-muted">指定した期間の戦績をレポートで確認します。</p>
             <Link className="mt-4 inline-flex min-h-11 items-center rounded-md border border-slate-300 px-4 text-sm font-semibold" href="/admin/weekly-report" prefetch={false}>期間レポートを開く</Link>

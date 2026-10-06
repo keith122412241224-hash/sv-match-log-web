@@ -12,6 +12,13 @@ async function setup() {
     create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;
     create function auth.jwt() returns jsonb language sql stable as $$select coalesce(nullif(current_setting('request.jwt.claims',true),''),'{}')::jsonb$$;
     grant usage on schema auth to anon, authenticated, service_role;`);
+  // Supabase platform Storage tables exist before application migrations run.
+  await db.exec(`create schema storage;
+    create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);
+    create table storage.objects(id uuid primary key default gen_random_uuid(),bucket_id text references storage.buckets,name text);
+    alter table storage.objects enable row level security;
+    grant usage on schema storage to anon,authenticated,service_role;
+    grant select,insert,update,delete on storage.objects to anon,authenticated,service_role;`);
   for (const file of fs.readdirSync('supabase/migrations').filter(f => f.endsWith('.sql')).sort()) await db.exec(fs.readFileSync(path.join('supabase/migrations', file), 'utf8'));
   for (const id of [ids.a, ids.b]) await db.query('insert into auth.users(id,email) values($1,$2)', [id, id + '@example.test']);
   await db.query('insert into public.admin_users(user_id) values($1)', [ids.a]);
