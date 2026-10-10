@@ -35,7 +35,15 @@ async function until(fn) { for (let i = 0; i < 100; i++) { if (await fn()) retur
         if (key === 'select') q.select(value);
         else if (key === 'order') for (const order of value.split(',')) { const [field, direction] = order.split('.'); q.order(field, { ascending: direction !== 'desc' }); }
         else if (key === 'limit') q.limit(Number(value));
-        else if (value.startsWith('eq.')) q.eq(key, value.slice(3));
+        // PostgREST coerces filters using the column type. PGlite's boolean
+        // parameter serializer requires a JS boolean, not the URL text.
+        else if (value.startsWith('eq.')) {
+          const raw = value.slice(3);
+          if ((table === 'deck_archetypes' && key === 'is_active') || (table === 'environments' && key === 'allow_match_input')) {
+            assert.ok(['true', 'false'].includes(raw), 'invalid boolean fixture filter');
+            q.eq(key, raw === 'true');
+          } else q.eq(key, raw);
+        }
         else if (value.startsWith('in.(')) q.in(key, value.slice(4, -1).split(',').map(v => v.replaceAll('"', '')));
         else if (!['on_conflict', 'columns'].includes(key)) throw Error('Unexpected query ' + key);
       }
@@ -67,6 +75,12 @@ async function until(fn) { for (let i = 0; i < 100; i++) { if (await fn()) retur
     const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
     await context.route('**/*', route => ['localhost', '127.0.0.1'].includes(new URL(route.request().url()).hostname) ? route.continue() : route.abort());
     const token = ['eyJhbGciOiJIUzI1NiJ9', Buffer.from(JSON.stringify({ sub: user.id, exp: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url'), 'fixture'].join('.');
+    for (const [filter, expected] of [['is_active=eq.true', [ids.arch, ids.arch2]], ['is_active=eq.false', []], ['name=eq.true', []]]) {
+      const response = await fetch('http://127.0.0.1:54329/rest/v1/deck_archetypes?select=id&' + filter, { headers: { Authorization: 'Bearer ' + token } });
+      assert.equal(response.status, 200);
+      assert.deepEqual((await response.json()).map(row => row.id).sort(), expected);
+    }
+    checks.push('HTTP boolean filters preserve true/false and textual values');
     const direct = async (method, target, authorization, body) => {
       const response = await fetch('http://127.0.0.1:54329/rest/v1/matches?id=eq.' + target, {
         method, headers: { 'Content-Type': 'application/json', ...(authorization ? { Authorization: 'Bearer ' + authorization } : {}) },

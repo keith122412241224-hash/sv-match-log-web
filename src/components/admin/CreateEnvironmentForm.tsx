@@ -19,6 +19,10 @@ export function CreateEnvironmentForm() {
         <FieldLabel>入力終了日時（日本時間）<Input name="match_input_end_at" type="datetime-local" step="0.001" /></FieldLabel>
       </div>
       <p className="text-xs text-muted sm:col-span-2">日時の空欄は制限なし。終了時刻から入力できなくなります。</p>
+      <div className="sm:col-span-3">
+        <FieldLabel>環境データ集計終了日時（日本時間）<Input name="dashboard_end_at" type="datetime-local" step="0.001" /></FieldLabel>
+        <p className="mt-2 text-xs text-muted">設定した日時の直前までの戦績を集計します。空欄は現在の集計基準時刻まで。入力受付には影響しません。</p>
+      </div>
       <SubmitButton pendingLabel="追加中..." type="submit">
         環境を追加
       </SubmitButton>

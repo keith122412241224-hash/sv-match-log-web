@@ -5,10 +5,10 @@ import { useCallback, useEffect, useRef, useState, type SyntheticEvent } from "r
 import { EnvironmentData } from "@/components/environment/EnvironmentData";
 import { RankMultiSelect } from "@/components/RankMultiSelect";
 import { parseRankSelection, rankSelectionToMatrixFilter, serializeRankSelection } from "@/lib/rank-selection";
-import { ENVIRONMENT_PERIODS, normalizeEnvironmentPeriod } from "@/lib/environment-dashboard";
-import { environmentHrefV2 as environmentHref, type DashboardSelectionV2 as DashboardSelection } from "@/lib/environment-dashboard-v2";
+import { DASHBOARD_PERIODS, normalizeDashboardPeriod } from "@/lib/environment-dashboard-period";
+import { environmentHrefV4 as environmentHref, type DashboardSelectionV4 as DashboardSelection } from "@/lib/environment-dashboard-period";
 
-import { parseEnvironmentDashboardV3 as parseEnvironmentDashboard, type EnvironmentDashboardV3 as EnvironmentDashboard } from "@/lib/environment-dashboard-v3";
+import { parseEnvironmentDashboardV4 as parseEnvironmentDashboard, type EnvironmentDashboardV4 as EnvironmentDashboard } from "@/lib/environment-dashboard-v4";
 
 export function EnvironmentFilters({ environments, activeDeckIds, initialSelection, initialData, initialFailed }: {
   environments: { id: string; name: string }[]; activeDeckIds: string[]; initialSelection: DashboardSelection; initialData: EnvironmentDashboard | null; initialFailed: boolean;
@@ -36,10 +36,10 @@ export function EnvironmentFilters({ environments, activeDeckIds, initialSelecti
     // ordinary SSR/reload already matches and must not issue a second RPC.
     const q = new URLSearchParams(window.location.search);
     const environment = environments.some(e => e.id === q.get("environment")) ? q.get("environment")! : initialSelection.environment;
-    const next = { environment, period: normalizeEnvironmentPeriod(q.get("period")), ranks: parseRankSelection({ ranks: q.get("ranks") ?? undefined, rank: q.get("rank") ?? undefined }) };
+    const next = { environment, period: q.has("period") ? normalizeDashboardPeriod(q.get("period")) : initialSelection.period, ranks: parseRankSelection({ ranks: q.get("ranks") ?? undefined, rank: q.get("rank") ?? undefined }) };
     if (environmentHref(next) !== environmentHref(currentSelection.current)) void load(next);
     return () => { controller.current?.abort(); };
-  }, [environments, initialSelection.environment, load]);
+  }, [environments, initialSelection.environment, initialSelection.period, load]);
   function update(next: DashboardSelection) {
     if (pending) return;
     if (environmentHref(next) === environmentHref(selection)) return;
@@ -67,8 +67,8 @@ export function EnvironmentFilters({ environments, activeDeckIds, initialSelecti
         </label>
         <fieldset className="min-w-0">
           <legend className="mb-2 text-sm font-semibold">期間</legend>
-          <div className="grid grid-cols-4 gap-1">
-            {ENVIRONMENT_PERIODS.map(p => <label key={p.value} className="cursor-pointer">
+          <div className="grid grid-cols-5 gap-1">
+            {DASHBOARD_PERIODS.map(p => <label key={p.value} className="cursor-pointer">
               <input className="peer sr-only" type="radio" name="period" value={p.value} checked={selection.period === p.value} onChange={() => update({ ...selection, period: p.value })} />
               <span className="flex min-h-11 items-center justify-center rounded-md border border-slate-300 px-1 text-sm peer-checked:border-slate-700 peer-checked:bg-slate-800 peer-checked:text-white peer-focus-visible:ring-2 peer-focus-visible:ring-blue-600 peer-disabled:opacity-60">{p.label}</span>
             </label>)}

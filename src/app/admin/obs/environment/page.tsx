@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser, getEnvironments, getIsAdmin } from "@/lib/data";
 import { getEnvironmentDashboard } from "@/lib/environment-dashboard-data";
-import { normalizeEnvironmentPeriod } from "@/lib/environment-dashboard";
-import { environmentHrefV2 } from "@/lib/environment-dashboard-v2";
+import { initialDashboardPeriod } from "@/lib/environment-dashboard-period";
+import { environmentHrefV4 } from "@/lib/environment-dashboard-period";
 import { selectInitialEnvironmentId } from "@/lib/environment-selection";
 import { parseRankSelection } from "@/lib/rank-selection";
 import { ObsEnvironmentView } from "@/components/environment/ObsEnvironmentView";
@@ -24,9 +24,9 @@ export default async function ObsEnvironmentPage({ searchParams }: { searchParam
   catch { return <Message>ランクの絞り込み条件が不正です。URLのランク指定を確認してください。</Message>; }
   const environment = selectInitialEnvironmentId(environments, typeof params.environment === "string" ? params.environment : undefined);
   if (!environment) return <Message>選択できる環境がありません。</Message>;
-  const selection = { environment, period: normalizeEnvironmentPeriod(params.period), ranks };
+  const selection = { environment, period: initialDashboardPeriod(params.period, environments?.find(e => e.id === environment)?.dashboard_end_at), ranks };
   if (["environment", "period"].some(k => params[k] !== undefined && params[k] !== selection[k as "environment" | "period"])) {
-    redirect(`/admin/obs${environmentHrefV2(selection)}`);
+    redirect(`/admin/obs${environmentHrefV4(selection)}`);
   }
   let dashboard;
   try { dashboard = await getEnvironmentDashboard(selection); }

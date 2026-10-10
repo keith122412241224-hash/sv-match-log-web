@@ -5,7 +5,7 @@ import { useRef, useState } from "react";
 import type { CreatorImage, TierWork } from "@/lib/creator/model";
 import { boundNode, parseCorrelation, removeNode, type CorrelationDocument, type CorrelationEdge, type CorrelationNode, type CorrelationWork } from "@/lib/creator/correlation";
 import { linkedDeck, matchupCandidates, sameSelection, withAutomaticData, type DataSelection, type MatchupCandidate, type MatchupData } from "@/lib/creator/matchup-data";
-import { ENVIRONMENT_PERIODS } from "@/lib/environment-dashboard";
+import { DASHBOARD_PERIODS, dashboardPeriodLabel } from "@/lib/environment-dashboard-period";
 import { RANK_ATOMS } from "@/lib/rank-selection";
 import { RankMultiSelect } from "@/components/RankMultiSelect";
 import { formatJstDateTime } from "@/lib/utils";
@@ -71,7 +71,7 @@ export function CorrelationEditor({ tier, initial, images, displayNames = {}, en
     if(edge.dataSource!=="auto")return "手動入力";
     if(!snapshot)return "未取得 — データを更新してください。手動入力にも切り替えられます。";
     if(!sameSelection(selection,snapshot.selection)||a!==snapshot.sourceDeckId||b!==snapshot.targetDeckId)return "条件が変更されています — 表示中の値を更新するには「データを更新」を押してください。";
-    return `${edge.matchCount===0?"データなし · ":""}${formatJstDateTime(snapshot.start)} 〜 ${formatJstDateTime(snapshot.end)}（終了時刻を含まない）· 取得 ${formatJstDateTime(snapshot.aggregatedAt)}`;
+    return `${edge.matchCount===0?"データなし · ":""}${snapshot.start === null ? "環境全期間" : formatJstDateTime(snapshot.start)} 〜 ${formatJstDateTime(snapshot.end)}（終了時刻を含まない）· 取得 ${formatJstDateTime(snapshot.aggregatedAt)}`;
   }
   const obsQuery = transparent ? "?transparent=1" : "";
   return <main className={styles.page}>
@@ -124,7 +124,7 @@ export function CorrelationEditor({ tier, initial, images, displayNames = {}, en
     <section className={styles.panel} aria-label="データ集計条件"><h2>データ集計条件</h2>
       <div className={styles.dataFilters}>
         <label>環境<select aria-label="集計する環境" value={selection.environment} disabled={busy} onChange={e=>edit({...doc,dataSelection:{...selection,environment:e.target.value}})}><option value="" disabled>環境を選択</option>{environments.map(e=><option key={e.id} value={e.id}>{e.name}</option>)}</select></label>
-        <label>期間<select aria-label="集計期間" value={selection.period} disabled={busy||!selection.environment} onChange={e=>edit({...doc,dataSelection:{...selection,period:e.target.value as DataSelection["period"]}})}>{ENVIRONMENT_PERIODS.map(p=><option key={p.value} value={p.value}>直近{p.label}</option>)}</select></label>
+        <label>期間<select aria-label="集計期間" value={selection.period} disabled={busy||!selection.environment} onChange={e=>edit({...doc,dataSelection:{...selection,period:e.target.value as DataSelection["period"]}})}>{DASHBOARD_PERIODS.map(p=><option key={p.value} value={p.value}>{dashboardPeriodLabel(p.value)}</option>)}</select></label>
         <RankMultiSelect label="ランク・レート帯" value={selection.ranks} disabled={busy||!selection.environment} onApply={ranks=>edit({...doc,dataSelection:{...selection,ranks}})} />
         <button disabled={busy||!selection.environment} onClick={()=>void run(async()=>{const data=await loadData();edit({...doc,dataSelection:selection,edges:doc.edges.map(e=>e.dataSource==="auto"?withAutomaticData(doc,e,data):e)});setNotice({error:false,text:"自動の矢印データを更新しました。作品を保存するとPNG・OBSにも保持されます。"});})}>データを更新</button>
       </div>

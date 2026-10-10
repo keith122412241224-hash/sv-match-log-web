@@ -1,17 +1,16 @@
-import { ENVIRONMENT_PERIODS } from "@/lib/environment-dashboard";
-import type { DashboardSelectionV2 } from "@/lib/environment-dashboard-v2";
+import { DASHBOARD_PERIODS, type DashboardSelectionV4 } from "@/lib/environment-dashboard-period";
 import { normalizeRankSelection } from "@/lib/rank-selection";
 import { UUID, type CreatorImage } from "./model";
 import type { CorrelationDocument, CorrelationEdge } from "./correlation";
 
-export type DataSelection = DashboardSelectionV2;
-export type DataSnapshot = { selection: DataSelection; start: string; end: string; aggregatedAt: string; sourceDeckId: string; targetDeckId: string };
-export type MatchupData = { selection: DataSelection; start: string; end: string; aggregatedAt: string; imageDecks: Record<string,string | null>; cells: { sourceDeckId: string; targetDeckId: string; winRate: number | null; matchCount: number }[] };
+export type DataSelection = DashboardSelectionV4;
+export type DataSnapshot = { selection: DataSelection; start: string | null; end: string; aggregatedAt: string; sourceDeckId: string; targetDeckId: string };
+export type MatchupData = { selection: DataSelection; start: string | null; end: string; aggregatedAt: string; imageDecks: Record<string,string | null>; cells: { sourceDeckId: string; targetDeckId: string; winRate: number | null; matchCount: number }[] };
 export type MatchupCandidate = { sourceNodeId: string; targetNodeId: string; winRate: number; matchCount: number; snapshot: DataSnapshot };
 
 export function parseDataSelection(value: unknown): DataSelection {
   const v = value as DataSelection;
-  if (!v || typeof v.environment !== "string" || !UUID.test(v.environment) || !ENVIRONMENT_PERIODS.some(p=>p.value===v.period)) throw Error("データ集計条件が不正です。");
+  if (!v || typeof v.environment !== "string" || !UUID.test(v.environment) || !DASHBOARD_PERIODS.some(p=>p.value===v.period)) throw Error("データ集計条件が不正です。");
   return { environment: v.environment, period: v.period, ranks: normalizeRankSelection(v.ranks) };
 }
 export function sameSelection(a: DataSelection, b: DataSelection) {
@@ -19,8 +18,9 @@ export function sameSelection(a: DataSelection, b: DataSelection) {
 }
 export function parseDataSnapshot(value: unknown): DataSnapshot {
   const v = value as DataSnapshot;
-  if (!v || ![v.sourceDeckId,v.targetDeckId].every(id=>typeof id === "string" && UUID.test(id)) || ![v.start,v.end,v.aggregatedAt].every(t=>typeof t === "string" && /^\d{4}-\d\d-\d\dT/.test(t) && Number.isFinite(Date.parse(t))) || Date.parse(v.start)>=Date.parse(v.end) || Date.parse(v.end)>Date.parse(v.aggregatedAt)) throw Error("取得データの記録が不正です。");
-  return { selection: parseDataSelection(v.selection), start:v.start,end:v.end,aggregatedAt:v.aggregatedAt,sourceDeckId:v.sourceDeckId,targetDeckId:v.targetDeckId };
+  const selection = parseDataSelection(v?.selection);
+  if (!v || ![v.sourceDeckId,v.targetDeckId].every(id=>typeof id === "string" && UUID.test(id)) || ![v.end,v.aggregatedAt].every(t=>typeof t === "string" && /^\d{4}-\d\d-\d\dT/.test(t) && Number.isFinite(Date.parse(t))) || (selection.period === "all" ? v.start !== null : typeof v.start !== "string" || !Number.isFinite(Date.parse(v.start)) || Date.parse(v.start)>=Date.parse(v.end)) || Date.parse(v.end)>Date.parse(v.aggregatedAt)) throw Error("取得データの記録が不正です。");
+  return { selection, start:v.start,end:v.end,aggregatedAt:v.aggregatedAt,sourceDeckId:v.sourceDeckId,targetDeckId:v.targetDeckId };
 }
 export function linkedDeck(doc: CorrelationDocument, nodeId: string, images: readonly CreatorImage[]) {
   return images.find(i=>i.id===doc.nodes.find(n=>n.id===nodeId)?.imageId)?.archetype_id ?? null;

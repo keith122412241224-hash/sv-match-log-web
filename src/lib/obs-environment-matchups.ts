@@ -1,13 +1,13 @@
 import { AnalysisDataError, buildAnalysisFromAggregates, parseAnalysisAggregates } from "@/lib/analysis-aggregates";
-import { buildEnvironmentViewV3, type EnvironmentDashboardV3 } from "@/lib/environment-dashboard-v3";
+import { buildEnvironmentViewV4, type EnvironmentDashboardV4 } from "@/lib/environment-dashboard-v4";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export type ObsMatchups = ReturnType<typeof buildAnalysisFromAggregates>["matrix"];
 
 // Only the guarded OBS page calls this loader. The dashboard owns all boundaries
 // and rank selection; never reconstruct its time window on the application side.
-export async function getObsEnvironmentMatchups(dashboard: EnvironmentDashboardV3): Promise<ObsMatchups> {
-  const decks = buildEnvironmentViewV3(dashboard).encounters.map(row => ({
+export async function getObsEnvironmentMatchups(dashboard: EnvironmentDashboardV4): Promise<ObsMatchups> {
+  const decks = buildEnvironmentViewV4(dashboard).encounters.map(row => ({
     id: row.key, name: row.name, class_name: row.className ?? ""
   }));
   if (!decks.length) return [];

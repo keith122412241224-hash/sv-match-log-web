@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { readMatchInputWindow } from "@/lib/environment-input";
+import { jstInputToIso, readMatchInputWindow } from "@/lib/environment-input";
 import type { SuggestionStatus } from "@/types/database";
 
 export async function createArchetype(formData: FormData) {
@@ -35,7 +35,9 @@ export async function createEnvironment(formData: FormData, returnResult = false
   }
 
   let inputWindow;
+  let dashboardEnd;
   try {
+    dashboardEnd = jstInputToIso(String(formData.get("dashboard_end_at") ?? ""));
     inputWindow = readMatchInputWindow(String(formData.get("match_input_start_at") ?? ""), String(formData.get("match_input_end_at") ?? ""));
   } catch {
     return environmentResult(returnResult, "environment_create_failed", "入力日時を日本時間で正しく入力し、終了は開始より後に設定してください。");
@@ -46,7 +48,8 @@ export async function createEnvironment(formData: FormData, returnResult = false
     name,
     start_date: startDate || null,
     allow_match_input: formData.get("allow_match_input") === "on",
-    ...inputWindow
+    ...inputWindow,
+    dashboard_end_at: dashboardEnd
   });
 
   if (error) {
@@ -61,9 +64,11 @@ export async function updateEnvironmentsBatch(formData: FormData, returnResult =
   const supabase = await requireAdminClient();
   const ids = formData.getAll("environment_ids").map((value) => String(value));
 
+  const dashboardEnds = new Map<string, string | null>();
   const inputWindows = new Map<string, ReturnType<typeof readMatchInputWindow>>();
   try {
     for (const id of ids) {
+      if (formData.has(`dashboard_end_at_${id}`)) dashboardEnds.set(id, jstInputToIso(String(formData.get(`dashboard_end_at_${id}`) ?? "")));
       inputWindows.set(id, readMatchInputWindow(
         String(formData.get(`match_input_start_at_${id}`) ?? ""),
         String(formData.get(`match_input_end_at_${id}`) ?? "")
@@ -87,7 +92,8 @@ export async function updateEnvironmentsBatch(formData: FormData, returnResult =
         name,
         start_date: startDate || null,
         allow_match_input: formData.get(`allow_match_input_${id}`) === "on",
-        ...inputWindows.get(id)!
+        ...inputWindows.get(id)!,
+        ...(dashboardEnds.has(id) ? { dashboard_end_at: dashboardEnds.get(id)! } : {})
       }
     };
   });
@@ -302,6 +308,8 @@ async function requireAdminUser() {
 }
 
 function revalidateAdminPaths() {
+  revalidatePath("/environment");
+  revalidatePath("/admin/obs/environment");
   revalidatePath("/admin");
   revalidatePath("/");
   revalidatePath("/matches");

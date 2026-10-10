@@ -59,6 +59,12 @@ export function AdminEnvironmentTable({ environments, serverNow }: { environment
             </FieldLabel>
           </div>
           <p className="mt-2 text-xs text-muted">空欄は制限なし。開始時刻から入力でき、終了時刻から入力できなくなります。手動許可を外すと即停止します。</p>
+          <div className="mt-3 max-w-md">
+            <FieldLabel>環境データ集計終了日時（日本時間）
+              <Input type="datetime-local" step="0.001" name={`dashboard_end_at_${environment.id}`} defaultValue={isoToJstInput(environment.dashboard_end_at)} />
+            </FieldLabel>
+          </div>
+          <p className="mt-2 text-xs text-muted">設定した日時の直前までの戦績を集計します。未設定・未来日時の場合は現在の集計基準時刻まで集計します。入力受付とは独立した設定です。</p>
           <p className="mt-2 text-sm font-semibold text-ink">保存済みの状態：{environmentInputStatus(environment, serverNow)}</p>
         </section>
       ))}

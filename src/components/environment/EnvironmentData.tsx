@@ -1,11 +1,12 @@
+import { dashboardPeriodLabel } from "@/lib/environment-dashboard-period";
 import type { ReactNode } from "react";
-import { buildEnvironmentViewV3, type EnvironmentDashboardV3 } from "@/lib/environment-dashboard-v3";
+import { buildEnvironmentViewV4, type EnvironmentDashboardV4 } from "@/lib/environment-dashboard-v4";
 import { getRankSelectionLabel } from "@/lib/rank-selection";
-import { ENVIRONMENT_PERIODS, formatEnvironmentPercent as percent, type Trend } from "@/lib/environment-dashboard";
+import { formatEnvironmentPercent as percent, type Trend } from "@/lib/environment-dashboard";
 import { formatJstDateTime } from "@/lib/utils";
 
 const integer = (n: number) => n.toLocaleString("ja-JP");
-type Row = ReturnType<typeof buildEnvironmentViewV3>["rows"][number];
+type Row = ReturnType<typeof buildEnvironmentViewV4>["rows"][number];
 function Panel({ title, children }: { title: string; children: ReactNode }) {
   return <section className="min-w-0 rounded-md border border-slate-200 bg-white p-4"><h2 className="mb-4 text-lg font-bold">{title}</h2>{children}</section>;
 }
@@ -24,20 +25,22 @@ function WinText({ row }: { row: Row }) {
   return row.winRate === null ? <span className="text-sm text-muted">観測なし</span>
     : <span className="text-sm"><strong>{percent(row.winRate)}</strong></span>;
 }
-export function EnvironmentData({ data, activeDeckIds }: { data: EnvironmentDashboardV3; activeDeckIds: string[] }) {
-  const view = buildEnvironmentViewV3(data), total = data.current.total;
+export function EnvironmentData({ data, activeDeckIds }: { data: EnvironmentDashboardV4; activeDeckIds: string[] }) {
+  const view = buildEnvironmentViewV4(data), total = data.current.total;
   // Filter the displayed catalog only; registration totals and rates keep their original population.
   const activeDecks = new Set(activeDeckIds);
   const visibleRows = view.rows.filter(d => d.key !== "unclassified" && activeDecks.has(d.key));
   const noRanking = "表示できるデータがありません。";
   return <>
     <section aria-label="集計条件" className="rounded-md border border-slate-200 bg-white p-4 text-sm">
-      <p className="mb-2 text-muted">直近{ENVIRONMENT_PERIODS.find(p => p.value === data.period)!.label} / {getRankSelectionLabel(data.rankFilters)}</p>
+      <p className="mb-2 text-muted">{dashboardPeriodLabel(data.period)} / {getRankSelectionLabel(data.rankFilters)}</p>
       <p className="font-semibold">登録戦績：{total.status === "available" ? `${integer(total.totalMatches)}件` : "データなし"}</p>
       <p className="mt-2">集計対象：{formatJstDateTime(data.dataThrough)}まで（JST）</p>
-      <p className="mt-1 text-xs text-muted">今期：{formatJstDateTime(data.current.start)} ～ {formatJstDateTime(data.current.end)}（終了時刻は含みません）</p>
-      <p className="mt-1 text-xs text-muted">前期間：{formatJstDateTime(data.previous.start)} ～ {formatJstDateTime(data.previous.end)}（JST）</p>
-      <p className="mt-2 text-xs text-muted">30分単位の集計対象時刻です。ランクは登録者の対戦時点の条件で、「すべて」は未登録も含みます。</p>
+      {data.current.start !== null && <p className="mt-1 text-xs text-muted">今期：{formatJstDateTime(data.current.start)} ～ {formatJstDateTime(data.current.end)}（終了時刻は含みません）</p>}
+      {data.previous && <p className="mt-1 text-xs text-muted">前期間：{formatJstDateTime(data.previous.start)} ～ {formatJstDateTime(data.previous.end)}（JST）</p>}
+      {data.endSource === "configured" && <p className="mt-1 text-xs text-muted">集計基準：設定した集計終了時点（{formatJstDateTime(data.dataThrough)} JST）</p>}
+      {data.period === "all" && <p className="mt-1 text-xs text-muted">全期間では前期間比較を行いません。終了時刻は含みません。</p>}
+      <p className="mt-2 text-xs text-muted">{data.endSource !== "configured" && "30分単位の集計対象時刻です。"}ランクは登録者の対戦時点の条件で、「すべて」は未登録も含みます。</p>
     </section>
     <div className="grid gap-4 lg:grid-cols-2">
       <Panel title="遭遇率TOP5">
@@ -53,10 +56,10 @@ export function EnvironmentData({ data, activeDeckIds }: { data: EnvironmentDash
           <span className="min-w-0 break-words text-sm font-semibold">{i + 1}. {d.name}</span><div><WinText row={d} /><p className="mt-1 text-sm text-muted">対象戦績数{integer(d.current.winrate.evaluationCount!)}件</p></div>
         </li>)}</ol> : <p className="text-sm text-muted">{noRanking}</p>}
       </Panel>
-      {([ ["増加TOP3", view.increases], ["減少TOP3", view.decreases] ] as const).map(([title, rows]) => <Panel key={title} title={title}>
+      {data.previous && ([ ["増加TOP3", view.increases], ["減少TOP3", view.decreases] ] as const).map(([title, rows]) => <Panel key={title} title={title}>
         <p className="mb-4 text-xs text-muted">前の期間より遭遇率が{title === "増加TOP3" ? "増えた" : "減った"}デッキを表示します。</p>
-        {rows.length ? <ol className="space-y-4">{rows.map(d => <li key={d.key}><p className="mb-1 break-words text-sm font-semibold">{d.name}</p><TrendText trend={d.trend} /></li>)}</ol>
-          : <p className="text-sm text-muted">{data.previous.total.status === "no_data" ? "前の期間のデータがありません。" : total.status === "no_data" ? "今の期間のデータがありません。" : `比較できる${title === "増加TOP3" ? "増加" : "減少"}データがありません。`}</p>}
+        {rows.length ? <ol className="space-y-4">{rows.map(d => <li key={d.key}><p className="mb-1 break-words text-sm font-semibold">{d.name}</p>{d.trend && <TrendText trend={d.trend} />}</li>)}</ol>
+          : <p className="text-sm text-muted">{data.previous?.total.status === "no_data" ? "前の期間のデータがありません。" : total.status === "no_data" ? "今の期間のデータがありません。" : `比較できる${title === "増加TOP3" ? "増加" : "減少"}データがありません。`}</p>}
       </Panel>)}
     </div>
     <Panel title="デッキ別データ">
@@ -65,23 +68,23 @@ export function EnvironmentData({ data, activeDeckIds }: { data: EnvironmentDash
         <summary className="w-fit cursor-pointer rounded py-2 font-semibold focus-visible:outline focus-visible:outline-2">集計について</summary>
         <dl className="mt-2 space-y-2">
           <div><dt className="font-semibold">対象戦績数</dt><dd>勝率計算に使った件数です。自分側と相手側を反転して集計するため、ミラーマッチは1戦から2件として集計されます。</dd></div>
-          <div><dt className="font-semibold">前期間との比較</dt><dd>両期間の登録戦績がそれぞれ30件以上あり、両期間で相手として観測されたデッキを比較します。遭遇率の変化が±0.5ポイント未満なら横ばいです。</dd></div>
+          {data.previous && <div><dt className="font-semibold">前期間との比較</dt><dd>両期間の登録戦績がそれぞれ30件以上あり、両期間で相手として観測されたデッキを比較します。遭遇率の変化が±0.5ポイント未満なら横ばいです。</dd></div>}
         </dl>
       </details>
       {visibleRows.length === 0 && <p className="text-sm text-muted">この期間に対象戦績のあるデッキがありません。</p>}
       <table aria-describedby="environment-count-help" className="hidden w-full table-fixed text-left text-sm lg:table">
-        <thead className="bg-slate-50"><tr>{["デッキ", "遭遇率", "勝率", "対象戦績数", "前期間比較"].map(h => <th scope="col" key={h} className="p-3">{h}</th>)}</tr></thead>
+        <thead className="bg-slate-50"><tr>{["デッキ", "遭遇率", "勝率", "対象戦績数", ...(data.previous ? ["前期間比較"] : [])].map(h => <th scope="col" key={h} className="p-3">{h}</th>)}</tr></thead>
         <tbody>{visibleRows.map(d => <tr key={d.key} className="border-t border-slate-100">
           <th scope="row" className="break-words p-3">{d.name}</th><td className="p-3"><EncounterText row={d} total={total.totalMatches} /></td><td className="p-3"><WinText row={d} /></td>
           <td className="p-3">{d.current.winrate.status === "available" ? `${integer(d.current.winrate.evaluationCount!)}件` : "—"}</td>
-          <td className="p-3"><TrendText trend={d.trend} /></td>
+          {d.trend !== null && <td className="p-3"><TrendText trend={d.trend} /></td>}
         </tr>)}</tbody>
       </table>
       <div className="divide-y divide-slate-200 lg:hidden">{visibleRows.map(d => <article key={d.key} className="space-y-3 py-4 first:pt-0">
         <h3 className="break-words font-semibold">{d.name}</h3>
         <div className="flex flex-wrap items-start gap-x-3 gap-y-1"><span className="text-sm">遭遇率</span><EncounterText row={d} total={total.totalMatches} /></div>
         <div className="flex flex-wrap items-start gap-x-3 gap-y-1"><span className="text-sm">勝率</span><div><WinText row={d} />{d.current.winrate.status === "available" && <p className="mt-1 text-sm text-muted">対象戦績数{integer(d.current.winrate.evaluationCount)}件</p>}</div></div>
-        <TrendText trend={d.trend} />
+        {d.trend !== null && <TrendText trend={d.trend} />}
       </article>)}</div>
     </Panel>
   </>;

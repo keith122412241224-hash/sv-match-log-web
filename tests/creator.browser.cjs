@@ -33,6 +33,7 @@ async function main() {
         if(url.pathname.startsWith('/rest/v1/rpc/')){
           const args=JSON.parse(bytes);report.rpcCalls??=[];report.rpcCalls.push({name:url.pathname.split('/').at(-1),args});
           if(url.pathname.endsWith('/get_environment_dashboard_aggregates_v3'))return json(res,200,fixture.dashboard(args));
+          if(url.pathname.endsWith('/get_environment_dashboard_aggregates_v4'))return json(res,200,require('./environment-dashboard-v4-fixture.cjs').dashboard(args));
           if(url.pathname.endsWith('/get_analysis_aggregates_v3_exclusive'))return json(res,200,args.p_environment_id===fixture.id(2)||Date.parse(args.p_played_to)-Date.parse(args.p_played_from)<2*86400000?{version:1,registeredMatches:0,perspectives:0,totalWins:0,groups:[],recent:[]}:require('./obs-matchups-fixture.cjs').aggregates());
           throw Error('Unexpected RPC');
         }

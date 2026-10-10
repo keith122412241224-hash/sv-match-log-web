@@ -3,15 +3,15 @@
 import { useState } from "react";
 import { RankMultiSelect } from "@/components/RankMultiSelect";
 import { FieldLabel, Select } from "@/components/Field";
-import { ENVIRONMENT_PERIODS, normalizeEnvironmentPeriod } from "@/lib/environment-dashboard";
-import { environmentHrefV2, type DashboardSelectionV2 } from "@/lib/environment-dashboard-v2";
+import { DASHBOARD_PERIODS, normalizeDashboardPeriod, initialDashboardPeriod, dashboardPeriodLabel } from "@/lib/environment-dashboard-period";
+import { environmentHrefV4, type DashboardSelectionV4 } from "@/lib/environment-dashboard-period";
 import { RANK_ATOMS } from "@/lib/rank-selection";
 
 export function ObsEnvironmentSettings({ environments, initialEnvironment }: {
-  environments: { id: string; name: string }[]; initialEnvironment: string;
+  environments: { id: string; name: string; dashboard_end_at?: string | null }[]; initialEnvironment: string;
 }) {
-  const [selection, setSelection] = useState<DashboardSelectionV2>({ environment: initialEnvironment, period: "7d", ranks: RANK_ATOMS });
-  const href = `/admin/obs${environmentHrefV2(selection)}`;
+  const [selection, setSelection] = useState<DashboardSelectionV4>({ environment: initialEnvironment, period: initialDashboardPeriod(undefined, environments.find(e => e.id === initialEnvironment)?.dashboard_end_at), ranks: RANK_ATOMS });
+  const href = `/admin/obs${environmentHrefV4(selection)}`;
   return <section className="rounded-md border border-slate-200 bg-white p-5">
     <h2 className="text-lg font-bold">OBS表示</h2>
     <p className="mt-2 text-sm text-muted">環境データを動画・配信用の読み取り専用パネルで表示します。</p>
@@ -19,8 +19,8 @@ export function ObsEnvironmentSettings({ environments, initialEnvironment }: {
       <FieldLabel>環境<Select value={selection.environment} disabled={!environments.length} onChange={e => setSelection({ ...selection, environment: e.target.value })}>
         {environments.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
       </Select></FieldLabel>
-      <FieldLabel>期間<Select value={selection.period} onChange={e => setSelection({ ...selection, period: normalizeEnvironmentPeriod(e.target.value) })}>
-        {ENVIRONMENT_PERIODS.map(p => <option key={p.value} value={p.value}>直近{p.label}</option>)}
+      <FieldLabel>期間<Select value={selection.period} onChange={e => setSelection({ ...selection, period: normalizeDashboardPeriod(e.target.value) })}>
+        {DASHBOARD_PERIODS.map(p => <option key={p.value} value={p.value}>{dashboardPeriodLabel(p.value)}</option>)}
       </Select></FieldLabel>
       <RankMultiSelect label="ランク・レート帯" value={selection.ranks} onApply={ranks => setSelection({ ...selection, ranks })} />
     </div>

@@ -11,5 +11,5 @@ test('Environment v3 changes only its own display/loading paths and adds one RPC
  assert.doesNotMatch(sql,/privacy_suppressed|\buser_id\b|\bcontributors\b|create or replace|\bdrop\b|\bpolicy\b/i);
  assert.equal((sql.match(/create function/gi)||[]).length,2);
  assert.match(sql,/is distinct from 'false'::jsonb/);assert.match(sql,/from public, anon, authenticated, service_role/);
- const loader=fs.readFileSync('src/lib/environment-dashboard-data.ts','utf8');assert.match(loader,/aggregates_v3/);assert.doesNotMatch(loader,/aggregates_v[12]/);
+ const loader=require('./environment-dashboard-v4-scope.cjs').readBeforeV4('src/lib/environment-dashboard-data.ts');assert.match(loader,/aggregates_v3/);assert.doesNotMatch(loader,/aggregates_v[12]/);
 });
