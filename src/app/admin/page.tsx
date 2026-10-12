@@ -158,16 +158,18 @@ export default async function AdminPage({
         </>}
         </>}
 
-        {section === "tools" && <div className="grid gap-5">
-          <section className="rounded-md border border-slate-200 bg-white p-5">
-            <h2 className="text-lg font-bold">コンテンツ制作</h2>
-            <p className="mt-2 text-sm text-muted">画像ライブラリからTier表を作成し、PNG・OBSで利用します。</p>
-            <Link className="mt-4 inline-flex min-h-11 items-center rounded-md border border-slate-300 px-4 text-sm font-semibold" href="/admin/creator" prefetch={false}>クリエイターツールを開く</Link>
+        {section === "tools" && <div className="grid items-start gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+          <section className="flex flex-col gap-3 rounded-md border border-slate-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between lg:col-span-2">
+            <div>
+              <h2 className="text-lg font-bold">Tier表・相関図制作</h2>
+              <p className="mt-1 text-sm text-muted">Tier表・相関図を作成し、PNG・OBS表示に利用します。</p>
+            </div>
+            <Link className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold" href="/admin/creator/tier" prefetch={false}>制作画面を開く</Link>
           </section>
-          <section className="rounded-md border border-slate-200 bg-white p-5">
+          <section className="rounded-md border border-slate-200 bg-white p-4">
             <h2 className="text-lg font-bold">期間レポート</h2>
-            <p className="mt-2 text-sm text-muted">指定した期間の戦績をレポートで確認します。</p>
-            <Link className="mt-4 inline-flex min-h-11 items-center rounded-md border border-slate-300 px-4 text-sm font-semibold" href="/admin/weekly-report" prefetch={false}>期間レポートを開く</Link>
+            <p className="mt-1 text-sm text-muted">指定期間の戦績を集計・分析します。</p>
+            <Link className="mt-3 inline-flex min-h-11 items-center justify-center rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold" href="/admin/weekly-report" prefetch={false}>レポートを開く</Link>
           </section>
           <ObsEnvironmentSettings environments={environments.map(({ id, name }) => ({ id, name }))} initialEnvironment={selectInitialEnvironmentId(environments)} />
         </div>}

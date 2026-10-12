@@ -195,7 +195,7 @@ const api = http.createServer(async (req, res) => {
     assert.equal(suggestions[0].status, 'approved'); assert.ok(decks.some(d => d.name === '候補デッキ'));
     report.checks.push('Existing deck Server Actions: create, batch update, approve; notices return to correct section');
     await go('/admin?class=' + encodeURIComponent('ネメシス')); assert.equal(await page.getByRole('link', { name: '一覧・更新', exact: true }).getAttribute('aria-current'), 'page');
-    await page.getByRole('link', { name: '運用ツール', exact: true }).click(); await page.getByRole('link', { name: '期間レポートを開く', exact: true }).click();
+    await page.getByRole('link', { name: '運用ツール', exact: true }).click(); await page.getByRole('link', { name: 'レポートを開く', exact: true }).click();
     await page.getByRole('heading', { name: '期間環境レポート', exact: true }).waitFor(); assert.equal(new URL(page.url()).pathname, '/admin/weekly-report');
     await page.reload(); await page.getByRole('heading', { name: '期間環境レポート', exact: true }).waitFor();
     report.checks.push('Legacy deck query and weekly-report URL work, tools link opens report');

@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const fs = require('node:fs'), cp = require('node:child_process'), assert = require('node:assert/strict'), { createHash } = require('node:crypto');
+const cp = require('node:child_process'), assert = require('node:assert/strict'), { createHash } = require('node:crypto');
 const base = 'add5e11e696ef93edac9186f8b3942d29f6cea62';
 const hashes = require('./fixtures/environment-dashboard-v4-source-hashes.json');
 const changed = new Set([
@@ -10,7 +10,7 @@ const changed = new Set([
   'src/lib/obs-environment-matchups.ts', 'src/types/database.ts',
 ]);
 const added = new Set(['src/lib/environment-dashboard-period.ts', 'src/lib/environment-dashboard-v4.ts', 'supabase/migrations/20261010042525_environment_dashboard_v4.sql']);
-function readCurrent(file) { return fs.readFileSync(file, 'utf8').replaceAll('\r\n', '\n'); }
+function readCurrent(file) { return require('./admin-tools-scope.cjs').readBeforeAdminTools(file); }
 function assertReviewed(file, source = readCurrent(file)) {
   assert.equal(createHash('sha256').update(source).digest('hex'), hashes[file], 'unreviewed Environment v4 change: ' + file);
 }
