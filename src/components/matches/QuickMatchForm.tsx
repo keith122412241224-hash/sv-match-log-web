@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useFormStatus } from "react-dom";
 import type { FormEvent } from "react";
 import { createMatch, createMatchInline } from "@/app/actions";
+import { readMatchSubmission, submitMatchSubmission } from "@/lib/match-submission";
 import { RankFields } from "@/components/matches/RankFields";
 import { SaveToast, type SaveNotification } from "@/components/SaveToast";
 import { lastRankKey, readLastRank, rememberLastRank } from "@/lib/match-rank-preference";
@@ -164,6 +165,27 @@ export function QuickMatchForm({
     }
   }, [archetypes, classArchetypes, opponentArchetypeId, usesArchetypes, initialMatch]);
 
+  const restoredUser = useRef<string | null>(null);
+  useEffect(() => {
+    if (guest || initialMatch || !userId || restoredUser.current === userId) return;
+    restoredUser.current = userId;
+    try {
+      const pending = readMatchSubmission(userId);
+      if (!pending) return;
+      const f = pending.fields;
+      setMyChoiceId(f.my_archetype_id || f.my_deck_id);
+      setOpponentDeckId(f.opponent_deck_id);
+      setOpponentArchetypeId(f.opponent_archetype_id);
+      const opponent = archetypes.find(row => row.id === f.opponent_archetype_id);
+      if (opponent) setOpponentClass(opponent.class_name);
+      setEnvironmentId(f.environment_id);
+      setTurnOrder(f.turn_order as TurnOrder);
+      setResult(f.result as MatchResult);
+      const parsed = validateMatchRank(f);
+      if (parsed.ok) setRank(parsed.value);
+    } catch { /* The submission path fails closed if storage is unreadable. */ }
+  }, [archetypes, guest, initialMatch, userId]);
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     if (initialMatch) {
       event.preventDefault();
@@ -217,7 +239,9 @@ export function QuickMatchForm({
         const formData = new FormData(event.currentTarget);
         formData.set("next_action", nextAction);
         const submittedRank = validateMatchRank({ rank_tier: formData.get("rank_tier"), master_group: formData.get("master_group"), grandmaster_rating: formData.get("grandmaster_rating") });
-        const response = await createMatchInline(formData);
+        if (!submittedRank.ok) throw Error(submittedRank.message);
+        if (!selectedMyChoice || !selectedOpponentDeckId || !environmentId) throw Error("環境とデッキを選択してください。");
+        const response = await submitMatchSubmission(userId, formData, createMatchInline);
 
         if (response.ok) {
           if (submittedRank.ok) rememberLastRank(rankKey, submittedRank.value);
@@ -233,9 +257,9 @@ export function QuickMatchForm({
           setSaveMessage(response.message ?? "保存できませんでした。");
           notify("error");
         }
-      } catch {
+      } catch (error) {
         setSaveState("error");
-        setSaveMessage("保存できませんでした。");
+        setSaveMessage(error instanceof Error ? error.message : "保存状態を確認できませんでした。同じ入力で再試行してください。");
         notify("error");
       } finally {
         setIsSaving(false);

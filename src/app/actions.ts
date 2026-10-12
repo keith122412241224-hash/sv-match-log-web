@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { MATCH_REQUEST_ID, matchesRequest } from "@/lib/match-request";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -13,6 +14,7 @@ import type { MatchEditData, MatchMutationResult } from "@/lib/match-edit";
 type CreateMatchResult = {
   ok: boolean;
   message?: string;
+  status?: "inserted" | "replayed" | "conflict" | "error";
 };
 
 export async function signInWithPassword(formData: FormData) {
@@ -478,6 +480,27 @@ async function saveMatchFromForm(
   });
   if (!rank.ok) return { ok: false, message: rank.message };
 
+  const requestId = String(formData.get("request_id") ?? "").toLowerCase();
+  if (!existing && !MATCH_REQUEST_ID.test(requestId)) {
+    return { ok: false, status: "error", message: "登録情報を確認できません。入力内容を控えて、画面を更新してください。" };
+  }
+  const readRequest = () => supabase.from("matches").select("*")
+    .eq("user_id", user.id).eq("request_id", requestId).maybeSingle();
+  const acknowledge = (row: Database["public"]["Tables"]["matches"]["Row"]): CreateMatchResult => {
+    if (!matchesRequest(row, formData, rank.value)) return {
+      ok: false, status: "conflict", message: "この登録は別の内容で保存済みです。保存済みの戦績を確認してください。上書きはしていません。"
+    };
+    if (revalidate) revalidateMatchDerivedPaths();
+    return { ok: true, status: "replayed" };
+  };
+  if (!existing) {
+    // This precedes input-window/deck resolution: an already saved request can
+    // be acknowledged after the window closes or an archetype becomes inactive.
+    const prior = await readRequest();
+    if (prior.error) return { ok: false, status: "error", message: "保存状態を確認できませんでした。同じ入力で再試行してください。" };
+    if (prior.data) return acknowledge(prior.data);
+  }
+
   if (!(await isEnvironmentInputEnabled(supabase, environmentId))) {
     return { ok: false, message: "この環境は戦績入力を停止しています。" };
   }
@@ -529,13 +552,22 @@ async function saveMatchFromForm(
   };
   const response = existing
     ? await supabase.from("matches").update(values).eq("id", matchId!).eq("user_id", user.id).select("id").maybeSingle()
-    : await supabase.from("matches").insert({ ...values, user_id: user.id, played_at: new Date().toISOString() });
+    : await supabase.from("matches").upsert(
+      { ...values, user_id: user.id, request_id: requestId, played_at: new Date().toISOString() },
+      { onConflict: "user_id,request_id", ignoreDuplicates: true }
+    ).select("id").maybeSingle();
   const { error } = response;
 
   if (error) {
-    return { ok: false, message: error.message };
+    return { ok: false, ...(!existing ? { status: "error" as const } : {}), message: error.message };
   }
   if (existing && !response.data) return { ok: false, message: "戦績が見つからないか、操作する権限がありません。" };
+  if (!existing && !response.data) {
+    // A concurrent request won the UNIQUE conflict. DO NOTHING never overwrites.
+    const prior = await readRequest();
+    if (prior.error || !prior.data) return { ok: false, status: "error", message: "保存状態を確認できませんでした。同じ入力で再試行してください。" };
+    return acknowledge(prior.data);
+  }
 
   if (revalidate) {
     revalidateMatchDerivedPaths();
@@ -546,7 +578,7 @@ async function saveMatchFromForm(
     revalidatePath("/admin/obs/environment");
   }
 
-  return { ok: true };
+  return existing ? { ok: true } : { ok: true, status: "inserted" };
 }
 
 async function ensureCompatDecksForSelectedArchetypes(

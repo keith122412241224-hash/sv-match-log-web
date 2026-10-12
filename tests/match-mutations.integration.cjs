@@ -13,7 +13,7 @@ Module._load = function(name, ...args) {
   return load.call(this, name, ...args);
 };
 const actions = require('../src/app/actions.ts');
-const form = values => { const f = new FormData(); for (const [key, value] of Object.entries({ environment_id: ids.env, my_archetype_id: ids.arch2, opponent_archetype_id: ids.arch, result: 'lose', turn_order: 'second', rank_tier: 'master', master_group: 'ruby', ...values })) f.set(key, value); return f; };
+const form = values => { const f = new FormData(); for (const [key, value] of Object.entries({ request_id: require('node:crypto').randomUUID(), environment_id: ids.env, my_archetype_id: ids.arch2, opponent_archetype_id: ids.arch, result: 'lose', turn_order: 'second', rank_tier: 'master', master_group: 'ruby', ...values })) f.set(key, value); return f; };
 test('actual actions + current migrations: owner, other owner, admin, anon, failures, import and aggregate recomputation', { timeout: 120000 }, async () => {
   const { db, claim, Query } = await setup();
   client = { auth: { getUser: async () => ({ data: { user: activeUser ? { id: activeUser } : null } }) }, from: name => new Query(name) };

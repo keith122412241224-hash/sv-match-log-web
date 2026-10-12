@@ -2,6 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const Module = require('node:module');
+const normalForm = () => { const f = new FormData(); f.set('request_id', require('node:crypto').randomUUID()); return f; };
 const { summarizeMatches, buildDeckAnalysisSummaries, buildWinRateMatrix, groupWinRates, turnOrderWinRates } = require('../src/lib/analytics.ts');
 const { buildWeeklyReport, buildWeeklyPeriod } = require('../src/lib/weekly-report.ts');
 const { analysisPerspectives } = require('../src/lib/match-perspectives.ts');
@@ -34,11 +35,13 @@ class Query {
     return Promise.resolve().then(() => {
       calls.push(this);
       if (this.operation === 'upsert' && this.table === 'matches') {
-        assert.deepEqual(this.options, { onConflict: 'user_id,guest_import_id', ignoreDuplicates: true });
+        assert.ok(['user_id,guest_import_id','user_id,request_id'].includes(this.options.onConflict));
+        assert.equal(this.options.ignoreDuplicates, true);
+        const identity = this.options.onConflict.split(',')[1];
         if (failInsert) return { data: null, error: { message: 'insert failed' } };
-        const inserted = this.rows.filter(row => !saved.some(old => old.user_id === row.user_id && old.guest_import_id === row.guest_import_id));
+        const inserted = this.rows.filter(row => !saved.some(old => old.user_id === row.user_id && old[identity] === row[identity]));
         saved.push(...inserted);
-        return { data: inserted, error: null };
+        return { data: this.single ? inserted[0] ?? null : inserted, error: null };
       }
       if (this.operation === 'upsert') {
         if (failUpsert) return { data: null, error: { message: 'upsert failed' } };
@@ -84,7 +87,7 @@ for (const delta of [-1, 0, 1]) test(`scheduled save/import at 9/29 17:00 JST ${
   for (const id of ['old','new']) {
     const allowed = id === 'old' ? delta < 0 : delta >= 0;
     for (const next of ['home','continue']) {
-      const form = new FormData();
+      const form = normalForm();
       for (const [k,v] of Object.entries({environment_id:id,my_archetype_id:'a',opponent_archetype_id:'b',turn_order:'first',result:'win',next_action:next,played_at:'2020-01-01T00:00:00Z',client_now:'2020-01-01T00:00:00Z'})) form.set(k,v);
       const before = saved.length;
       assert.equal((await createMatchInline(form)).ok,allowed);
@@ -199,22 +202,22 @@ test('preserves concurrent existing deck ID when creation conflicts', async () =
 
 test('preserves normal and continuous registration payloads and refresh policy', async () => {
   tables.decks = [deck('Alpha', 'エルフ', { id: 'saved-id' }), deck('Beta', 'ロイヤル')];
-  const form = new FormData();
+  const form = normalForm();
   for (const [key, value] of Object.entries(draft('one'))) if (value !== null) form.set(key, value);
   assert.equal((await createMatchInline(form)).ok, true);
   assert.deepEqual(invalidations, []);
   await assert.rejects(createMatch(form), /redirect:\//);
-  const expected = expectedRow(draft('one'), 'saved-id', 'deck-Beta', false);
+  const expected = { ...expectedRow(draft('one'), 'saved-id', 'deck-Beta', false), request_id: form.get('request_id') };
   for (const row of saved) {
     assert.ok(Number.isFinite(new Date(row.played_at).getTime()));
     assert.deepEqual({ ...row, played_at: expected.played_at }, expected);
   }
-  assert.equal(saved.length, 2);
+  assert.equal(saved.length, 1);
   assert.deepEqual(invalidations, ['/', '/analysis', '/matrix']);
 });
 
 test('client home save preserves redirect-save payload and invalidation; continue does not invalidate', async () => {
-  const form = new FormData();
+  const form = normalForm();
   for (const [key, value] of Object.entries(draft('one', { rank_tier: 'master', master_group: 'diamond' }))) form.set(key, value);
   form.set('next_action', 'continue');
   assert.equal((await createMatchInline(form)).ok, true);
@@ -226,16 +229,16 @@ test('client home save preserves redirect-save payload and invalidation; continu
   await assert.rejects(createMatch(form), /redirect:\/$/);
   assert.deepEqual(homeInvalidations, invalidations);
   assert.ok(homeInvalidations.includes('/'));
-  assert.equal(saved.length, 3);
+  assert.equal(saved.length, 1);
   for (const row of saved) assert.deepEqual({ ...row, played_at: saved[0].played_at }, saved[0]);
 });
 
 test('failed client home save returns an error without invalidation or redirect', async () => {
   failInsert = true;
-  const form = new FormData();
+  const form = normalForm();
   for (const [key, value] of Object.entries(draft('one'))) form.set(key, value);
   form.set('next_action', 'home');
-  assert.deepEqual(await createMatchInline(form), { ok: false, message: 'insert failed' });
+  assert.deepEqual(await createMatchInline(form), { ok: false, status: 'error', message: 'insert failed' });
   assert.deepEqual(invalidations, []);
   assert.deepEqual(saved, []);
 });
@@ -300,16 +303,16 @@ test('preserves local records on match INSERT failure', async () => {
 const rankCases=[{rank_tier:null,master_group:null,grandmaster_rating:null},...['beginner','d','c','b','a','aa'].map(rank_tier=>({rank_tier,master_group:null,grandmaster_rating:null})),...['emerald','topaz','ruby','sapphire','diamond'].map(master_group=>({rank_tier:'master',master_group,grandmaster_rating:null})),...['none','epic','ultimate','legend','beyond'].map(grandmaster_rating=>({rank_tier:'grandmaster',master_group:null,grandmaster_rating}))];
 for(const rank of rankCases)test('R2 actual actions preserve rank '+JSON.stringify(rank),async()=>{
  tables.decks=[deck('Alpha','エルフ'),deck('Beta','ロイヤル')];
- const row=draft('rank',{...rank}),form=new FormData();for(const [k,v]of Object.entries(row))if(v!==null)form.set(k,v);
+ const row=draft('rank',{...rank}),form=normalForm();for(const [k,v]of Object.entries(row))if(v!==null)form.set(k,v);
  assert.equal((await createMatchInline(form)).ok,true);
  await assert.rejects(createMatch(form),/^Error: redirect:\/$/);
  assert.equal((await runImport([row])).ok,true);
  for(const savedRow of saved)for(const key of Object.keys(rank))assert.equal(savedRow[key],rank[key]);
- assert.equal(saved.length,3);
+ assert.equal(saved.length,2);
 });
 test('R2 invalid ranks never write and mixed imports preserve invalid records',async()=>{
  for(const rank of [{rank_tier:'master'},{rank_tier:'grandmaster'},{rank_tier:'unknown'},{rank_tier:'aa',grandmaster_rating:'none'},{rank_tier:null,master_group:'ruby'}]){
- reset();const form=new FormData();for(const [k,v]of Object.entries(draft('bad',rank)))if(v!==null)form.set(k,v);
+ reset();const form=normalForm();for(const [k,v]of Object.entries(draft('bad',rank)))if(v!==null)form.set(k,v);
  assert.equal((await createMatchInline(form)).ok,false);assert.deepEqual(saved,[]);assert.equal(calls.length,0);
  assert.equal((await runImport([draft('bad',rank)])).ok,false);assert.deepEqual(saved,[]);
  }

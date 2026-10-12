@@ -10,6 +10,7 @@ const user = { id: ids.a, aud: 'authenticated', role: 'authenticated', is_anonym
 const errors = [], warnings = [], pageerrors = [], calls = [], checks = [];
 let failWrite = false, delayWrite = 0, chain = Promise.resolve();
 const guestFault = { failWrite: false, loseReply: false };
+const normalFault = { failWrite: false, loseReply: false };
 async function until(fn) { for (let i = 0; i < 100; i++) { if (await fn()) return; await new Promise(r => setTimeout(r, 100)); } throw Error('Timed out'); }
 (async () => {
   fs.mkdirSync(output, { recursive: true });
@@ -55,9 +56,10 @@ async function until(fn) { for (let i = 0; i < 100; i++) { if (await fn()) retur
       if (req.method === 'PATCH') q.update(body);
       if (req.method === 'DELETE') q.delete();
       if (req.method === 'POST') {
+        if (table === 'matches' && url.searchParams.get('on_conflict') === 'user_id,request_id' && normalFault.failWrite) { res.statusCode = 400; res.end(JSON.stringify({ message: 'injected normal write failure' })); return; }
         if (table === 'matches' && guestFault.failWrite) { res.statusCode = 400; res.end(JSON.stringify({ message: 'injected guest write failure' })); return; }
         if (table === 'matches' && url.searchParams.has('on_conflict')) {
-          assert.equal(url.searchParams.get('on_conflict'), 'user_id,guest_import_id');
+          assert.ok(['user_id,guest_import_id', 'user_id,request_id'].includes(url.searchParams.get('on_conflict')));
           assert.match(req.headers.prefer ?? '', /resolution=ignore-duplicates/);
           assert.match(req.headers.prefer ?? '', /return=representation/);
         }
@@ -67,6 +69,7 @@ async function until(fn) { for (let i = 0; i < 100; i++) { if (await fn()) retur
       if (req.headers.accept?.includes('vnd.pgrst.object')) q.maybeSingle();
       const result = await q;
       if (result.error) { res.statusCode = 400; res.end(JSON.stringify(result.error)); return; }
+      if (req.method === 'POST' && table === 'matches' && url.searchParams.get('on_conflict') === 'user_id,request_id' && normalFault.loseReply) { normalFault.loseReply = false; res.destroy(); return; }
       if (req.method === 'POST' && table === 'matches' && guestFault.loseReply) { guestFault.loseReply = false; res.destroy(); return; }
       res.end(JSON.stringify(result.data));
     }).catch(error => { console.error('LOCAL HTTP:', error.message); res.statusCode = 500; res.end(JSON.stringify({ message: error.message })); });
@@ -210,7 +213,8 @@ async function until(fn) { for (let i = 0; i < 100; i++) { if (await fn()) retur
     assert.equal(imported.length, 1); assert.equal(imported[0].my_archetype_id, ids.arch2);
     checks.push('Guest new/edit/delete/cancels/reload/storage failures; only edited remaining row imported');
     await require('./guest-import.browser.cjs').verifyGuestReplay({ page, context, origin, output, row: editedGuest, db, claim, ids, until, guestFault, checks, idle: () => chain, errors, warnings, pageerrors });
-    for (const route of ['/analysis', '/matrix', '/environment', '/admin/weekly-report', '/admin/obs/environment']) {
+    await require('./normal-match-request.browser.cjs').verifyNormalReplay({ page, context, origin, output, db, claim, ids, until, normalFault, checks, errors, idle: () => chain });
+    for (const route of ['/analysis', '/matrix', '/environment', '/admin/weekly-report', '/admin/obs/environment', '/admin', '/admin/creator', '/admin/creator/tier']) {
       await page.goto(origin + route, { waitUntil: 'networkidle' });
       assert.doesNotMatch(await page.locator('body').innerText(), /Application error|取得できませんでした/); checks.push(route + ' loads');
     }
