@@ -3,7 +3,10 @@ const fs = require('node:fs'), cp = require('node:child_process'), assert = requ
 const { createHash } = require('node:crypto');
 const base = 'ba5889e62fc27fb229d1542a855248236ce7268c';
 const hashes = require('./fixtures/guest-import-source-hashes.json');
-const added = new Set(['supabase/migrations/20261012052435_guest_match_import_identity.sql']);
+// Later, independently tested permission-only migration. Keep the original
+// Guest source hashes and its historical comparisons unchanged.
+const laterAdded = new Set(['supabase/migrations/20261012075121_environment_admin_write_policies.sql']);
+const added = new Set(['supabase/migrations/20261012052435_guest_match_import_identity.sql', ...laterAdded]);
 const read = file => fs.readFileSync(file, 'utf8').replaceAll('\r\n', '\n');
 // Keep historical feature guards and their existing failures unchanged. Only
 // these reviewed, hash-pinned changes project to the pre-fix source.
@@ -14,4 +17,4 @@ function readBeforeGuestImport(file) {
   assert.ok(!added.has(file), 'new migration has no historical source');
   return cp.execFileSync('git', ['show', base + ':' + file], { encoding: 'utf8' }).replaceAll('\r\n', '\n');
 }
-module.exports = { base, hashes, added, read, readBeforeGuestImport };
+module.exports = { base, hashes, added, laterAdded, read, readBeforeGuestImport };
