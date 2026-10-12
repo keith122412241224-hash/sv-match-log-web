@@ -236,6 +236,7 @@ export type Database = {
         Row: MatchRank & {
           id: string;
           user_id: string;
+          guest_import_id: string | null;
           environment_id: string | null;
           my_deck_id: string;
           opponent_deck_id: string;
@@ -251,6 +252,7 @@ export type Database = {
         Insert: Partial<MatchRank> & {
           id?: string;
           user_id: string;
+          guest_import_id?: string | null;
           environment_id?: string | null;
           my_deck_id: string;
           opponent_deck_id: string;
@@ -323,7 +325,7 @@ export type Database = {
 
 export type Deck = Database["public"]["Tables"]["decks"]["Row"];
 // Analytics projections and legacy guest rows may omit rank columns.
-export type Match = Omit<Database["public"]["Tables"]["matches"]["Row"], keyof MatchRank> & Partial<MatchRank>;
+export type Match = Omit<Database["public"]["Tables"]["matches"]["Row"], keyof MatchRank | "guest_import_id"> & Partial<MatchRank> & { guest_import_id?: string | null };
 export type Environment = Database["public"]["Tables"]["environments"]["Row"];
 export type AdminUser = Database["public"]["Tables"]["admin_users"]["Row"];
 export type DeckArchetype = Database["public"]["Tables"]["deck_archetypes"]["Row"];

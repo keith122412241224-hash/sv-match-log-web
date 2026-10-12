@@ -7,7 +7,7 @@ test('v4 scope pins every reviewed change and addition; all previous SQL, RLS, g
   for (const file of [...changed, ...added]) assertReviewed(file);
   const files = git(['ls-tree', '-r', '--name-only', base]).trim().split('\n').filter(f => /^(src|supabase)\//.test(f) || /^package(-lock)?\.json$/.test(f));
   for (const file of files) if (!changed.has(file)) assert.equal(readCurrent(file), git(['show', base + ':' + file]), file);
-  assert.deepEqual(git(['ls-files', '--cached', '--others', '--exclude-standard', '--', 'src', 'supabase']).trim().split('\n').sort(), [...files.filter(f => /^(src|supabase)\//.test(f)), ...added].sort());
+  assert.deepEqual(git(['ls-files', '--cached', '--others', '--exclude-standard', '--', 'src', 'supabase']).trim().split('\n').filter(f => !require('./guest-import-scope.cjs').added.has(f)).sort(), [...files.filter(f => /^(src|supabase)\//.test(f)), ...added].sort());
   assert.match(readCurrent('src/lib/environment-dashboard-data.ts'), /get_environment_dashboard_aggregates_v4/);
   assert.doesNotMatch(readCurrent('src/lib/environment-dashboard-data.ts'), /get_environment_dashboard_aggregates_v[123]/);
 });

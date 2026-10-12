@@ -224,10 +224,36 @@ export async function importGuestMatches(formData: FormData): Promise<GuestImpor
     return { ok: false, importedIds: [], message: invalidRankCount ? "ランク情報が不正なため取り込めません。端末の戦績は保持しています。" : "取り込める戦績がありません。端末の戦績は保持しています。" };
   }
 
+  // Replays are readable even after the environment closes. Always scope this
+  // lookup explicitly to the session owner (admins can SELECT other users).
+  const { data: existing, error: existingError } = await supabase.from("matches")
+    .select("*").eq("user_id", user.id).in("guest_import_id", drafts.map(draft => draft.local_id!));
+  if (existingError) return { ok: false, importedIds: [], message: "取り込み済み戦績を確認できませんでした。端末の戦績は保持しています。" };
+  const existingById = new Map((existing ?? []).map(row => [row.guest_import_id, row]));
+  const importedIds = drafts.filter(draft => {
+    const saved = existingById.get(draft.local_id!);
+    return saved && isSameGuestImport(saved, draft);
+  }).map(draft => draft.local_id!);
+  const pendingDrafts = drafts.filter(draft => !existingById.has(draft.local_id!));
+  let conflictCount = drafts.length - pendingDrafts.length - importedIds.length;
+  let insertedCount = 0;
+  const finish = (): GuestImportResult => {
+    if (importedIds.length) {
+      revalidateMatchDerivedPaths();
+      revalidatePath("/environment");
+      revalidatePath("/admin/weekly-report");
+      revalidatePath("/admin/obs/environment");
+    }
+    return {
+      ok: importedIds.length > 0, importedIds,
+      message: `${insertedCount}件を新規保存しました。${importedIds.length - insertedCount}件は取り込み済みです。未保存の戦績は端末に保持しています。${conflictCount ? ` 保存済みと内容が異なる${conflictCount}件は取り込んでいません。ホームの戦績と端末データを確認してください。` : ""}${invalidRankCount ? ` ランク情報が不正な${invalidRankCount}件は取り込んでいません。` : ""}`
+    };
+  };
+  if (!pendingDrafts.length) return finish();
+
   const rows: Database["public"]["Tables"]["matches"]["Insert"][] = [];
-  const importedIds: string[] = [];
   let skippedCount = 0;
-  const environmentIds = Array.from(new Set(drafts.map((draft) => draft.environment_id).filter(Boolean)));
+  const environmentIds = Array.from(new Set(pendingDrafts.map((draft) => draft.environment_id).filter(Boolean)));
   const { data: inputEnabledEnvironments, error: environmentError } = await supabase
     .from("environments")
     .select("id, allow_match_input, match_input_start_at, match_input_end_at")
@@ -237,10 +263,10 @@ export async function importGuestMatches(formData: FormData): Promise<GuestImpor
   const inputEnabledEnvironmentIds = new Set((inputEnabledEnvironments ?? []).filter(environment => isInputOpen(environment)).map((environment) => environment.id));
   const archetypeDecks = await ensureCompatDecksForGuestImport(
     supabase, user.id,
-    drafts.flatMap((draft) => [draft.my_archetype_id, draft.opponent_archetype_id].filter((id): id is string => Boolean(id)))
+    pendingDrafts.flatMap((draft) => [draft.my_archetype_id, draft.opponent_archetype_id].filter((id): id is string => Boolean(id)))
   );
 
-  for (const draft of drafts) {
+  for (const draft of pendingDrafts) {
     const rank = validateMatchRank(draft);
     if (!rank.ok) { skippedCount += 1; continue; }
     let myDeckId = draft.my_deck_id;
@@ -264,6 +290,7 @@ export async function importGuestMatches(formData: FormData): Promise<GuestImpor
     rows.push({
       ...rank.value,
       user_id: user.id,
+      guest_import_id: draft.local_id!,
       environment_id: draft.environment_id,
       my_deck_id: myDeckId,
       opponent_deck_id: opponentDeckId,
@@ -273,26 +300,53 @@ export async function importGuestMatches(formData: FormData): Promise<GuestImpor
       result: draft.result,
       played_at: toValidIsoString(draft.played_at)!
     });
-    importedIds.push(draft.local_id!);
   }
 
   if (rows.length === 0) {
+    if (importedIds.length || conflictCount) return finish();
     return { ok: false, importedIds: [], message: skippedCount > 0 ? "入力停止中の環境、またはデッキ情報の問題で取り込めません。端末の戦績は保持しています。" : "取り込める戦績がありません。端末の戦績は保持しています。" };
   }
 
   const now = Date.now();
   const stillEnabled = new Set((inputEnabledEnvironments ?? []).filter(environment => isInputOpen(environment, now)).map(environment => environment.id));
   const currentRows = rows.filter(row => stillEnabled.has(row.environment_id));
-  const currentIds = importedIds.filter((_, index) => stillEnabled.has(rows[index].environment_id));
-  if (!currentRows.length) return { ok: false, importedIds: [], message: "入力可能期間が終了しました。端末の戦績は保持しています。" };
-  const { error } = await supabase.from("matches").insert(currentRows);
+  if (!currentRows.length) return importedIds.length ? finish() : { ok: false, importedIds: [], message: "入力可能期間が終了しました。端末の戦績は保持しています。" };
+  // The unique index, not the pre-read, arbitrates simultaneous requests.
+  // DO NOTHING never overwrites an existing match or its owner.
+  const { data: inserted, error } = await supabase.from("matches")
+    .upsert(currentRows, { onConflict: "user_id,guest_import_id", ignoreDuplicates: true }).select("*");
 
   if (error) {
     return { ok: false, importedIds: [], message: "取り込みに失敗しました。端末の戦績は保持しています。" };
   }
 
-  revalidatePath("/");
-  return { ok: true, importedIds: currentIds, message: `${currentRows.length}件を保存しました。未保存の戦績は端末に保持しています。${invalidRankCount ? ` ランク情報が不正な${invalidRankCount}件は取り込んでいません。` : ""}` };
+  if (!inserted) return { ok: false, importedIds: [], message: "取り込み結果を確認できませんでした。端末の戦績は保持しています。" };
+  insertedCount = inserted.length;
+  importedIds.push(...inserted.map(row => row.guest_import_id!));
+  const insertedIds = new Set(inserted.map(row => row.guest_import_id));
+  const racedIds = currentRows.map(row => row.guest_import_id!).filter(id => !insertedIds.has(id));
+  if (racedIds.length) {
+    const { data: raced, error: racedError } = await supabase.from("matches")
+      .select("*").eq("user_id", user.id).in("guest_import_id", racedIds);
+    if (racedError || !raced) return { ok: false, importedIds: [], message: "取り込み結果を確認できませんでした。端末の戦績は保持しています。" };
+    for (const saved of raced) {
+      const draft = pendingDrafts.find(row => row.local_id === saved.guest_import_id)!;
+      if (isSameGuestImport(saved, draft)) importedIds.push(saved.guest_import_id!);
+      else conflictCount += 1;
+    }
+  }
+  return finish();
+}
+
+function isSameGuestImport(saved: Database["public"]["Tables"]["matches"]["Row"], draft: StoredGuestMatch) {
+  const rank = validateMatchRank(draft);
+  return rank.ok && saved.environment_id === draft.environment_id
+    && saved.result === draft.result && saved.turn_order === draft.turn_order
+    && new Date(saved.played_at).getTime() === new Date(draft.played_at).getTime()
+    && saved.rank_tier === rank.value.rank_tier && saved.master_group === rank.value.master_group
+    && saved.grandmaster_rating === rank.value.grandmaster_rating
+    && (draft.my_archetype_id ? saved.my_archetype_id === draft.my_archetype_id : saved.my_deck_id === draft.my_deck_id)
+    && (draft.opponent_archetype_id ? saved.opponent_archetype_id === draft.opponent_archetype_id : saved.opponent_deck_id === draft.opponent_deck_id);
 }
 
 export async function createDeckSuggestion(formData: FormData) {

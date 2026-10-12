@@ -16,11 +16,13 @@ class Query {
   limit() { return this; }
   maybeSingle() { this.single = true; return this; }
   insert(rows) { this.rows = Array.isArray(rows) ? rows : [rows]; return this; }
+  upsert(rows, options) { assert.deepEqual(options, { onConflict: 'user_id,guest_import_id', ignoreDuplicates: true }); this.conflict = true; return this.insert(rows); }
   then(resolve, reject) {
     return Promise.resolve().then(() => {
       if (this.rows) {
         if (failures.has('insert')) return { error: failure };
-        inserts.push(...this.rows); return { error: null };
+        const rows = this.rows.filter(row => !this.conflict || !tables.matches.some(old => old.user_id === row.user_id && old.guest_import_id === row.guest_import_id));
+        inserts.push(...rows); tables.matches.push(...rows); return { data: rows, error: null };
       }
       const turn = this.filters.find(([k]) => k === 'turn_order')?.[1];
       const result = this.filters.find(([k]) => k === 'result')?.[1] ?? 'all';
@@ -100,14 +102,14 @@ test('A2: legacy identity persists and duplicate client IDs become distinct with
   assert.equal(identifyGuestMatches(identified), identified);
   assert.throws(() => identifyGuestMatches('bad-json'));
 });
-test('A2: cleanup followed by retry saves only remainder; raw request replay is not DB-deduplicated', async () => {
+test('A2: cleanup followed by retry saves only remainder; raw request replay is DB-deduplicated', async () => {
   const raw = JSON.stringify(Array.from({ length: 250 }, (_,i) => draft(i)));
   const first = await importGuestMatches(form(raw));
   const remaining = removeImportedGuestMatches(raw, raw, first.importedIds);
   const second = await importGuestMatches(form(remaining));
   assert.equal(inserts.length, 250); assert.equal(second.importedIds.length, 50);
   await importGuestMatches(form(JSON.stringify([draft(0)])));
-  assert.equal(inserts.length, 251); // Existing retry limitation is explicit; no schema/dedup change.
+  assert.equal(inserts.length, 250);
 });
 
 const emptySummary = { total: 0, wins: 0, winRate: null, firstWinRate: null, secondWinRate: null };

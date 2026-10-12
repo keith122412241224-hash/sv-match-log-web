@@ -5,10 +5,11 @@ const fs = require('node:fs'), path = require('node:path'), http = require('node
 const { spawn } = require('node:child_process'), assert = require('node:assert/strict');
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const { setup, ids, quote } = require('./match-mutations-db.cjs');
-const origin = 'http://localhost:3268', output = path.resolve('build/match-mutations');
+const origin = 'http://localhost:3268', output = path.resolve(process.env.MATCH_MUTATIONS_OUTPUT || 'build/match-mutations');
 const user = { id: ids.a, aud: 'authenticated', role: 'authenticated', is_anonymous: false, email: 'local@example.test', app_metadata: {}, user_metadata: {} };
 const errors = [], warnings = [], pageerrors = [], calls = [], checks = [];
 let failWrite = false, delayWrite = 0, chain = Promise.resolve();
+const guestFault = { failWrite: false, loseReply: false };
 async function until(fn) { for (let i = 0; i < 100; i++) { if (await fn()) return; await new Promise(r => setTimeout(r, 100)); } throw Error('Timed out'); }
 (async () => {
   fs.mkdirSync(output, { recursive: true });
@@ -54,12 +55,19 @@ async function until(fn) { for (let i = 0; i < 100; i++) { if (await fn()) retur
       if (req.method === 'PATCH') q.update(body);
       if (req.method === 'DELETE') q.delete();
       if (req.method === 'POST') {
+        if (table === 'matches' && guestFault.failWrite) { res.statusCode = 400; res.end(JSON.stringify({ message: 'injected guest write failure' })); return; }
+        if (table === 'matches' && url.searchParams.has('on_conflict')) {
+          assert.equal(url.searchParams.get('on_conflict'), 'user_id,guest_import_id');
+          assert.match(req.headers.prefer ?? '', /resolution=ignore-duplicates/);
+          assert.match(req.headers.prefer ?? '', /return=representation/);
+        }
         if (url.searchParams.has('on_conflict')) q.upsert(body, { onConflict: url.searchParams.get('on_conflict') });
         else q.insert(body);
       }
       if (req.headers.accept?.includes('vnd.pgrst.object')) q.maybeSingle();
       const result = await q;
       if (result.error) { res.statusCode = 400; res.end(JSON.stringify(result.error)); return; }
+      if (req.method === 'POST' && table === 'matches' && guestFault.loseReply) { guestFault.loseReply = false; res.destroy(); return; }
       res.end(JSON.stringify(result.data));
     }).catch(error => { console.error('LOCAL HTTP:', error.message); res.statusCode = 500; res.end(JSON.stringify({ message: error.message })); });
   });
@@ -196,11 +204,12 @@ async function until(fn) { for (let i = 0; i < 100; i++) { if (await fn()) retur
     await page.getByRole('button', { name: '削除する' }).click(); await page.getByRole('alert').filter({ hasText: '端末の戦績を変更できませんでした' }).waitFor(); assert.equal(await guestRaw(), persisted);
     await page.evaluate(() => { Storage.prototype.setItem = window.originalSetItem; }); await page.getByRole('button', { name: 'キャンセル', exact: true }).click();
     await page.goto(origin + '/', { waitUntil: 'networkidle' });
-    await page.getByRole('button', { name: '正式データに取り込む' }).click(); await page.getByRole('status').filter({ hasText: '1件を保存しました' }).waitFor();
+    await page.getByRole('button', { name: '正式データに取り込む' }).click(); await page.getByRole('status').filter({ hasText: '1件を新規保存しました' }).waitFor();
     assert.equal(await guestRaw(), '[]');
     await chain; const imported = (await db.query('select * from public.matches where user_id=$1 and result=$2', [ids.a, 'lose'])).rows;
     assert.equal(imported.length, 1); assert.equal(imported[0].my_archetype_id, ids.arch2);
     checks.push('Guest new/edit/delete/cancels/reload/storage failures; only edited remaining row imported');
+    await require('./guest-import.browser.cjs').verifyGuestReplay({ page, context, origin, output, row: editedGuest, db, claim, ids, until, guestFault, checks, idle: () => chain, errors, warnings, pageerrors });
     for (const route of ['/analysis', '/matrix', '/environment', '/admin/weekly-report', '/admin/obs/environment']) {
       await page.goto(origin + route, { waitUntil: 'networkidle' });
       assert.doesNotMatch(await page.locator('body').innerText(), /Application error|取得できませんでした/); checks.push(route + ' loads');

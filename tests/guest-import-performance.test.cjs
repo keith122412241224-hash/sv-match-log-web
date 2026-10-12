@@ -18,6 +18,7 @@ function reset() {
     decks: []
   };
   calls = []; saved = []; invalidations = [];
+  tables.matches = saved;
   failRead = null; failUpsert = false; failInsert = false; concurrentDeck = null;
 }
 const deck = (name, className, extra = {}) => ({ id: `deck-${name}`, user_id: 'u', deck_type: 'my_deck', name, class_name: className, sort_order: 7, ...extra });
@@ -32,6 +33,13 @@ class Query {
   then(resolve, reject) {
     return Promise.resolve().then(() => {
       calls.push(this);
+      if (this.operation === 'upsert' && this.table === 'matches') {
+        assert.deepEqual(this.options, { onConflict: 'user_id,guest_import_id', ignoreDuplicates: true });
+        if (failInsert) return { data: null, error: { message: 'insert failed' } };
+        const inserted = this.rows.filter(row => !saved.some(old => old.user_id === row.user_id && old.guest_import_id === row.guest_import_id));
+        saved.push(...inserted);
+        return { data: inserted, error: null };
+      }
       if (this.operation === 'upsert') {
         if (failUpsert) return { data: null, error: { message: 'upsert failed' } };
         assert.deepEqual(this.options, { onConflict: 'user_id,deck_type,name', ignoreDuplicates: true });
@@ -94,8 +102,9 @@ async function runImport(rows) {
   const form = new FormData(); form.set('guest_matches_json', JSON.stringify(rows));
   return importGuestMatches(form);
 }
-function expectedRow(row, myId = 'deck-Alpha', opponentId = 'deck-Beta') {
+function expectedRow(row, myId = 'deck-Alpha', opponentId = 'deck-Beta', imported = true) {
   return {
+    ...(imported ? { guest_import_id: row.local_id } : {}),
     rank_tier: row.rank_tier ?? null, master_group: row.master_group ?? null, grandmaster_rating: row.grandmaster_rating ?? null,
     user_id: 'u', environment_id: row.environment_id,
     my_deck_id: myId, opponent_deck_id: opponentId,
@@ -119,7 +128,7 @@ test('preserves 200 imported rows, IDs and all production analysis outputs', asy
   assert.deepEqual(result.importedIds, input.map(row => row.local_id));
   assert.deepEqual(saved, expected);
   assert.deepEqual(tables.decks, initialDecks);
-  assert.deepEqual(invalidations, ['/']);
+  assert.deepEqual(invalidations, ['/', '/analysis', '/matrix', '/environment', '/admin/weekly-report', '/admin/obs/environment']);
   for (const mode of ['direct', 'combined']) {
     const actual = analysisPerspectives(saved, mode);
     const reference = analysisPerspectives(expected, mode);
@@ -195,7 +204,7 @@ test('preserves normal and continuous registration payloads and refresh policy',
   assert.equal((await createMatchInline(form)).ok, true);
   assert.deepEqual(invalidations, []);
   await assert.rejects(createMatch(form), /redirect:\//);
-  const expected = expectedRow(draft('one'), 'saved-id');
+  const expected = expectedRow(draft('one'), 'saved-id', 'deck-Beta', false);
   for (const row of saved) {
     assert.ok(Number.isFinite(new Date(row.played_at).getTime()));
     assert.deepEqual({ ...row, played_at: expected.played_at }, expected);
@@ -231,15 +240,15 @@ test('failed client home save returns an error without invalidation or redirect'
   assert.deepEqual(saved, []);
 });
 
-test('200 repeated matches require four DB calls with existing decks and six with missing decks', async () => {
+test('200 imports use five DB calls with existing decks and seven with missing decks including identity lookup', async () => {
   const input = Array.from({ length: 200 }, (_, i) => draft(String(i)));
   tables.decks = [deck('Alpha', 'エルフ'), deck('Beta', 'ロイヤル')];
   await runImport(input);
-  assert.equal(calls.length, 4);
-  assert.equal(calls.filter(q => q.operation === 'upsert').length, 0);
+  assert.equal(calls.length, 5);
+  assert.equal(calls.filter(q => q.operation === 'upsert' && q.table === 'decks').length, 0);
   reset();
   await runImport(input);
-  assert.equal(calls.length, 6);
+  assert.equal(calls.length, 7);
   assert.equal(calls.find(q => q.operation === 'upsert').rows.length, 2);
 });
 
@@ -253,7 +262,7 @@ test('400 distinct decks for 200 matches use bounded batches and preserve every 
   tables.deck_archetypes = Array.from({ length: 400 }, (_, i) => ({ id: `a${i}`, name: `Deck${i}`, class_name: 'エルフ' }));
   const input = Array.from({ length: 200 }, (_, i) => draft(String(i), { my_archetype_id: `a${2*i}`, opponent_archetype_id: `a${2*i+1}` }));
   assert.equal((await runImport(input)).importedIds.length, 200);
-  assert.equal(calls.length, 15);
+  assert.equal(calls.length, 16);
   assert.deepEqual(saved, input.map((r, i) => expectedRow(r, `deck-Deck${2*i}`, `deck-Deck${2*i+1}`)));
 });
 
@@ -310,4 +319,42 @@ test('R2 invalid ranks never write and mixed imports preserve invalid records',a
 test('R2 invalid rank candidates still count toward the 200-row cap',async()=>{
  const rows=[draft('bad',{rank_tier:'invalid'}),...Array.from({length:200},(_,i)=>draft('valid-'+i))];
  const result=await runImport(rows);assert.equal(result.importedIds.length,199);assert.equal(result.importedIds.at(-1),'valid-198');
+});
+
+test('guest replay acknowledges existing identity without a write or inflated new-save count', async () => {
+  const row = draft('replay');
+  assert.equal((await runImport([row])).ok, true);
+  calls.length = 0;
+  const replay = await runImport([row]);
+  assert.deepEqual(replay.importedIds, ['replay']);
+  assert.match(replay.message, /0件を新規保存.*1件は取り込み済み/);
+  assert.equal(saved.length, 1);
+  assert.equal(calls.length, 1);
+  assert.ok(calls.every(q => q.operation === 'select'));
+});
+
+test('changed contents under an imported identity are retained for reconciliation, never overwritten', async () => {
+  await runImport([draft('edited')]);
+  const before = structuredClone(saved);
+  const response = await runImport([draft('edited', { result: 'lose' })]);
+  assert.equal(response.ok, false);
+  assert.deepEqual(response.importedIds, []);
+  assert.match(response.message, /内容が異なる1件/);
+  assert.deepEqual(saved, before);
+});
+
+test('replay still acknowledges after environment input closes; unsaved records remain', async () => {
+  await runImport([draft('done')]);
+  tables.environments[0].allow_match_input = false;
+  const response = await runImport([draft('done'), draft('not-done')]);
+  assert.deepEqual(response.importedIds, ['done']);
+  assert.equal(saved.length, 1);
+});
+
+test('identity read failure does not acknowledge or insert', async () => {
+  failRead = 'matches';
+  const result = await runImport([draft('one')]);
+  assert.equal(result.ok, false);
+  assert.deepEqual(result.importedIds, []);
+  assert.deepEqual(saved, []);
 });
