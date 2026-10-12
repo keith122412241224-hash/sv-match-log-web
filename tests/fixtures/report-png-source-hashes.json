@@ -1,0 +1,5 @@
+{
+  "src/components/admin/WeeklyReportClientTools.tsx": "26df7a356b00d36061acf213faee6a2f8ed3175e30d8264b944cacee4ff7e069",
+  "src/lib/analysis-png.ts": "cf08c82eff9db2e2879217b48670ac1b0a2636b4f61225fa68dd3da683e229f5",
+  "src/lib/report-png-snapshot.ts": "1decfe355cfa5dc4355ef9e92ff1509de6269f2acba616e30b16d483231f5976"
+}

@@ -4,6 +4,7 @@ import { Copy, Download } from "lucide-react";
 import { useContext, useRef, useState, type ReactNode } from "react";
 import { PeriodReportDisplayContext } from "@/components/admin/PeriodReportRankContext";
 import { Button } from "@/components/Button";
+import { createReportPngSnapshot, reportPngSize } from "@/lib/report-png-snapshot";
 
 export function CopyButton({ text, label }: { text: string; label: string }) {
   const [copied, setCopied] = useState(false);
@@ -44,43 +45,58 @@ export function MarkdownDownloadButton({ markdown, fileName }: { markdown: strin
 export function ExportableReportBlock({ title, fileName, children }: { title: string; fileName: string; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   const description = useContext(PeriodReportDisplayContext);
+  const busy = useRef(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
   async function downloadPng() {
-    if (!ref.current) {
+    if (!ref.current || busy.current) {
       return;
     }
 
-    const { toPng } = await import("html-to-image");
-    // Include the title and conditions only in the exported image.
-    const exportNode = ref.current.cloneNode(true) as HTMLDivElement;
-    exportNode.style.width = `${ref.current.getBoundingClientRect().width}px`;
-    const heading = document.createElement("h3");
-    heading.className = "mb-2 font-bold text-ink";
-    heading.textContent = title;
-    exportNode.prepend(heading);
-    if (description) {
-      const context = document.createElement("p");
-      context.className = "mb-3 break-words text-xs text-muted";
-      context.textContent = description;
-      heading.after(context);
-    }
-    const container = document.createElement("div");
-    container.style.cssText = "position:fixed;left:-100000px;top:0;pointer-events:none";
-    container.setAttribute("aria-hidden", "true");
-    container.append(exportNode);
-    document.body.append(container);
+    busy.current = true;
+    setSaving(true);
+    setError("");
+    let remove: (() => void) | undefined;
     try {
-      const dataUrl = await toPng(exportNode, {
-        cacheBust: true,
+      const { toBlob } = await import("html-to-image");
+      // Include the title and conditions only in the exported image.
+      // Narrow phone charts need room for both the full deck label and its statistics.
+      const prepared = createReportPngSnapshot(ref.current, 640);
+      const exportNode = prepared.snapshot;
+      remove = prepared.remove;
+      const heading = document.createElement("h3");
+      heading.className = "mb-2 font-bold text-ink";
+      heading.textContent = title;
+      exportNode.prepend(heading);
+      if (description) {
+        const context = document.createElement("p");
+        context.className = "mb-3 break-words text-xs text-muted";
+        context.textContent = description;
+        heading.after(context);
+      }
+      await document.fonts.ready;
+      await Promise.all(Array.from(exportNode.querySelectorAll("img"), img => img.decode()));
+      const blob = await toBlob(exportNode, {
+        ...reportPngSize(exportNode),
+        includeQueryParams: true,
         backgroundColor: "#ffffff",
-        pixelRatio: 2
       });
+      if (!blob) throw new Error("PNGを生成できませんでした。もう一度お試しください。");
+      const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.download = fileName;
-      link.href = dataUrl;
+      link.href = url;
+      document.body.append(link);
       link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (cause) {
+      setError(cause instanceof Error && cause.message.startsWith("PNG") ? cause.message : "PNGを保存できませんでした。画像の読み込みや通信状況を確認して、もう一度お試しください。");
     } finally {
-      container.remove();
+      remove?.();
+      busy.current = false;
+      setSaving(false);
     }
   }
 
@@ -88,11 +104,12 @@ export function ExportableReportBlock({ title, fileName, children }: { title: st
     <section className="rounded-md border border-slate-200 bg-white">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
         <h2 className="font-bold text-ink">{title}</h2>
-        <Button type="button" variant="ghost" className="min-h-9 px-3 text-xs" onClick={downloadPng}>
+        <Button type="button" variant="ghost" className="min-h-9 px-3 text-xs" onClick={downloadPng} disabled={saving} aria-busy={saving}>
           <Download size={16} aria-hidden="true" />
-          PNG
+          {saving ? "保存中…" : "PNG"}
         </Button>
       </div>
+      {error ? <p role="alert" className="px-4 pt-3 text-sm text-red-700">{error}</p> : null}
       <div ref={ref} className="bg-white p-4">
         {children}
       </div>
