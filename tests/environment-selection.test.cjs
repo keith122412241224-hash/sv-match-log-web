@@ -1,6 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const {test}=require('node:test'),assert=require('node:assert/strict'),cp=require('node:child_process');
-const { readBeforeRouteLoading } = require('./route-loading-scope.cjs');
+const {test}=require('node:test'),assert=require('node:assert/strict');
 const {selectInitialEnvironmentId:select}=require('../src/lib/environment-selection');
 const boundary=Date.parse('2026-09-29T17:00:00+09:00');
 const old={id:'old',name:'アズヴォルト・レヴナント（2026/8/27～）',created_at:'2026-08-26',allow_match_input:true,match_input_start_at:null,match_input_end_at:new Date(boundary).toISOString()};
@@ -21,12 +20,15 @@ test('manual stop, no open environments, empty environments and invalid query ha
  for(const id of ['',undefined,'missing'])assert.equal(select([next,old],id,boundary-1),'old');
  assert.equal(select([next],undefined,boundary-1),'new');
 });
-test('only three page selection expressions/imports change; all other existing production source and SQL unchanged',()=>{
- const base='57257f77fca4ec91c88c58f882342f49362d645c',git=a=>cp.execFileSync('git',a,{encoding:'utf8',maxBuffer:64e6}).replaceAll('\r\n','\n');
- const pages=['src/app/page.tsx','src/app/analysis/page.tsx','src/app/matrix/page.tsx'];
- for(const p of git(['ls-tree','-r','--name-only',base]).trim().split('\n').filter(p=>/^(src|supabase)\//.test(p)||/^package(-lock)?\.json$/.test(p))){
-  let expected=git(['show',base+':'+p]);
-  if(pages.includes(p)){expected=expected.replace('  const selectedEnvironmentId = environments.some((environment) => environment.id === params.environment)\n    ? params.environment ?? ""\n    : getMostRecentlyCreatedId(environments);','  const selectedEnvironmentId = selectInitialEnvironmentId(environments, params.environment);').replace(', getMostRecentlyCreatedId','').replace('import { getMostRecentlyCreatedId } from "@/lib/utils";\n','');expected='import { selectInitialEnvironmentId } from "@/lib/environment-selection";\n'+expected;}
-  if (!require('./rescue-scope.cjs').rescueSources.has(p)) assert.equal(p === 'src/app/analysis/page.tsx' ? require('./analysis-split-scope.cjs').analysisBeforeSplit() : readBeforeRouteLoading(p),expected,p);
+
+test('all three actual pages honor explicit closed history and select an open default without raw match reads',async t=>{
+ const {setup}=require('./server-page-fixture.cjs'),{state,pages}=setup();
+ t.mock.method(Date,'now',()=>boundary);
+ state.environments[0].allow_match_input=false;
+ state.environments[1].match_input_end_at=null;
+ for(const page of Object.values(pages))for(const [params,expected] of [[{},'old'],[{environment:'new'},'new'],[{environment:'missing'},'old']]){
+  state.calls.length=0;await page({searchParams:Promise.resolve(params)});
+  assert.equal(state.calls.length,1);assert.equal(state.calls[0].args.p_environment_id,expected);
  }
+ assert.ok(!state.reads.includes('matches'));
 });

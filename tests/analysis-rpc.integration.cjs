@@ -2,14 +2,13 @@
 // Real PostgreSQL WASM; synthetic local DB only. Production modules are the oracle.
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('node:fs'), path = require('node:path'), cp = require('node:child_process');
-const Module = require('node:module'), ts = require('typescript');
+const fs = require('node:fs'), path = require('node:path');
 const { performance } = require('node:perf_hooks');
-const { PGlite } = require(process.env.PGLITE_MODULE || '@electric-sql/pglite');
+const {setup}=require('./match-mutations-db.cjs');
 const old = require('../src/lib/analytics');
 const { analysisPerspectives, filterAnalysisPerspectives } = require('../src/lib/match-perspectives');
 const { buildAnalysisFromAggregates, emptyAnalysisAggregates } = require('../src/lib/analysis-aggregates');
-const root = path.resolve(__dirname, '..'), base = '46da48df303ca38df85120a813ba746d3ac71bb0';
+const root = path.resolve(__dirname, '..');
 const migration = fs.readFileSync(path.join(root, 'tests/fixtures/analysis-aggregates-v1.sql'), 'utf8');
 const signature = 'public.get_analysis_aggregates_v1(uuid,boolean,boolean,boolean,uuid,uuid,public.match_result,public.turn_order,timestamptz,timestamptz,uuid[])';
 const argNames = ['p_environment_id','p_include_all_users','p_include_reversed','p_use_archetype','p_my_deck_id','p_opponent_deck_id','p_result','p_turn_order','p_played_from','p_played_to','p_recent_deck_ids'];
@@ -18,27 +17,34 @@ const callSql = `select public.get_analysis_aggregates_v1(${argTypes.map((t,i)=>
 const uuid = n => `00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 const OWNER=uuid(1),OTHER=uuid(2),ADMIN=uuid(3),ENV=uuid(10),ENV2=uuid(11);
 const A=uuid(100),B=uuid(101),C=uuid(102),INACTIVE=uuid(103),REMOVED=uuid(104),LA=uuid(200),LB=uuid(201),UNKNOWN=uuid(202);
-let db, user=OWNER, sequence=0, counters={matches:0,rpc:0}, baselinePage, newPage;
-const evidence={baseline:base,engine:'PGlite real PostgreSQL WASM; local synthetic data only',cases:[],pages:[],performance:[]};
+let db, user=OWNER, sequence=0, counters={matches:0,rpc:0}, newPage;
+const evidence={schema:"all current migrations",engine:'PGlite real PostgreSQL WASM; local synthetic data only',cases:[],pages:[],performance:[]};
 const fixture = (extra={}) => ({id:uuid(1000000+ ++sequence),user_id:OWNER,environment_id:ENV,my_deck_id:LA,opponent_deck_id:LB,
   my_archetype_id:A,opponent_archetype_id:B,turn_order:'first',result:'win',played_at:'2026-09-20T00:00:00.123456Z',...extra});
 async function identity(id=OWNER, role='authenticated') {
   assert.ok(['authenticated','anon'].includes(role)); await db.exec('reset role');
-  await db.query("select set_config('request.jwt.claim.sub',$1,false)",[id||'']); await db.exec(`set role ${role}`); user=id;
+  await db.query("select set_config('request.jwt.claim.sub',$1,false),set_config('request.jwt.claims',$2,false)",[id||'',JSON.stringify({sub:id,is_anonymous:false})]); await db.exec(`set role ${role}`); user=id;
 }
 async function seed(records) {
   await db.exec('reset role; truncate public.matches');
   await db.query(`insert into public.matches (id,user_id,environment_id,my_deck_id,opponent_deck_id,my_archetype_id,opponent_archetype_id,turn_order,result,played_at)
     select id,user_id,environment_id,my_deck_id,opponent_deck_id,my_archetype_id,opponent_archetype_id,turn_order,result,played_at
     from jsonb_to_recordset($1::jsonb) as r(id uuid,user_id uuid,environment_id uuid,my_deck_id uuid,opponent_deck_id uuid,
-    my_archetype_id uuid,opponent_archetype_id uuid,turn_order public.turn_order,result public.match_result,played_at timestamptz)`,[JSON.stringify(records)]);
+    my_archetype_id uuid,opponent_archetype_id uuid,turn_order public.turn_order,result public.match_result,played_at timestamptz)`,[JSON.stringify(records.map(r=>({...r,environment_id:r.environment_id??ENV})))]);
+  // Current INSERT validation correctly rejects a NULL environment. Model legacy
+  // rows after insertion as the local superuser, leaving the trigger enabled.
+  const legacyIds=records.filter(r=>r.environment_id===null).map(r=>r.id);
+  if(legacyIds.length)await db.query('update public.matches set environment_id=null where id=any($1::uuid[])',[legacyIds]);
   await identity();
 }
 const supabase={
   auth:{getUser:async()=>({data:{user:user?{id:user}:null}})},
   rpc:async(name,args)=>{
-    assert.equal(name,'get_analysis_aggregates_v1'); counters.rpc++;
-    try{return {data:(await db.query(callSql,argNames.map(n=>args[n]))).rows[0].data,error:null};}
+    assert.ok(['get_analysis_aggregates_v1','get_analysis_aggregates_v3'].includes(name)); counters.rpc++;
+    const names=name.endsWith('v3')?[...argNames,'p_rank_filters']:argNames;
+    const types=name.endsWith('v3')?[...argTypes,'text[]']:argTypes;
+    const sql='select public.'+name+'('+names.map((n,i)=>n+'=> $'+(i+1)+'::'+types[i]).join(',')+') as data';
+    try{return {data:(await db.query(sql,names.map(n=>args[n]))).rows[0].data,error:null};}
     catch(error){return {data:null,error:{code:error.code,message:error.message}};}
   },
   from(table){
@@ -62,54 +68,15 @@ async function catalog(){return {
   indexes:(await db.query("select indexname,indexdef from pg_indexes where schemaname='public' order by indexname")).rows,
   policies:(await db.query("select tablename,policyname,roles,cmd,qual,with_check from pg_policies where schemaname='public' order by tablename,policyname")).rows,
   columns:(await db.query("select table_name,column_name,data_type,is_nullable from information_schema.columns where table_schema='public' order by table_name,ordinal_position")).rows,
-  matchup:(await db.query("select pg_get_functiondef('public.get_matchup_aggregates_v1(uuid,boolean)'::regprocedure) as definition")).rows
+  matchup:(await db.query("select pg_get_functiondef('public.get_matchup_aggregates_v1(uuid,boolean)'::regprocedure) as definition")).rows,
+  // The retained v1 SQL fixture must execute the installed migration's function,
+  // not silently replace it with an obsolete oracle.
+  analysis:(await db.query('select pg_get_functiondef(oid) definition,proacl::text acl from pg_proc where oid=$1::regprocedure',[signature])).rows
 };}
 before(async()=>{
-  // Keep the pre-RPC oracle at base. Phase 2-C legitimately replaced only the
-  // period-report loader in data.ts; protect the analysis dependencies by name.
-  const dataContracts=['MATCH_ANALYTICS_COLUMNS','REMOVED_OTHER_ARCHETYPE_NAMES','MatchFilters',
-    'getCurrentUser','getDecks','getMatches','getEnvironments','getActiveArchetypes','getIsAdmin'];
-  const declarations=source=>{
-    const tree=ts.createSourceFile('data.ts',source,ts.ScriptTarget.Latest,true),result=new Map();
-    for(const node of tree.statements){
-      if((ts.isFunctionDeclaration(node)||ts.isTypeAliasDeclaration(node))&&node.name)result.set(node.name.text,node.getText(tree));
-      if(ts.isVariableStatement(node))for(const declaration of node.declarationList.declarations)
-        if(ts.isIdentifier(declaration.name))result.set(declaration.name.text,declaration.getText(tree));
-    }
-    return result;
-  };
-  const originalData=declarations(cp.execFileSync('git',['show',`${base}:src/lib/data.ts`],{cwd:root,encoding:'utf8'}).replaceAll('\r\n','\n'));
-  const currentData=declarations(fs.readFileSync(path.join(root,'src/lib/data.ts'),'utf8').replaceAll('\r\n','\n'));
-  for(const name of dataContracts){
-    assert.ok(originalData.has(name)&&currentData.has(name),'analysis dependency must exist: '+name);
-    assert.equal(currentData.get(name),originalData.get(name),'analysis dependency must remain baseline: '+name);
-  }
-  // R3-B intentionally adapts the matrix page/loader only; its scope test
-  // protects all other Production files. Keep the aggregation oracle frozen.
-  for(const file of ['src/lib/analytics.ts','src/lib/match-perspectives.ts','src/lib/matchup-aggregates.ts']){
-    const original=cp.execFileSync('git',['show',`${base}:${file}`],{cwd:root,encoding:'utf8'});
-    assert.equal(fs.readFileSync(path.join(root,file),'utf8').replaceAll('\r\n','\n'),original.replaceAll('\r\n','\n'),file+' must remain baseline');
-  }
-  // R2 changes only rank validation/payloads in these two write paths.
-  // Preserve every other action/helper; aggregation oracle and RPC SQL remain frozen.
-  const actionFile='src/app/actions.ts';
-  const oldActions=declarations(cp.execFileSync('git',['show',`${base}:${actionFile}`],{cwd:root,encoding:'utf8'}).replaceAll('\r\n','\n'));
-  const newActions=declarations(fs.readFileSync(path.join(root,actionFile),'utf8').replaceAll('\r\n','\n'));
-  assert.deepEqual([...newActions.keys()],[...oldActions.keys()]);
-  for(const [name,definition] of oldActions)if(!['saveMatchFromForm','importGuestMatches'].includes(name))
-    assert.equal(newActions.get(name),definition,'action dependency must remain baseline: '+name);
-  db=await PGlite.create();
-  await db.exec(`create role anon nologin;create role authenticated nologin;create role service_role nologin;create schema auth;
-    create table auth.users(id uuid primary key,email text,raw_user_meta_data jsonb);
-    create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;
-    grant usage on schema auth to anon,authenticated;`);
-  await db.exec(fs.readFileSync(path.join(root,'supabase/schema_production.sql'),'utf8').replace('create extension if not exists "pgcrypto";',''));
-  await db.exec(fs.readFileSync(path.join(root,'supabase/legacy-migrations/pre-baseline/009_admin_all_matches_analysis.sql'),'utf8'));
-  await db.exec(fs.readFileSync(path.join(root,'supabase/legacy-migrations/pre-baseline/012_matchup_aggregates_v1.sql'),'utf8'));
-  // Reproduce the real production preflight differences observed in Phase 2-A.
-  await db.exec(`alter table public.matches alter column environment_id drop not null;
-    drop index public.matches_environment_id_idx;alter function public.is_admin() volatile;
-    alter policy admin_users_select_own_or_admin on public.admin_users to public;`);
+  db=(await setup({seed:false})).db;
+  // Legacy NULL environment rows remain a deliberate isolated compatibility fixture.
+  await db.exec('alter table public.matches alter column environment_id drop not null');
   const before=await catalog();await db.exec(migration);await db.exec(migration);assert.deepEqual(await catalog(),before);
   evidence.indexes=before.indexes.filter(i=>i.indexname.startsWith('matches'));evidence.serverVersion=(await db.query('select version()')).rows[0].version;
   for(const id of [OWNER,OTHER,ADMIN])await db.query('insert into auth.users(id,email) values($1,$2)',[id,id+'@example.test']);
@@ -117,10 +84,7 @@ before(async()=>{
   for(const [i,id]of [ENV,ENV2].entries())await db.query('insert into public.environments(id,user_id,name,created_at) values($1,$2,$3,$4)',[id,ADMIN,id,`2026-09-${20-i}T00:00:00Z`]);
   for(const [i,id]of [A,B,C,INACTIVE,REMOVED].entries())await db.query('insert into public.deck_archetypes(id,name,class_name,is_active,sort_order) values($1,$2,$3,$4,$5)',[id,i<2?'同名':id===REMOVED?'その他エルフ':id,i===1?'ロイヤル':'エルフ',id!==INACTIVE,5-i]);
   for(const [i,id]of [LA,LB,UNKNOWN].entries())await db.query('insert into public.decks(id,user_id,name,class_name,sort_order) values($1,$2,$3,$4,$5)',[id,OWNER,id,'エルフ',3-i]);
-  const filename=path.join(root,'build/baseline-analysis-page.cjs');const baselineModule=new Module(filename,module);baselineModule.filename=filename;baselineModule.paths=Module._nodeModulePaths(root);
-  const source=cp.execFileSync('git',['show',`${base}:src/app/analysis/page.tsx`],{cwd:root,encoding:'utf8'});
-  baselineModule._compile(ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX,esModuleInterop:true}}).outputText,filename);
-  baselinePage=baselineModule.exports.default;newPage=require('../src/app/analysis/page').default;
+  newPage=require('../src/app/analysis/page').default;
   await identity();
 });
 after(async()=>{if(db)await db.close();fs.mkdirSync(path.join(root,'build'),{recursive:true});fs.writeFileSync(path.join(root,'build/analysis-rpc-evidence.json'),JSON.stringify(evidence,null,2));});
@@ -149,16 +113,33 @@ async function compare(name,{who=OWNER,all=false,environment=ENV,mode='direct',f
     oldJsonBytes:Buffer.byteLength(JSON.stringify(records)),rpcJsonBytes:Buffer.byteLength(JSON.stringify(aggregates)),equal:true};
   evidence.cases.push(result);return {result,aggregates,final};
 }
-function normalizeElement(value){
-  if(Array.isArray(value))return value.map(normalizeElement);
-  if(value&&typeof value==='object'){
-    if(value.$$typeof)return {type:typeof value.type==='function'?value.type.name:String(value.type),key:value.key,props:normalizeElement(value.props)};
-    return Object.fromEntries(Object.entries(value).map(([k,v])=>[k,normalizeElement(v)]));
-  }return value;
+async function comparePage(name,params,who=OWNER){
+  await identity(who);counters={matches:0,rpc:0};
+  const tree=await newPage({searchParams:Promise.resolve(params)});
+  const {findElement}=require('./server-page-fixture.cjs');
+  if(name==='invalid-params'){
+    assert.ok(findElement(tree,'AnalysisDateQueryError'));assert.deepEqual(counters,{matches:0,rpc:0});
+    evidence.pages.push({name,invalidDatesRejected:true});return;
+  }
+  const component=findElement(tree,'AnalysisDashboard');assert.ok(component,name);
+  const data=component.props.initialData;
+  assert.equal(data.isAdmin,who===ADMIN);assert.equal(data.selectedScope,who===ADMIN&&params.scope==='all'?'all':'mine');
+  assert.equal(data.winRateMode,params.winRateMode==='combined'||(who===ADMIN&&params.scope==='all'&&params.winRateMode!=='direct')?'combined':'direct');
+  assert.equal(data.selectedEnvironmentId,name==='no-environments'?'':params.environment===ENV2?ENV2:ENV);
+  assert.equal(data.selectedMyDeckId,['direction','no-active-archetypes-legacy-fallback'].includes(name)?params.myDeck:'');
+  assert.equal(data.selectedOpponentDeckId,name==='direction'?A:'');
+  assert.equal(data.selectedResult,name==='direction'?'lose':'');assert.equal(data.selectedTurnOrder,name==='direction'?'second':'');
+  assert.equal(counters.matches,0,'page uses aggregate RPC, not all raw records');assert.equal(counters.rpc,who?1:0);
+  assert.equal(component.props.initialQuery,new URLSearchParams(params).toString());
+  const decks=await getDecks(),archetypes=await getActiveArchetypes();
+  const options={deckIdField:archetypes.length?'archetype':'deck',includeAllUsers:data.selectedScope==='all',
+    myDeckId:data.selectedMyDeckId,opponentDeckId:data.selectedOpponentDeckId,result:data.selectedResult||undefined,turnOrder:data.selectedTurnOrder||undefined,
+    playedAtFrom:name==='dates'?'2026-09-19T15:00:00.000Z':undefined,playedAtTo:name==='dates'?'2026-09-20T14:59:00.000Z':undefined};
+  const records=await getMatches(data.selectedEnvironmentId,{deckIdField:options.deckIdField,includeAllUsers:options.includeAllUsers,playedAtFrom:options.playedAtFrom,playedAtTo:options.playedAtTo});
+  const views=filterAnalysisPerspectives(analysisPerspectives(records,data.winRateMode),options);
+  assert.deepEqual(buildAnalysisFromAggregates(data.aggregates,decks,archetypes),oracle(views,decks,archetypes),name+': full final UI aggregate data');
+  evidence.pages.push({name,equal:true});
 }
-async function comparePage(name,params,who=OWNER){await identity(who);
-  const before=normalizeElement(await baselinePage({searchParams:Promise.resolve(params)}));
-  const after=normalizeElement(await newPage({searchParams:Promise.resolve(params)}));assert.deepEqual(after,before,name+': actual full page element tree and all props');evidence.pages.push({name,equal:true});}
 
 test('boundaries, both modes, final UI data and real execution plans at 10k/100k',async()=>{
   for(const size of [0,1,999,1000,1001,10000,100000]){
@@ -220,7 +201,7 @@ test('inclusive JST bounds, reversed-only date conditions and different/null env
     await compare('null-environment-included-'+mode,{mode,environment:''});await compare('other-environment-'+mode,{mode,environment:ENV2});
   }
 });
-test('actual full page props/markup match baseline including parameter normalization and default scope/mode',async()=>{
+test('current Analysis page props match independent row oracle, scope and query validation',async()=>{
   await seed(Array.from({length:30},(_,i)=>fixture({user_id:i%3?OWNER:ADMIN,my_archetype_id:i%2?A:B,opponent_archetype_id:i%3?B:A,result:i%2?'win':'lose'})));
   for(const [name,params,who] of [
     ['default',{},OWNER],['admin-default',{},ADMIN],['admin-all-default',{scope:'all'},ADMIN],['admin-all-direct',{scope:'all',winRateMode:'direct'},ADMIN],

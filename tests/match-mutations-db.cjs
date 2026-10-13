@@ -5,7 +5,7 @@ const { PGlite } = require(process.env.PGLITE_MODULE || '@electric-sql/pglite');
 const uuid = n => '00000000-0000-4000-8000-' + String(n).padStart(12, '0');
 const ids = { a: uuid(1), b: uuid(2), env: uuid(10), env2: uuid(11), deck: uuid(20), deck2: uuid(21), bdeck: uuid(22), arch: uuid(30), arch2: uuid(31), match: uuid(40), other: uuid(41) };
 const quote = name => '"' + name.trim().replaceAll('"', '""') + '"';
-async function setup({ beforeMigration, afterMigration } = {}) {
+async function setup({ beforeMigration, afterMigration, seed = true } = {}) {
   const db = await PGlite.create();
   await db.exec(`create role anon; create role authenticated; create role service_role bypassrls; create schema auth;
     create table auth.users(id uuid primary key, email text, raw_user_meta_data jsonb);
@@ -24,12 +24,14 @@ async function setup({ beforeMigration, afterMigration } = {}) {
     await db.exec(fs.readFileSync(path.join('supabase/migrations', file), 'utf8'));
     await afterMigration?.(db, file);
   }
+  if (seed) {
   for (const id of [ids.a, ids.b]) await db.query('insert into auth.users(id,email) values($1,$2)', [id, id + '@example.test']);
   await db.query('insert into public.admin_users(user_id) values($1)', [ids.a]);
   for (const [id, name] of [[ids.env, '検証環境'], [ids.env2, '別の環境']]) await db.query('insert into public.environments(id,user_id,name) values($1,$2,$3)', [id, ids.a, name]);
   for (const [id, name, cls] of [[ids.arch, 'デッキA', 'エルフ'], [ids.arch2, 'デッキB', 'ロイヤル']]) await db.query('insert into public.deck_archetypes(id,name,class_name) values($1,$2,$3)', [id, name, cls]);
   for (const [id, owner, name, cls] of [[ids.deck, ids.a, 'デッキA', 'エルフ'], [ids.deck2, ids.a, 'デッキB', 'ロイヤル'], [ids.bdeck, ids.b, '非公開B', 'エルフ']]) await db.query('insert into public.decks(id,user_id,name,class_name) values($1,$2,$3,$4)', [id, owner, name, cls]);
   for (const [id, owner, deck] of [[ids.match, ids.a, ids.deck], [ids.other, ids.b, ids.bdeck]]) await db.query(`insert into public.matches(id,user_id,environment_id,my_deck_id,opponent_deck_id,my_archetype_id,opponent_archetype_id,result,turn_order,played_at) values($1,$2,$3,$4,$4,$5,$5,'win','first',now()-interval '1 hour')`, [id, owner, ids.env, deck, ids.arch]);
+  }
   async function claim(user = ids.a) {
     await db.exec('reset role');
     await db.query("select set_config('request.jwt.claim.sub',$1,false),set_config('request.jwt.claims',$2,false)", [user || '', JSON.stringify(user ? { sub: user, is_anonymous: false } : {})]);

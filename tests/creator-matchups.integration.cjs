@@ -1,16 +1,22 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 const {test}=require('node:test'),assert=require('node:assert/strict');
 const h=require('./obs-matchups-db.cjs');
+const dashboardV4=async(db,env=h.NEW,ranks=['unranked'],period='7d')=>(await db.query('select public.get_environment_dashboard_aggregates_v4($1,$2,$3) as data',[env,period,ranks])).rows[0].data;
 const {parseAnalysisAggregates,buildAnalysisFromAggregates}=require('../src/lib/analysis-aggregates');
 test('creator: actual existing SQL equals combined Matrix for direct/reversed, period/environment/rank and exclusive end',async t=>{
- const db=await h.createDb();t.after(()=>db.close());await db.exec(h.read(h.migration));await h.identity(db);const anchor=await h.environment(db),[a,b]=h.decks,images=[{id:h.uuid(801),archetype_id:a.id},{id:h.uuid(802),archetype_id:b.id}];
- const client={from:()=>({select:()=>({in:async()=>({data:images,error:null})})}),rpc:async(name,p)=>{try{const data=name==='get_environment_dashboard_aggregates_v3'?await h.environment(db,p.p_environment_id,p.p_rank_filters,p.p_period):await h.analysis(db,{environmentId:p.p_environment_id,current:{start:p.p_played_from,end:p.p_played_to},rankFilters:p.p_rank_filters},{combined:p.p_include_reversed,all:p.p_include_all_users,recent:p.p_recent_deck_ids});return{data,error:null};}catch(e){return{data:null,error:{code:e.code}};}}};
+ const db=await h.createDb();t.after(()=>db.close());await db.exec(h.read(h.migration));await db.exec(h.read('supabase/migrations/20261010042525_environment_dashboard_v4.sql'));
+ // Freeze only the isolated DB clock so an hour boundary cannot move the oracle.
+ const definition=(await db.query("select pg_get_functiondef('private.get_environment_dashboard_aggregates_v4(uuid,text,text[])'::regprocedure) d")).rows[0].d;
+ assert.ok(definition.includes('pg_catalog.statement_timestamp()'));
+ await db.exec(definition.replaceAll('pg_catalog.statement_timestamp()',"timestamptz '2026-10-13T03:15:00Z'"));
+ await h.identity(db);const anchor=await dashboardV4(db),[a,b]=h.decks,images=[{id:h.uuid(801),archetype_id:a.id},{id:h.uuid(802),archetype_id:b.id}];
+ const client={from:()=>({select:()=>({in:async()=>({data:images,error:null})})}),rpc:async(name,p)=>{assert.ok(['get_environment_dashboard_aggregates_v4','get_analysis_aggregates_v3_exclusive'].includes(name));try{const data=name==='get_environment_dashboard_aggregates_v4'?await dashboardV4(db,p.p_environment_id,p.p_rank_filters,p.p_period):await h.analysis(db,{environmentId:p.p_environment_id,current:{start:p.p_played_from,end:p.p_played_to},rankFilters:p.p_rank_filters},{combined:p.p_include_reversed,all:p.p_include_all_users,recent:p.p_recent_deck_ids});return{data,error:null};}catch(e){return{data:null,error:{code:e.code}};}}};
  const serverId=require.resolve('../src/lib/supabase/server');require.cache[serverId]={id:serverId,filename:serverId,loaded:true,exports:{createSupabaseServerClient:async()=>client}};
  const {getCreatorMatchups}=require('../src/lib/creator/matchup-server');
  const rows=Array.from({length:42},(_,i)=>{const reverse=i%2===1,awin=i<24;return h.row({played_at:anchor.current.start,my_archetype_id:reverse?b.id:a.id,opponent_archetype_id:reverse?a.id:b.id,my_deck_id:reverse?b.id:a.id,opponent_deck_id:reverse?a.id:b.id,result:(reverse?!awin:awin)?'win':'lose'});});
  rows.push(h.row({played_at:anchor.current.end,my_archetype_id:a.id,opponent_archetype_id:b.id}),h.row({played_at:anchor.current.start,environment_id:h.OLD,my_archetype_id:a.id,opponent_archetype_id:b.id,rank_tier:'master',master_group:'ruby'}));await h.seed(db,rows);
- for(const environment of [h.NEW,h.OLD])for(const period of ['24h','7d','30d'])for(const ranks of [['unranked'],['master:ruby'],['unranked','master:ruby']]){
-  const selection={environment,period,ranks},data=await getCreatorMatchups(client,selection,images.map(i=>i.id));const dashboard=await h.environment(db,environment,ranks,period),matrix=buildAnalysisFromAggregates(parseAnalysisAggregates(await h.analysis(db,dashboard,{combined:true}),[]),[a,b],[a,b]).matrix;
+ for(const environment of [h.NEW,h.OLD])for(const period of ['all','24h','3d','7d','30d'])for(const ranks of [['unranked'],['master:ruby'],['unranked','master:ruby']]){
+  const selection={environment,period,ranks},data=await getCreatorMatchups(client,selection,images.map(i=>i.id));const dashboard=await dashboardV4(db,environment,ranks,period),matrix=buildAnalysisFromAggregates(parseAnalysisAggregates(await h.analysis(db,dashboard,{combined:true}),[]),[a,b],[a,b]).matrix;
   for(const c of data.cells){const expected=matrix.find(r=>r.myDeck.id===c.sourceDeckId).cells.find(v=>v.opponentDeckId===c.targetDeckId);assert.equal(c.winRate,expected.winRate);assert.equal(c.matchCount,expected.total);}
   if(environment===h.NEW&&period==='7d'&&ranks.length===1&&ranks[0]==='unranked'){const x=data.cells.find(c=>c.sourceDeckId===a.id&&c.targetDeckId===b.id),y=data.cells.find(c=>c.sourceDeckId===b.id&&c.targetDeckId===a.id);assert.equal(x.matchCount,42);assert.equal(x.winRate,24/42*100);assert.equal(y.winRate,18/42*100);}
  }
