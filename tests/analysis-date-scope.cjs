@@ -7,7 +7,7 @@ const read=file=>fs.readFileSync(file,'utf8').replaceAll('\r\n','\n');
 // Historical scope guards receive the old source only after this exact patch is checked.
 // Dedicated date tests exercise the current code; no runtime/behavior test is projected.
 function readBeforeAnalysisDates(file){
- const source=read(file);if(!Object.hasOwn(hashes,file))return source;
+ const source=require('./home-overflow-scope.cjs').readBeforeHomeOverflow(file);if(!Object.hasOwn(hashes,file))return source;
  assert.equal(createHash('sha256').update(source).digest('hex'),hashes[file],'unreviewed Analysis date change: '+file);
  assert(!added.has(file),'new date file has no historical version');
  return cp.execFileSync('git',['show',base+':'+file],{encoding:'utf8'}).replaceAll('\r\n','\n');

@@ -92,11 +92,11 @@ export default async function HomePage({
                       </span>
                     </div>
                     <div className="mt-3 grid gap-2 text-sm">
-                      <div className="min-w-0">
+                      <div className="min-w-0 [&>span]:max-w-full [&>span>span:last-child]:break-words [&>span>span:last-child]:whitespace-normal">
                         <div className="mb-1 text-xs font-semibold text-muted">使用デッキ</div>
                         {match.my_deck ? <DeckWithClassIcon className={match.my_deck.class_name} name={match.my_deck.name} /> : "-"}
                       </div>
-                      <div className="min-w-0">
+                      <div className="min-w-0 [&>span]:max-w-full [&>span>span:last-child]:break-words [&>span>span:last-child]:whitespace-normal">
                         <div className="mb-1 text-xs font-semibold text-muted">相手デッキ</div>
                         {match.opponent_deck ? <DeckWithClassIcon className={match.opponent_deck.class_name} name={match.opponent_deck.name} /> : "-"}
                       </div>
@@ -117,7 +117,7 @@ export default async function HomePage({
                       <th className="px-4 py-3">自分のランク</th>
                       <th className="px-4 py-3">先後</th>
                       <th className="px-4 py-3">結果</th>
-                      <th className="px-2 py-3"><span className="sr-only">操作</span></th>
+                      <th className="relative px-2 py-3"><span className="sr-only">操作</span></th>
                     </tr>
                   </thead>
                   <tbody>
