@@ -4,31 +4,25 @@ import { isMatchResult, isTurnOrder } from '@/components/analysis/AnalysisFilter
 import { getAnalysisAggregates } from '@/lib/analysis-data';
 import { getActiveArchetypes, getDecks, getEnvironments, getIsAdmin } from '@/lib/data';
 import { resolveWinRateMode } from '@/lib/match-perspectives';
+import { validateAnalysisDates } from '@/lib/analysis-date-query';
 export type AnalysisSearchParams = {
   environment?: string;
   myDeck?: string;
   opponentDeck?: string;
   turnOrder?: string;
   result?: string;
-  playedFrom?: string;
-  playedTo?: string;
+  playedFrom?: string | string[];
+  playedTo?: string | string[];
   scope?: string;
   winRateMode?: string;
   rank?: string;
   ranks?: string;
 };
 
-function normalizeDatetimeLocal(value?: string) {
-  return value && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value) ? value : "";
-}
-
-function toJstIso(value: string, endOfMinute = false) {
-  return new Date(`${value}:${endOfMinute ? "59.999" : "00"}+09:00`).toISOString();
-}
-
-
 export async function getAnalysisPageData(params: AnalysisSearchParams) {
   const selectedRanks = parseRankSelection(params);
+  const dates = validateAnalysisDates(params);
+  if (!dates.ok) throw new Error(dates.error.message);
   const [environments, isAdmin] = await Promise.all([getEnvironments(), getIsAdmin()]);
   const selectedScope = isAdmin && params.scope === "all" ? "all" : "mine";
   const winRateMode = resolveWinRateMode(params.winRateMode, selectedScope);
@@ -41,8 +35,7 @@ export async function getAnalysisPageData(params: AnalysisSearchParams) {
   const selectedOpponentDeckId = params.opponentDeck && filterDeckIds.has(params.opponentDeck) ? params.opponentDeck : "";
   const selectedTurnOrder = params.turnOrder && isTurnOrder(params.turnOrder) ? params.turnOrder : "";
   const selectedResult = params.result && isMatchResult(params.result) ? params.result : "";
-  const selectedPlayedFrom = normalizeDatetimeLocal(params.playedFrom);
-  const selectedPlayedTo = normalizeDatetimeLocal(params.playedTo);
+  const { playedFrom: selectedPlayedFrom, playedTo: selectedPlayedTo } = dates.value;
   const deckIdField = archetypes.length > 0 ? "archetype" : "deck";
   const directionalFilters = {
     myDeckId: selectedMyDeckId,
@@ -53,8 +46,8 @@ export async function getAnalysisPageData(params: AnalysisSearchParams) {
   } as const;
   const aggregates = await getAnalysisAggregates(selectedEnvironmentId, winRateMode, {
     ...directionalFilters,
-    playedAtFrom: selectedPlayedFrom ? toJstIso(selectedPlayedFrom) : undefined,
-    playedAtTo: selectedPlayedTo ? toJstIso(selectedPlayedTo, true) : undefined,
+    playedAtFrom: dates.value.playedAtFrom,
+    playedAtTo: dates.value.playedAtTo,
     deckIdField,
     includeAllUsers: selectedScope === "all"
   }, matrixDecks.map(deck => deck.id), selectedRanks);

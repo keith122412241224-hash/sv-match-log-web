@@ -36,7 +36,7 @@ export function AnalysisDateTimeField({
           onChange={(event) => setTime(event.target.value)}
         />
       </div>
-      <input type="hidden" name={name} value={date && time ? `${date}T${time}` : ""} />
+      <input type="hidden" name={name} value={date && time ? `${date}T${time}` : ""} disabled={!date} />
     </fieldset>
   );
 }

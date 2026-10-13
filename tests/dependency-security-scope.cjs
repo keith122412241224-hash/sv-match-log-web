@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const fs=require('node:fs'),cp=require('node:child_process'),assert=require('node:assert/strict'),{createHash}=require('node:crypto');
+const cp=require('node:child_process'),assert=require('node:assert/strict'),{createHash}=require('node:crypto');
 const base='859afb3df7000898b029d3e8ba797e2329868691';
 const hashes=require('./fixtures/dependency-security-source-hashes.json');
-const read=file=>fs.readFileSync(file,'utf8').replaceAll('\r\n','\n');
+const read=file=>require('./analysis-date-scope.cjs').readBeforeAnalysisDates(file);
 // Preserve historical feature assertions, but only for these exact reviewed dependency files.
 function readBeforeDependencySecurity(file){
  const source=read(file);if(!Object.hasOwn(hashes,file))return source;

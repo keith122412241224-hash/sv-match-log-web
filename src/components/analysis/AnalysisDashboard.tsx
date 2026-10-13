@@ -9,6 +9,8 @@ import { buildAnalysisFromAggregates, parseAnalysisAggregates } from "@/lib/anal
 import { parseRankSelection, serializeRankSelection, type RankSelection } from "@/lib/rank-selection";
 import { formatPercent } from "@/lib/utils";
 import type { AnalysisPageData } from "@/lib/analysis-page-data";
+import { analysisDatesFromQuery, validateAnalysisDates } from "@/lib/analysis-date-query";
+import { AnalysisDateQueryError } from "@/components/analysis/AnalysisDateQueryError";
 
 function queryKey(value: string) {
   const query = new URLSearchParams(value);
@@ -19,12 +21,16 @@ function queryKey(value: string) {
 export function AnalysisDashboard({ initialData, initialQuery }: { initialData: AnalysisPageData; initialQuery: string }) {
   const container = useRef<HTMLDivElement>(null), controller = useRef<AbortController | null>(null);
   const [data, setData] = useState(initialData), [pending, setPending] = useState(false), [failed, setFailed] = useState(false);
+  const [invalidDateQuery, setInvalidDateQuery] = useState<string | null>(null);
   const currentQuery = useRef(initialQuery), serverData = useRef(initialData);
   const load = useCallback(async (query: URLSearchParams, updateUrl: boolean) => {
     controller.current?.abort();
     const request = new AbortController(); controller.current = request;
     currentQuery.current = query.toString();
     setPending(true); setFailed(false);
+    if (!validateAnalysisDates(analysisDatesFromQuery(query)).ok) {
+      setInvalidDateQuery(query.toString()); setPending(false); return;
+    }
     try {
       const ranks = parseRankSelection(Object.fromEntries(query));
       const response = await fetch('/api/analysis?' + query, { signal: request.signal, cache: 'no-store' });
@@ -34,6 +40,7 @@ export function AnalysisDashboard({ initialData, initialQuery }: { initialData: 
       next.aggregates = parseAnalysisAggregates(next.aggregates, next.matrixDecks.map(d => d.id));
       if (!request.signal.aborted) {
         setData(next); currentQuery.current = query.toString();
+        setInvalidDateQuery(null);
         if (updateUrl) window.history.replaceState(window.history.state, '', '/analysis?' + query);
       }
     } catch { if (!request.signal.aborted) setFailed(true); }
@@ -52,6 +59,7 @@ export function AnalysisDashboard({ initialData, initialQuery }: { initialData: 
     controller.current?.abort();
     currentQuery.current = query.toString();
     setData(initialData); setPending(false); setFailed(false);
+    setInvalidDateQuery(null);
   }, [initialData, initialQuery, load]);
   useLayoutEffect(() => {
     // Uncontrolled selects keep their DOM/focus, but must follow accepted navigation data.
@@ -81,6 +89,7 @@ export function AnalysisDashboard({ initialData, initialQuery }: { initialData: 
   }
   const { environments, isAdmin, selectedRanks, selectedScope, winRateMode, selectedEnvironmentId, decks, archetypes, selectedEnvironmentName, matrixDecks, selectedMyDeckId, selectedOpponentDeckId, selectedTurnOrder, selectedResult, selectedPlayedFrom, selectedPlayedTo, aggregates } = data;
   const { registeredMatches, byMyDeck, byOpponentDeck, byTurn, matrix, summaries } = buildAnalysisFromAggregates(aggregates, decks, archetypes);
+  if (invalidDateQuery !== null) return <AnalysisDateQueryError key={invalidDateQuery} query={invalidDateQuery} />;
   return (
       <div ref={container} className="grid gap-6">
         <section>

@@ -3,7 +3,7 @@ const {test}=require('node:test'),assert=require('node:assert/strict'),cp=requir
 const {base,hashes,added,read,readBeforeReportPng}=require('./report-png-scope.cjs');
 test('QA2-004 changes only export code; DB, RPC, auth, aggregation, Creator, OBS and dependencies remain unchanged',()=>{
  const git=args=>cp.execFileSync('git',args,{encoding:'utf8',maxBuffer:64e6}).replaceAll('\r\n','\n');
- assert.deepEqual(Object.keys(hashes).sort(),['src/components/admin/WeeklyReportClientTools.tsx','src/lib/analysis-png.ts',...added].sort());
+ assert.deepEqual(Object.keys(hashes).sort(),['src/components/admin/WeeklyReportClientTools.tsx','src/lib/analysis-png.ts',...([...added].filter(f=>!require('./analysis-date-scope.cjs').added.has(f)))].sort());
  for(const [file,hash]of Object.entries(hashes))assert.equal(createHash('sha256').update(read(file)).digest('hex'),hash,file);
  const files=git(['ls-tree','-r','--name-only',base]).trim().split('\n').filter(f=>/^(src|supabase)\//.test(f)||/^package(-lock)?\.json$/.test(f));
  for(const file of files)assert.equal(readBeforeReportPng(file),git(['show',base+':'+file]),file);

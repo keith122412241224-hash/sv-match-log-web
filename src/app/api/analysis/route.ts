@@ -1,6 +1,7 @@
 import { getCurrentUser } from "@/lib/data";
 import { getAnalysisPageData, type AnalysisSearchParams } from "@/lib/analysis-page-data";
 import { parseRankSelection } from "@/lib/rank-selection";
+import { analysisDatesFromQuery, validateAnalysisDates } from "@/lib/analysis-date-query";
 
 export async function GET(request: Request) {
   const headers = { "Cache-Control": "private, no-store", Vary: "Cookie" };
@@ -8,6 +9,8 @@ export async function GET(request: Request) {
   const query = new URL(request.url).searchParams;
   const allowed = ["environment", "myDeck", "opponentDeck", "turnOrder", "result", "playedFrom", "playedTo", "scope", "winRateMode", "rank", "ranks"];
   const params = Object.fromEntries(query) as AnalysisSearchParams;
+  const dates = validateAnalysisDates(analysisDatesFromQuery(query));
+  if (!dates.ok) return Response.json({ error: dates.error.message, field: dates.error.field }, { status: 400, headers });
   try {
     if ([...query.keys()].some(k => !allowed.includes(k) || query.getAll(k).length !== 1)) throw new Error();
     parseRankSelection(params);
