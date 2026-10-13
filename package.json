@@ -14,13 +14,13 @@
     "@supabase/ssr": "^0.5.2",
     "@supabase/supabase-js": "^2.48.1",
     "clsx": "^2.1.1",
-    "fflate": "^0.8.2",
+    "fflate": "^0.8.3",
     "html-to-image": "^1.11.11",
     "lucide-react": "^0.468.0",
-    "next": "15.5.24",
+    "next": "15.5.27",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "sharp": "0.34.5"
+    "sharp": "0.35.5"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
@@ -28,8 +28,8 @@
     "@types/react-dom": "^19.0.2",
     "autoprefixer": "^10.4.20",
     "eslint": "^9.17.0",
-    "eslint-config-next": "15.5.24",
-    "postcss": "^8.4.49",
+    "eslint-config-next": "15.5.27",
+    "postcss": "8.5.23",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.7.2"
   }
