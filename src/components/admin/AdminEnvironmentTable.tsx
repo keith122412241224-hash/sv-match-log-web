@@ -2,20 +2,25 @@
 
 import { deleteEnvironment } from "@/app/admin/actions";
 import { FieldLabel, Input } from "@/components/Field";
+import { BatchRowResult, BatchSummary, useBatchUpdate } from "./BatchUpdate";
 import { SubmitButton } from "@/components/SubmitButton";
 import { environmentInputStatus, isoToJstInput } from "@/lib/environment-input";
 import type { Environment } from "@/types/database";
 
 export function AdminEnvironmentTable({ environments, serverNow }: { environments: Environment[]; serverNow: number }) {
-  if (environments.length === 0) {
+  const batch = useBatchUpdate("environment", environments);
+  if (batch.records.length === 0) {
     return <p className="rounded-md border border-slate-200 bg-white p-4 text-sm text-muted">環境がありません。</p>;
   }
 
   return (
-    <form action="/admin/environments" method="post" className="grid gap-3">
+    <form action="/admin/environments" method="post" onSubmit={batch.submit} onChange={batch.changed} noValidate aria-busy={batch.pending} className="grid gap-3">
+      <BatchSummary batch={batch} kind="environment" />
       <input type="hidden" name="operation" value="update" />
-      {environments.map((environment) => (
+      {batch.records.map((environment) => (
         <section className="rounded-md border border-slate-200 bg-white p-4" key={environment.id}>
+          <fieldset disabled={batch.locked(environment.id)} aria-describedby={batch.status(environment.id) ? `batch-result-${environment.id}` : undefined} className="min-w-0">
+          <input type="hidden" name={`baseline_${environment.id}`} value={batch.baseline(environment)} />
           <input name="environment_ids" type="hidden" value={environment.id} />
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_180px_220px_auto] sm:items-end">
             <FieldLabel>
@@ -37,6 +42,7 @@ export function AdminEnvironmentTable({ environments, serverNow }: { environment
             </label>
             <SubmitButton
               className="min-h-11 rounded-md border border-rose-200 bg-rose-50 px-4 text-sm font-bold text-rose-700 transition hover:bg-rose-100"
+              data-batch-delete
               formAction={deleteEnvironment.bind(null, environment.id)}
               formNoValidate
               onClick={(event) => {
@@ -65,12 +71,14 @@ export function AdminEnvironmentTable({ environments, serverNow }: { environment
             </FieldLabel>
           </div>
           <p className="mt-2 text-xs text-muted">設定した日時の直前までの戦績を集計します。未設定・未来日時の場合は現在の集計基準時刻まで集計します。入力受付とは独立した設定です。</p>
-          <p className="mt-2 text-sm font-semibold text-ink">保存済みの状態：{environmentInputStatus(environment, serverNow)}</p>
+          {batch.status(environment.id)?.status !== "success" && <p className="mt-2 text-sm font-semibold text-ink">編集開始時の状態：{environmentInputStatus(environment, serverNow)}</p>}
+          </fieldset>
+          <BatchRowResult row={batch.status(environment.id)} />
         </section>
       ))}
       <div className="flex justify-end">
-        <SubmitButton pendingLabel="一括更新中..." type="submit">
-          環境を一括更新
+        <SubmitButton disabled={!batch.canSubmit} pendingLabel="一括更新中..." type="submit">
+          {batch.label}
         </SubmitButton>
       </div>
     </form>

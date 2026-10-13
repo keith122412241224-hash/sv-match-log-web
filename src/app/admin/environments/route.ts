@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createEnvironment, updateEnvironmentsBatch } from "@/app/admin/actions";
+import { createEnvironment, updateEnvironmentsBatch, checkEnvironmentsBatch } from "@/app/admin/actions";
 
 export async function POST(request: NextRequest) {
   // Native POST forms need the same origin protection as Server Actions.
@@ -14,7 +14,8 @@ export async function POST(request: NextRequest) {
 
   const formData = await request.formData();
   const operation = formData.get("operation");
-  if (operation !== "create" && operation !== "update") {
+  const json = request.headers.get("accept")?.includes("application/json") && operation !== "create";
+  if (operation !== "create" && operation !== "update" && !(json && operation === "check")) {
     return new NextResponse("Invalid operation", { status: 400 });
   }
   // Preserve the verified public origin rather than Next's internal hostname.
@@ -23,10 +24,12 @@ export async function POST(request: NextRequest) {
     // Both actions retain their existing admin authorization and RLS checks.
     const result = operation === "create"
       ? await createEnvironment(formData, true)
-      : await updateEnvironmentsBatch(formData, true);
+      : operation === "check" ? await checkEnvironmentsBatch(formData) : await updateEnvironmentsBatch(formData, true);
+    if (json) return NextResponse.json(result, { headers: { "Cache-Control": "no-store" } });
     target.searchParams.set("notice", result?.notice ?? "environments_update_failed");
     if (result?.error) target.searchParams.set("error", result.error);
   } catch {
+    if (json) return NextResponse.json({ error: "保存結果を確認できません。接続・管理者ログインを確認してください。" }, { status: 503 });
     // GET /admin applies its normal authorization redirect if a session expired.
     target.searchParams.set("notice", "environments_update_failed");
   }

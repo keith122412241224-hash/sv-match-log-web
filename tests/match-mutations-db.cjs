@@ -41,6 +41,7 @@ async function setup({ beforeMigration, afterMigration, seed = true } = {}) {
     constructor(table) { this.table = table; this.filters = []; this.cols = '*'; this.sort = []; }
     select(cols = '*') { this.cols = cols; return this; }
     eq(key, value) { this.filters.push([key, 'eq', value]); return this; }
+    is(key, value) { if (value !== null) throw Error('fixture supports IS NULL only'); this.filters.push([key, 'is', value]); return this; }
     in(key, value) { this.filters.push([key, 'in', value]); return this; }
     order(key, options = {}) { this.sort.push(quote(key) + (options.ascending === false ? ' desc' : ' asc')); return this; }
     limit(value) { this.count = value; return this; }
@@ -52,7 +53,7 @@ async function setup({ beforeMigration, afterMigration, seed = true } = {}) {
     async execute() {
       try {
         const args = [], bind = v => { args.push(v); return '$' + args.length; };
-        const where = this.filters.map(([key, op, value]) => op === 'eq' ? quote(key) + '=' + bind(value) : value.length ? quote(key) + ' in (' + value.map(bind).join(',') + ')' : 'false');
+        const where = this.filters.map(([key, op, value]) => op === 'is' ? quote(key) + ' is null' : op === 'eq' ? quote(key) + '=' + bind(value) : value.length ? quote(key) + ' in (' + value.map(bind).join(',') + ')' : 'false');
         const condition = where.length ? ' where ' + where.join(' and ') : '';
         const table = 'public.' + quote(this.table); let sql;
         if (this.rows) { const cols = Object.keys(this.rows[0]); sql = 'insert into ' + table + '(' + cols.map(quote).join(',') + ') values ' + this.rows.map(row => '(' + cols.map(col => bind(row[col])).join(',') + ')').join(',') + (this.conflict ? ' on conflict(' + this.conflict.split(',').map(quote).join(',') + ') do nothing' : '') + ' returning *'; }

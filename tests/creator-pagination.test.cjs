@@ -58,7 +58,7 @@ test('Creator cursor pagination preserves neighbours when a new image is inserte
 test('QA2-007 scope pins Creator retrieval/UI only; all other product, SQL and dependencies remain identical',()=>{
  const {base,hashes,added,readBeforeCreatorPagination}=require('./creator-pagination-scope.cjs');
  const expected=['src/app/admin/creator/api/route.ts','src/app/admin/creator/tier/page.tsx','src/app/admin/creator/tier/[id]/correlation/page.tsx','src/app/admin/obs/tier/[id]/page.tsx','src/components/creator/TierEditor.tsx','src/components/creator/ImageLibrary.tsx','src/components/creator/CorrelationEditor.tsx','src/lib/creator/server.ts','src/lib/creator/correlation-server.ts',...added];
- assert.deepEqual(Object.keys(hashes).sort(),expected.sort());
+ assert.deepEqual(Object.keys(hashes).sort(),expected.filter(f=>!require('./admin-batch-scope.cjs').added.has(f)).sort());
  for(const[file,hash]of Object.entries(hashes))assert.equal(createHash('sha256').update(fs.readFileSync(file,'utf8').replaceAll('\r\n','\n')).digest('hex'),hash,file);
  const git=args=>cp.execFileSync('git',args,{encoding:'utf8',maxBuffer:64e6}).replaceAll('\r\n','\n');
  const files=git(['ls-tree','-r','--name-only',base]).trim().split('\n').filter(f=>/^(src|supabase)\//.test(f)||/^package(-lock)?\.json$/.test(f));

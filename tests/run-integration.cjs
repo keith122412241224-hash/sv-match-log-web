@@ -2,7 +2,7 @@
 // node tests/run-integration.cjs
 // PGLITE_MODULE may point to an existing local PGlite install. No remote DB URL.
 // The first 17 files reproduce the audit's 34-test suite. The remaining two
-// cover current environment permissions and Analysis date/API validation.
+// cover current environment permissions, Analysis date/API and batch results.
 const fs = require('node:fs'), path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const root = path.resolve(__dirname, '..');
@@ -11,7 +11,7 @@ const files = [
   'creator', 'environment-dashboard-v4', 'guest-import', 'matchup-rank',
   'matchup-rpc', 'obs-matchups', 'period-report-environment', 'period-report-rank',
   'period-report-rpc', 'rank-save', 'match-mutations', 'environment-dashboard-v4-admin',
-  'environment-permissions', 'analysis-date'
+  'environment-permissions', 'analysis-date', 'admin-batch'
 ].map(name => path.join(__dirname, name + '.integration.cjs'));
 const env = {};
 for (const [key, value] of Object.entries(process.env)) {

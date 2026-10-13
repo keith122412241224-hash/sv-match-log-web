@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { jstInputToIso, readMatchInputWindow } from "@/lib/environment-input";
+import { runAdminBatch } from "@/lib/admin-batch-server";
 import type { SuggestionStatus } from "@/types/database";
 
 export async function createArchetype(formData: FormData) {
@@ -62,53 +63,16 @@ export async function createEnvironment(formData: FormData, returnResult = false
 
 export async function updateEnvironmentsBatch(formData: FormData, returnResult = false) {
   const supabase = await requireAdminClient();
-  const ids = formData.getAll("environment_ids").map((value) => String(value));
+  const result = await runAdminBatch(supabase, "environment", formData);
+  // Cache invalidation must not discard an already confirmed database outcome.
+  try { revalidateAdminPaths(); } catch { /* The result remains authoritative; reload reads saved values. */ }
+  if (returnResult) return result;
+  if (result.error) redirectAdminError(result.notice, result.error);
+  redirect(`/admin?notice=${result.notice}`);
+}
 
-  const dashboardEnds = new Map<string, string | null>();
-  const inputWindows = new Map<string, ReturnType<typeof readMatchInputWindow>>();
-  try {
-    for (const id of ids) {
-      if (formData.has(`dashboard_end_at_${id}`)) dashboardEnds.set(id, jstInputToIso(String(formData.get(`dashboard_end_at_${id}`) ?? "")));
-      inputWindows.set(id, readMatchInputWindow(
-        String(formData.get(`match_input_start_at_${id}`) ?? ""),
-        String(formData.get(`match_input_end_at_${id}`) ?? "")
-      ));
-    }
-  } catch {
-    return environmentResult(returnResult, "environments_update_failed", "入力日時を日本時間で正しく入力し、終了は開始より後に設定してください。");
-  }
-
-  const updates = ids.flatMap((id) => {
-    const name = String(formData.get(`name_${id}`) ?? "").trim();
-    const startDate = String(formData.get(`start_date_${id}`) ?? "").trim();
-
-    if (!id || !name) {
-      return [];
-    }
-
-    return {
-      id,
-      payload: {
-        name,
-        start_date: startDate || null,
-        allow_match_input: formData.get(`allow_match_input_${id}`) === "on",
-        ...inputWindows.get(id)!,
-        ...(dashboardEnds.has(id) ? { dashboard_end_at: dashboardEnds.get(id)! } : {})
-      }
-    };
-  });
-
-  const results = await Promise.all(
-    updates.map(({ id, payload }) => supabase.from("environments").update(payload).eq("id", id))
-  );
-  const error = results.find((result) => result.error)?.error;
-
-  if (error) {
-    return environmentResult(returnResult, "environments_update_failed", error.message);
-  }
-
-  revalidateAdminPaths();
-  return environmentResult(returnResult, "environments_updated");
+export async function checkEnvironmentsBatch(formData: FormData) {
+  return runAdminBatch(await requireAdminClient(), "environment", formData, true);
 }
 
 export async function deleteEnvironment(id: string) {
@@ -144,41 +108,18 @@ export async function updateArchetype(formData: FormData) {
   redirect("/admin?notice=updated");
 }
 
-export async function updateArchetypesBatch(formData: FormData) {
+export async function updateArchetypesBatch(formData: FormData, returnResult = false) {
   const supabase = await requireAdminClient();
-  const ids = formData.getAll("archetype_ids").map((value) => String(value));
+  const result = await runAdminBatch(supabase, "archetype", formData);
+  // Cache invalidation must not discard an already confirmed database outcome.
+  try { revalidateAdminPaths(); } catch { /* The result remains authoritative; reload reads saved values. */ }
+  if (returnResult) return result;
+  if (result.error) redirectAdminError(result.notice, result.error);
+  redirect(`/admin?notice=${result.notice}`);
+}
 
-  const updates = ids.flatMap((id) => {
-    const name = String(formData.get(`name_${id}`) ?? "").trim();
-    const className = String(formData.get(`class_name_${id}`) ?? "").trim();
-    const sortOrder = Number(formData.get(`sort_order_${id}`) ?? 0);
-
-    if (!id || !name || !className) {
-      return [];
-    }
-
-    return {
-      id,
-      payload: {
-        class_name: className,
-        name,
-        is_active: formData.get(`is_active_${id}`) === "on",
-        sort_order: Number.isFinite(sortOrder) ? sortOrder : 0
-      }
-    };
-  });
-
-  const results = await Promise.all(
-    updates.map(({ id, payload }) => supabase.from("deck_archetypes").update(payload).eq("id", id))
-  );
-  const error = results.find((result) => result.error)?.error;
-
-  if (error) {
-    redirectAdminError("batch_update_failed", error.message);
-  }
-
-  revalidateAdminPaths();
-  redirect("/admin?notice=batch_updated");
+export async function checkArchetypesBatch(formData: FormData) {
+  return runAdminBatch(await requireAdminClient(), "archetype", formData, true);
 }
 
 export async function deactivateArchetype(id: string) {

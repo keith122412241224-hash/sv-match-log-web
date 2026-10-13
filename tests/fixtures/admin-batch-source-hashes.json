@@ -1,0 +1,10 @@
+{
+  "src/app/admin/actions.ts": "d61295c40d00806b90c246636f75e5877a56e666263317766adedfddf0113d71",
+  "src/app/admin/environments/route.ts": "efd9a6d4977f8df5f38b26c24104c944468be0706f19054a6e45c87fb9362e1c",
+  "src/app/admin/page.tsx": "86a3b24a0cae6b49c6ddb841c3cf161805632e40c170cd3449606c7bbf1a79d2",
+  "src/components/admin/AdminArchetypeTable.tsx": "fec0305960aafde56fb5527245c9c385ba6626ad23be1ce2a6ca95b5497889c2",
+  "src/components/admin/AdminEnvironmentTable.tsx": "aa67717930da8f86a526f463482c8cec0ef34290f74544584e324fd70ff2d590",
+  "src/components/admin/BatchUpdate.tsx": "c65439babb35a5f8b9a4fe2cca986bbb508bdec813942ab887e4df610d2b1fc4",
+  "src/lib/admin-batch-server.ts": "cc40d304d0c8798e248196f826c91b955a87a49f80491ab405923dcb9ad2a640",
+  "src/lib/admin-batch.ts": "47286bec75734cd3aafb8a264bd56593a009b69e33c8fcd8e6bbfd0211f88599"
+}

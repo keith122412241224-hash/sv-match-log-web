@@ -154,7 +154,7 @@ export default async function AdminPage({
           </div>
         </section>
 
-        <AdminArchetypeTable archetypes={filtered} />
+        <AdminArchetypeTable key={JSON.stringify([params.q, params.class, params.active])} archetypes={filtered} />
         </>}
         </>}
 
