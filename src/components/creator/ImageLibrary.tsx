@@ -10,11 +10,12 @@ export function beginImageDrag(event: React.DragEvent, value: ImageDrag) {
   event.dataTransfer.effectAllowed = value.rowId ? "move" : "copy";
 }
 export type UploadPreview = { id: string; name: string; url?: string; error?: string };
-export function ImageLibrary({ images, decks, busy, pending = [], onUpload, onMutation, onSelect }: {
+export function ImageLibrary({ images, decks, busy, pending = [], onUpload, onMutation, onSelect, pagination }: {
   images: CreatorImage[]; decks: { id: string; name: string }[]; busy: boolean; pending?: UploadPreview[];
   onUpload: (files: File[], image?: CreatorImage) => void;
   onMutation: (body: Record<string, unknown>, confirmation?: string) => void;
   onSelect: (drag: ImageDrag) => void;
+  pagination?: React.ReactNode;
 }) {
   const [selected,setSelected] = useState("");
   const image = images.find(i=>i.id===selected);
@@ -30,11 +31,12 @@ export function ImageLibrary({ images, decks, busy, pending = [], onUpload, onMu
       {pending.map(p=><article key={p.id} className={styles.asset} aria-busy={!p.error}>{p.url && <img src={p.url} alt="" width={96} height={96} />}<span>{p.name}</span><small className={p.error?styles.error:styles.muted}>{p.error?`失敗：${p.error}`:"処理中…"}</small></article>)}
       {images.map(asset => <article className={styles.asset} key={asset.id}>
         <button type="button" className={styles.thumbnail} aria-label={`${asset.name}を選択`} aria-pressed={selected===asset.id} disabled={busy} draggable={!busy} onDragStart={e=>beginImageDrag(e,{imageId:asset.id})} onClick={()=>{setSelected(asset.id);onSelect({imageId:asset.id});}}>
-          <img src={imageUrl(asset)} alt={asset.name} width={96} height={96} draggable={false} />
+          <img src={imageUrl(asset)} alt={asset.name} width={96} height={96} draggable={false} loading="lazy" />
           <span title={asset.name}>{asset.name}</span>
         </button>
       </article>)}
     </div>
+    {pagination}
     {image && <section aria-label="選択画像の管理" className={styles.selection}>
       <div className={styles.header}><h3>{image.name}</h3><button type="button" onClick={()=>setSelected("")}>管理を閉じる</button></div>
       <p className={styles.muted}>透明余白は表示時に自動で除去します。元画像は保持しています。 <a className="underline" href={imageUrl(image,"original")} target="_blank" rel="noreferrer">元画像を開く</a></p>

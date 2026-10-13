@@ -12,16 +12,23 @@ import { formatJstDateTime } from "@/lib/utils";
 import { saveArtworkPng } from "@/lib/creator/png";
 import { useUnsavedChanges } from "./useUnsavedChanges";
 import { CorrelationCanvas } from "./CorrelationCanvas";
+import { mergeCreatorImages, type ImagePage } from "@/lib/creator/pagination";
+import { CreatorPager, useCreatorPage } from "./CreatorPager";
 import styles from "./Creator.module.css";
 
-export function CorrelationEditor({ tier, initial, images, displayNames = {}, environments, defaultEnvironment }: { tier: TierWork; initial: CorrelationWork; images: CreatorImage[]; displayNames?: Record<string,string>; environments: {id:string;name:string}[]; defaultEnvironment:string }) {
+export function CorrelationEditor({ tier, initial, images: initialImages, library, displayNames: initialNames = {}, environments, defaultEnvironment }: { tier: TierWork; initial: CorrelationWork; images: CreatorImage[]; library: ImagePage; displayNames?: Record<string,string>; environments: {id:string;name:string}[]; defaultEnvironment:string }) {
   const router = useRouter();
+  const imageList = useCreatorPage<CreatorImage, ImagePage>("images", library);
+  const [references, setReferences] = useState(initialImages);
+  const [referenceNames, setReferenceNames] = useState(initialNames);
+  const images = mergeCreatorImages(references, imageList.page.items);
+  const displayNames = { ...referenceNames, ...imageList.page.displayNames };
   const [work,setWork] = useState(initial), [doc,setDoc] = useState(initial.document);
   const [dirty,setDirty] = useState(false), [busy,setBusy] = useState(false), [transparent,setTransparent] = useState(false);
   const [selected,setSelected] = useState(initial.document.nodes[0]?.id ?? "");
   const [actualSize,setActualSize] = useState(false);
   const [source,setSource] = useState(initial.document.nodes[0]?.id ?? ""), [target,setTarget] = useState(initial.document.nodes[1]?.id ?? "");
-  const [asset,setAsset] = useState(images[0]?.id ?? "");
+  const [asset,setAsset] = useState(library.items[0]?.id ?? "");
   const [notice,setNotice] = useState<{ error: boolean; text: string } | null>(null);
   const [candidates,setCandidates]=useState<MatchupCandidate[]|null>(null), [chosen,setChosen]=useState<string[]>([]);
   const [minimum,setMinimum]=useState(30), [threshold,setThreshold]=useState(55);
@@ -31,7 +38,12 @@ export function CorrelationEditor({ tier, initial, images, displayNames = {}, en
   const name = (imageId: string) => displayNames[imageId] ?? images.find(i => i.id === imageId)?.name ?? "画像なし";
   const nodeName = (nodeId: string) => { const index = doc.nodes.findIndex(n => n.id === nodeId); return index < 0 ? "削除済み" : `${index + 1}. ${name(doc.nodes[index].imageId)}`; };
   const selectedNode = doc.nodes.find(n => n.id === selected);
-  function edit(next: CorrelationDocument) { setDoc(next); setDirty(true); setCandidates(null); }
+  function edit(next: CorrelationDocument) {
+    const ids = new Set(next.nodes.map(n => n.imageId));
+    setReferences(images.filter(i => ids.has(i.id)));
+    setReferenceNames(Object.fromEntries(Object.entries(displayNames).filter(([id]) => ids.has(id))));
+    setDoc(next); setDirty(true); setCandidates(null);
+  }
   function move(node: CorrelationNode) { setDoc(old => ({ ...old, nodes: old.nodes.map(n => n.id === node.id ? node : n) })); setDirty(true); }
   async function request(body: Record<string,unknown>) {
     const response = await fetch("/admin/creator/api",{ method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -116,7 +128,8 @@ export function CorrelationEditor({ tier, initial, images, displayNames = {}, en
           <div className={styles.toolbar}><span>サイズ</span>{([ ["S",96], ["M",160], ["L",240] ] as const).map(([label,size]) => <button key={label} disabled={busy} aria-label={`画像サイズ${label}`} onClick={() => move(boundNode(selectedNode,{ width: size, height: Math.round(size * 1.15) }))}>{label}</button>)}</div>
           <button disabled={busy} onClick={() => { if (!window.confirm("このノードと接続している矢印を削除しますか？画像ライブラリとTier表は残ります。")) return; edit(removeNode(doc,selected)); if (source === selected) setSource(""); if (target === selected) setTarget(""); setSelected(""); }}>ノードを削除</button>
         </> : <p className={styles.muted}>キャンバスの画像を選択してください。</p>}
-        <label>ライブラリの画像<select aria-label="追加する画像" value={asset} disabled={busy} onChange={e => setAsset(e.target.value)}>{images.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}</select></label>
+        <label>ライブラリの画像<select aria-label="追加する画像" value={asset} disabled={busy} onChange={e => setAsset(e.target.value)}><option value="">選択してください</option>{imageList.page.items.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}</select></label>
+        <CreatorPager label="画像" index={imageList.index} hasNext={!!imageList.page.nextCursor} busy={busy} loading={imageList.loading} error={imageList.error} onPage={index => void run(async () => { await imageList.load(index); setAsset(""); })} onRetry={() => void run(async () => { await imageList.load(imageList.retryTarget); setAsset(""); })} />
         <button disabled={busy || !asset || doc.nodes.length >= 300} onClick={() => { const node = { id: crypto.randomUUID(), imageId: asset, x: 880, y: 448, width: 160, height: 184 }; edit({ ...doc,nodes:[...doc.nodes,node] }); setSelected(node.id); }}>画像ノードを追加</button>
         <p className={styles.muted}>作成時にTierの画像を引き継いでいます。その後の配置は独立します。画像のアップロード・差し替えはTier表の画像ライブラリから行えます。</p>
       </section>

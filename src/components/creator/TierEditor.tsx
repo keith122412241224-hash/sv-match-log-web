@@ -8,13 +8,19 @@ import { ImageLibrary, type UploadPreview } from "./ImageLibrary";
 import { TierCanvas } from "./TierCanvas";
 import { saveTierPng } from "@/lib/creator/png";
 import { prepareCreatorUpload } from "@/lib/creator/upload";
+import { creatorRead, mergeCreatorImages, type CreatorPage, type ImagePage, type TierSummary, type TierSelection } from "@/lib/creator/pagination";
+import { CreatorPager, useCreatorPage } from "./CreatorPager";
 import styles from "./Creator.module.css";
 
-type Data = { images: CreatorImage[]; works: TierWork[]; decks: { id: string; name: string }[]; correlations: { id: string; tier_work_id: string }[] };
-export function TierEditor({ initial, initialDocument, initialWorkId }: { initial: Data; initialDocument: TierDocument; initialWorkId?: string }) {
+type Data = { imagePage: ImagePage; workPage: CreatorPage<TierSummary>; decks: { id: string; name: string }[]; selection: TierSelection | null };
+export function TierEditor({ initial, initialDocument }: { initial: Data; initialDocument: TierDocument }) {
   const router = useRouter();
-  const initialWork = initial.works.find(w => w.id === initialWorkId) ?? null;
-  const [data, setData] = useState(initial);
+  const initialWork = initial.selection?.work ?? null;
+  const imageList = useCreatorPage<CreatorImage, ImagePage>("images", initial.imagePage);
+  const workList = useCreatorPage<TierSummary, CreatorPage<TierSummary>>("works", initial.workPage);
+  const [references, setReferences] = useState(initial.selection?.images ?? []);
+  const [correlationId, setCorrelationId] = useState(initial.selection?.correlationId ?? null);
+  const data = { images: mergeCreatorImages(references, imageList.page.items), decks: initial.decks };
   const [doc, setDoc] = useState(initialWork?.document ?? initialDocument);
   const [current, setCurrent] = useState<TierWork | null>(initialWork);
   const [dirty, setDirty] = useState(false);
@@ -32,16 +38,25 @@ export function TierEditor({ initial, initialDocument, initialWorkId }: { initia
   const selectedRow = doc.rows.find(r=>r.id===selected?.rowId);
   const preview = useRef<HTMLDivElement>(null);
   const confirmLeave = useUnsavedChanges(dirty);
-  const hasCorrelation = (tierId: string) => data.correlations.some(c => c.tier_work_id === tierId);
-  function openCorrelation(work: TierWork) {
+  const hasCorrelation = (tierId: string) => tierId === current?.id ? !!correlationId : !!workList.page.items.find(w => w.id === tierId)?.correlationId;
+  function openCorrelation(work: Pick<TierWork, "id" | "revision">) {
     if (!confirmLeave()) return;
     void run(async () => {
-      if (!hasCorrelation(work.id)) await request({ action: "create-correlation", tierId: work.id, tierRevision: work.revision });
+      const latest = await creatorRead<TierSelection>("work", work.id);
+      if (!latest.correlationId) await request({ action: "create-correlation", tierId: work.id, tierRevision: latest.work.revision });
       setDirty(false);
       router.push(`/admin/creator/tier/${work.id}/correlation`);
     });
   }
-  const edit = (next: TierDocument) => { setDoc(next); setDirty(true); };
+  const edit = (next: TierDocument) => {
+    const ids = new Set(next.rows.flatMap(r => r.imageIds));
+    setReferences(data.images.filter(i => ids.has(i.id)));
+    setDoc(next); setDirty(true);
+  };
+  function updateImage(image: CreatorImage) {
+    setReferences(old => old.map(i => i.id === image.id ? image : i));
+    imageList.setPage(old => ({ ...old, items: old.items.map(i => i.id === image.id ? image : i) }));
+  }
   async function request(body: Record<string, unknown> | FormData) {
     const response = await fetch("/admin/creator/api", { method: "POST", ...(body instanceof FormData ? { body } : { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }) });
     const result = await response.json();
@@ -59,8 +74,14 @@ export function TierEditor({ initial, initialDocument, initialWorkId }: { initia
     if (body.action === "delete-image" && doc.rows.some(r => r.imageIds.includes(String(body.id)))) { setNotice({ error: true, text: "編集中のTier表で使用中です。先にTierから取り除いてください。" }); return; }
     if (confirmation && !window.confirm(confirmation)) return;
     void run(async () => {
-      const result = await request(body); setData(result);
-      if (body.action === "delete-work" && current?.id === body.id) { setCurrent(null); setDirty(true); }
+      const result = await request(body);
+      if (result.image) updateImage(result.image);
+      if (body.action === "delete-image") {
+        imageList.setPage(old => ({ ...old, items: old.items.filter(i => i.id !== body.id) }));
+        setSelected(null);
+      }
+      if (body.action === "delete-work") workList.setPage(old => ({ ...old, items: old.items.filter(w => w.id !== body.id) }));
+      if (body.action === "delete-work" && current?.id === body.id) { setCurrent(null); setCorrelationId(null); setDirty(true); }
       setNotice({ error: false, text: result.warning ?? "変更を保存しました。" });
     });
   }
@@ -80,7 +101,7 @@ export function TierEditor({ initial, initialDocument, initialWorkId }: { initia
             const form=new FormData();form.set("file",prepared);form.set("name",file.name.slice(0,120));
             if(image){form.set("id",image.id);form.set("revision",String(image.revision));}
             const result=await request(form);
-            setData(old=>({...old,images:[result.image,...old.images.filter(i=>i.id!==result.image.id)]}));
+            updateImage(result.image);
             setPending(old=>old.filter(p=>p.id!==id)); count++;
             if(result.warning)warnings.push(result.warning);
           } catch(error) {
@@ -90,6 +111,7 @@ export function TierEditor({ initial, initialDocument, initialWorkId }: { initia
           } finally {if(url){URL.revokeObjectURL(url);urls.current.delete(url);}}
         }
       }));
+      if (!image && count) await imageList.load(0);
       setNotice({error:errors.length>0,text:count+"枚の画像を保存しました。"+(errors.length?errors.length+"枚失敗。"+errors.join(" / "):"")+[...new Set(warnings)].join(" ")});
     });
   }
@@ -103,9 +125,15 @@ export function TierEditor({ initial, initialDocument, initialWorkId }: { initia
     try { parseTierDocument(next); edit(next); setSelected(null); }
     catch (error) { setNotice({ error: true, text: (error as Error).message }); }
   }
-  function openWork(work: TierWork | null) {
+  function openWork(work: TierSummary | null) {
     if (dirty && !window.confirm("未保存の変更があります。破棄して切り替えますか？")) return;
-    setCurrent(work); setDoc(work?.document ?? newTierDocument()); setDirty(false); setSelected(null); setNotice(null);
+    void run(async () => {
+      const result = work ? await creatorRead<TierSelection>("work", work.id) : null;
+      setCurrent(result?.work ?? null); setDoc(result?.work.document ?? newTierDocument());
+      setReferences(result?.images ?? []); setCorrelationId(result?.correlationId ?? null);
+      setDirty(false); setSelected(null); setNotice(null);
+      window.history.replaceState(null, "", work ? `?work=${work.id}` : "/admin/creator/tier");
+    });
   }
   return <main className={styles.page}>
     <header className={styles.header}><div><p className={styles.muted}>コンテンツ制作</p><h1>Tier表メーカー</h1><p className={styles.muted}>画像を置いて、名前を整えて、PNG・OBSへ。</p></div><Link href="/admin?section=tools" className={styles.button} onClick={e => { if (dirty && !window.confirm("未保存の変更を破棄して管理画面へ戻りますか？")) e.preventDefault(); }}>管理画面へ</Link></header>
@@ -114,7 +142,10 @@ export function TierEditor({ initial, initialDocument, initialWorkId }: { initia
       <button disabled={busy} onClick={() => openWork(null)}>新しいTier表</button>
       <button className={styles.primary} disabled={busy} onClick={() => void run(async () => {
         const result = await request({ action: "save", id: current?.id, revision: current?.revision, document: parseTierDocument(doc) });
-        setCurrent(result.work); setData(old => ({ ...old, works: [result.work, ...old.works.filter(w => w.id !== result.work.id)] })); setDirty(false); setNotice({ error: false, text: "Tier表を保存しました。OBSはページ更新で反映されます。" });
+        setCurrent(result.work); setDirty(false);
+        window.history.replaceState(null, "", `?work=${result.work.id}`);
+        await workList.load(0);
+        setNotice({ error: false, text: "Tier表を保存しました。OBSはページ更新で反映されます。" });
       })}>{busy ? "処理中…" : "Tier表を保存"}</button>
       <button disabled={busy} onClick={() => void run(async () => { const artwork = preview.current?.querySelector<HTMLElement>("[data-tier-artwork]"); if (!artwork) return; await saveTierPng(artwork); setNotice({ error: false, text: "1920×1080 PNGを出力しました。" }); })}>PNG出力</button>
       {current && <a className={styles.button} href={`/admin/obs/tier/${current.id}${transparent ? "?transparent=1" : ""}`} target="_blank" rel="noreferrer">OBS表示を開く</a>}
@@ -132,7 +163,8 @@ export function TierEditor({ initial, initialDocument, initialWorkId }: { initia
       </div>
       </div>
       <div ref={preview}><TierCanvas document={doc} images={data.images} transparent={transparent} disabled={busy} selected={selected} onSelect={setSelected} onRow={setActiveRow} onName={(id,name)=>setRow(id,{name})} onPlace={place} /></div>
-      <ImageLibrary images={data.images} decks={data.decks} busy={busy} pending={pending} onUpload={upload} onMutation={mutation} onSelect={setSelected} />
+      <ImageLibrary images={imageList.page.items} decks={data.decks} busy={busy} pending={pending} onUpload={upload} onMutation={mutation} onSelect={setSelected}
+        pagination={<CreatorPager label="画像" index={imageList.index} hasNext={!!imageList.page.nextCursor} busy={busy} loading={imageList.loading} error={imageList.error} onPage={index => void run(async () => { await imageList.load(index); setSelected(null); })} onRetry={() => void run(() => imageList.load(imageList.retryTarget))} />} />
       <p className={styles.muted}>画像をTierへドラッグ。表全体を画面に合わせて表示しています。PNG・OBSは1920×1080です。</p>
       <div className={styles.toolbar}>
         <label>編集するTier<select aria-label="編集するTier" value={row.id} disabled={busy} onChange={e=>setActiveRow(e.target.value)}>{doc.rows.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}</select></label>
@@ -155,6 +187,8 @@ export function TierEditor({ initial, initialDocument, initialWorkId }: { initia
         </div>
       </div>}
     </section>
-    <section className={styles.panel} aria-label="保存済み作品"><h2>保存済みTier表</h2>{!data.works.length && <p className={styles.muted}>保存した作品がここに表示されます。</p>}{data.works.map(work => <div key={work.id} className={styles.work}><div><strong>{work.document.title || "無題のTier表"}</strong><p className={styles.muted}>{new Date(work.updated_at).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })}（日本時間）</p></div><div className={styles.toolbar}><button disabled={busy} onClick={() => openWork(work)}>再編集</button><button disabled={busy} onClick={() => openCorrelation(work)}>{hasCorrelation(work.id) ? "相関図を編集" : "相関図を追加"}</button><button disabled={busy} onClick={() => mutation({ action: "delete-work", id: work.id, revision: work.revision }, "保存済みのTier表を削除しますか？関連する相関図がある場合は先に相関図を削除してください。")}>作品を削除</button></div></div>)}</section>
+    <section className={styles.panel} aria-label="保存済み作品"><h2>保存済みTier表</h2>{!workList.page.items.length && <p className={styles.muted}>このページに作品はありません。</p>}{workList.page.items.map(work => <div key={work.id} className={styles.work}><div><strong>{work.title || "無題のTier表"}</strong><p className={styles.muted}>{new Date(work.updated_at).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })}（日本時間）</p></div><div className={styles.toolbar}><button disabled={busy} onClick={() => openWork(work)}>再編集</button><button disabled={busy} onClick={() => openCorrelation(work)}>{hasCorrelation(work.id) ? "相関図を編集" : "相関図を追加"}</button><button disabled={busy} onClick={() => mutation({ action: "delete-work", id: work.id, revision: work.revision }, "保存済みのTier表を削除しますか？関連する相関図がある場合は先に相関図を削除してください。")}>作品を削除</button></div></div>)}
+      <CreatorPager label="作品" index={workList.index} hasNext={!!workList.page.nextCursor} busy={busy} loading={workList.loading} error={workList.error} onPage={index => void run(() => workList.load(index))} onRetry={() => void run(() => workList.load(workList.retryTarget))} />
+    </section>
   </main>;
 }

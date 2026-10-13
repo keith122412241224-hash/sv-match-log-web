@@ -7,7 +7,7 @@ test('QA2-008 validates the exact dependency patch and preserves every applicati
  for(const[file,hash]of Object.entries(hashes))assert.equal(createHash('sha256').update(read(file)).digest('hex'),hash,file);
  const files=git(['ls-tree','-r','--name-only',base]).trim().split('\n').filter(f=>/^(src|supabase)\//.test(f));
  for(const file of files)assert.equal(read(file),git(['show',base+':'+file]),file);
- assert.deepEqual(git(['ls-files','--cached','--others','--exclude-standard','--','src','supabase']).trim().split('\n').sort(),[...files,...require('./analysis-date-scope.cjs').added].sort());
+ assert.deepEqual(git(['ls-files','--cached','--others','--exclude-standard','--','src','supabase']).trim().split('\n').sort(),[...files,...require('./analysis-date-scope.cjs').added,...require('./creator-pagination-scope.cjs').added].sort());
  const before=JSON.parse(git(['show',base+':package.json'])),after=JSON.parse(read('package.json'));
  for(const name of ['fflate','next','sharp'])delete before.dependencies[name],delete after.dependencies[name];
  for(const name of ['eslint-config-next','postcss'])delete before.devDependencies[name],delete after.devDependencies[name];

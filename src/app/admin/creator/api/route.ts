@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import sharp from "sharp";
 import { randomUUID } from "node:crypto";
-import { CreatorError, creatorClient, databaseError, getCreatorData, cleanCreatorStorage } from "@/lib/creator/server";
+import { CreatorError, creatorClient, databaseError, getCreatorData, getCreatorImagePage, getCreatorWorkPage, getCreatorWork, cleanCreatorStorage } from "@/lib/creator/server";
 import { IMAGE_BUCKET, MAX_IMAGE_BYTES, UUID, parseTierDocument, validateImageFile } from "@/lib/creator/model";
 import { correlationFromTier, parseCorrelation } from "@/lib/creator/correlation";
 import { getCreatorMatchups } from "@/lib/creator/matchup-server";
@@ -28,12 +28,24 @@ function conflict(data: unknown) {
   if (!data) throw new CreatorError("別の画面で更新・削除されています。再読み込みしてからやり直してください。", 409);
 }
 
-export async function GET() {
-  try { const { client } = await creatorClient(); return response(await getCreatorData(client)); }
+export async function GET(request: NextRequest) {
+  try {
+    const { client } = await creatorClient();
+    const params = request.nextUrl.searchParams;
+    if ([...params.keys()].some(key => !["kind", "cursor", "id"].includes(key) || params.getAll(key).length !== 1)) throw new CreatorError("取得条件が不正です。");
+    const kind = params.get("kind");
+    if (!kind && params.size === 0) return response(await getCreatorData(client));
+    if (kind === "work" && !params.has("cursor")) return response(await getCreatorWork(client, id(params.get("id"))));
+    if (params.has("id")) throw new CreatorError("取得条件が不正です。");
+    if (kind === "images") return response(await getCreatorImagePage(client, params.get("cursor")));
+    if (kind === "works") return response(await getCreatorWorkPage(client, params.get("cursor")));
+    throw new CreatorError("取得条件が不正です。");
+  }
   catch (error) { return failure(error); }
 }
 
 export async function POST(request: NextRequest) {
+  let changedImage: unknown;
   const timings: Record<string, number> = {};
   let last = performance.now();
   const mark = (stage: string) => { const now = performance.now(); timings[stage] = now - last; last = now; };
@@ -130,8 +142,8 @@ export async function POST(request: NextRequest) {
           return response({ deleted: true });
         }
         case "edit-image": {
-          const result = await client.from("creator_images").update({ name: name(body.name), archetype_id: body.archetypeId ? id(body.archetypeId) : null }).eq("id", id(body.id)).eq("revision", revision(body.revision)).select("id").maybeSingle();
-          databaseError(result.error); conflict(result.data); break;
+          const result = await client.from("creator_images").update({ name: name(body.name), archetype_id: body.archetypeId ? id(body.archetypeId) : null }).eq("id", id(body.id)).eq("revision", revision(body.revision)).select("*").maybeSingle();
+          databaseError(result.error); conflict(result.data); changedImage = result.data; break;
         }
         case "delete-image": {
           const result = await client.from("creator_images").delete().eq("id", id(body.id)).eq("revision", revision(body.revision)).select("id").maybeSingle();
@@ -143,8 +155,6 @@ export async function POST(request: NextRequest) {
     }
     const cleaned = await cleanCreatorStorage(client);
     mark("cleanup");
-    const data = await getCreatorData(client);
-    mark("refresh");
-    return measured({ ...data, warning: cleaned ? null : "操作は保存されました。旧ファイルの削除が保留中です。「ストレージ整理を再試行」で再実行できます。" });
+    return measured({ image: changedImage, warning: cleaned ? null : "操作は保存されました。旧ファイルの削除が保留中です。「ストレージ整理を再試行」で再実行できます。" });
   } catch (error) { return failure(error); }
 }
