@@ -25,13 +25,14 @@ test('malformed/duplicate batch IDs never reach a database; blank rows are expli
 test('QA2-009 scope pins Phase 1 only and preserves other actions, SQL, dependencies and product files',()=>{
  const {base,hashes,added,readBeforeAdminBatch}=require('./admin-batch-scope.cjs');
  const expected=['src/app/admin/actions.ts','src/app/admin/page.tsx','src/app/admin/environments/route.ts','src/components/admin/AdminEnvironmentTable.tsx','src/components/admin/AdminArchetypeTable.tsx',...added];
- assert.deepEqual(Object.keys(hashes).sort(),expected.sort());
- for(const[file,hash]of Object.entries(hashes))assert.equal(createHash('sha256').update(require('./suggestion-maintenance-scope.cjs').readBeforeSuggestionMaintenance(file)).digest('hex'),hash,file);
+ const approval=require('./suggestion-approval-scope.cjs');
+ assert.deepEqual(Object.keys(hashes).sort(),expected.filter(f=>!approval.added.has(f)).sort());
+ for(const[file,hash]of Object.entries(hashes))assert.equal(createHash('sha256').update(approval.readBeforeSuggestionApproval(file)).digest('hex'),hash,file);
  const git=args=>cp.execFileSync('git',args,{encoding:'utf8',maxBuffer:64e6}).replaceAll('\r\n','\n');
  const files=git(['ls-tree','-r','--name-only',base]).trim().split('\n').filter(f=>/^(src|supabase)\//.test(f)||/^package(-lock)?\.json$/.test(f));
  for(const file of files)assert.equal(readBeforeAdminBatch(file),git(['show',base+':'+file]),file);
  assert.deepEqual(git(['ls-files','--cached','--others','--exclude-standard','--','src','supabase']).trim().split('\n').sort(),[...files.filter(f=>/^(src|supabase)\//.test(f)),...added].sort());
  const ts=require('typescript'),functions=s=>Object.fromEntries(ts.createSourceFile('actions.ts',s,ts.ScriptTarget.Latest,true).statements.filter(n=>ts.isFunctionDeclaration(n)).map(n=>[n.name.text,n.getText()]));
- const before=functions(git(['show',base+':src/app/admin/actions.ts'])),after=functions(require('./suggestion-maintenance-scope.cjs').readBeforeSuggestionMaintenance('src/app/admin/actions.ts'));
+ const before=functions(git(['show',base+':src/app/admin/actions.ts'])),after=functions(approval.readBeforeSuggestionApproval('src/app/admin/actions.ts'));
  for(const[name,code]of Object.entries(before))if(!['updateEnvironmentsBatch','updateArchetypesBatch'].includes(name))assert.equal(after[name],code,name+' remains unchanged');
 });

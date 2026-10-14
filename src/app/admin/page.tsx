@@ -7,6 +7,7 @@ import { CreateArchetypeForm } from "@/components/admin/CreateArchetypeForm";
 import { SuggestionsPanel } from "@/components/admin/SuggestionsPanel";
 import { ObsEnvironmentSettings } from "@/components/admin/ObsEnvironmentSettings";
 import { getAdminNavigation } from "@/lib/admin-navigation";
+import { suggestionWritesEnabled } from "@/lib/suggestion-decision";
 import { selectInitialEnvironmentId } from "@/lib/environment-selection";
 import { ClassIcon } from "@/components/ClassIcon";
 import { SHADOWVERSE_CLASSES } from "@/lib/constants";
@@ -120,7 +121,7 @@ export default async function AdminPage({
           <CreateArchetypeForm />
         </section>}
 
-        {deckSection === "suggestions" && <SuggestionsPanel suggestions={suggestions} />}
+        {deckSection === "suggestions" && <SuggestionsPanel suggestions={suggestions} paused={!suggestionWritesEnabled()} />}
 
         {deckSection === "list" && <>
         <section className="rounded-md border border-slate-200 bg-white p-4">

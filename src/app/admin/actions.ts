@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { jstInputToIso, readMatchInputWindow } from "@/lib/environment-input";
 import { runAdminBatch } from "@/lib/admin-batch-server";
+import { decideSuggestion, type SuggestionDecision } from "@/lib/suggestion-decision";
 
 export async function createArchetype(formData: FormData) {
   const supabase = await requireAdminClient();
@@ -139,18 +140,23 @@ export async function deactivateArchetype(id: string) {
   redirect("/admin?notice=deactivated");
 }
 
-export async function updateSuggestionStatus(formData: FormData) {
-  void formData;
-  await requireAdminClient();
-  // Stage A stays paused independently of environment flags and DB migrations.
-  redirect("/admin?section=decks&deckSection=suggestions&notice=suggestion_paused");
+export async function updateSuggestionStatus(formData: FormData, returnResult = false) {
+  const supabase = await requireAdminClient();
+  return finishSuggestionDecision(await decideSuggestion(supabase, formData, "reject"), returnResult);
 }
 
-export async function approveSuggestionAsArchetype(formData: FormData) {
-  void formData;
-  await requireAdminClient();
-  // Stage A stays paused independently of environment flags and DB migrations.
-  redirect("/admin?section=decks&deckSection=suggestions&notice=suggestion_paused");
+export async function approveSuggestionAsArchetype(formData: FormData, returnResult = false) {
+  const supabase = await requireAdminClient();
+  return finishSuggestionDecision(await decideSuggestion(supabase, formData, "approve"), returnResult);
+}
+
+function finishSuggestionDecision(result: SuggestionDecision, returnResult: boolean) {
+  try { revalidateAdminPaths(); } catch { /* Preserve the confirmed transaction result. */ }
+  if (returnResult) return result;
+  if (["approved", "already_approved", "rejected", "already_rejected"].includes(result.status)) {
+    redirect(`/admin?notice=${result.status.includes("approved") ? "suggestion_approved" : "suggestion_updated"}`);
+  }
+  redirectAdminError("suggestion_approve_failed", result.message);
 }
 
 function readArchetypeForm(formData: FormData) {

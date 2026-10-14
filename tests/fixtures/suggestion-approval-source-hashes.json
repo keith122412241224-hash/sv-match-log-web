@@ -1,0 +1,8 @@
+{
+  "src/app/admin/actions.ts": "ec55ae2245048069f4adfc5ac35c80bdb7c063bfedae91d73b6171483b0bdb19",
+  "src/app/admin/page.tsx": "8f50c800bd08c305ec203654b778184eaf606ee3a3383b446e7af8171f7d8d22",
+  "src/components/admin/SuggestionsPanel.tsx": "367efbb672060fc16981b4a2bc8908763f305ecb874b0720d3ebf1fc72bc27dc",
+  "src/components/admin/SuggestionDecisionForm.tsx": "ea4931c81ec15e7cf175a06b30c2615bd900514a3f47e61d26a46f0b2507041d",
+  "src/lib/suggestion-decision.ts": "fbc0ea358f9cf7da4933a94884fd86dbb0aa40e0de05f57e63fa1cdd9578cfb4",
+  "supabase/migrations/20261014005220_atomic_suggestion_approval.sql": "47b3607f3baa8b259fa28137e3b4c524be73f3a6530275c15ea4006a588d73e3"
+}
