@@ -5,7 +5,6 @@ import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { jstInputToIso, readMatchInputWindow } from "@/lib/environment-input";
 import { runAdminBatch } from "@/lib/admin-batch-server";
-import type { SuggestionStatus } from "@/types/database";
 
 export async function createArchetype(formData: FormData) {
   const supabase = await requireAdminClient();
@@ -141,56 +140,17 @@ export async function deactivateArchetype(id: string) {
 }
 
 export async function updateSuggestionStatus(formData: FormData) {
-  const supabase = await requireAdminClient();
-  const id = String(formData.get("id") ?? "");
-  const status = String(formData.get("status") ?? "") as SuggestionStatus;
-
-  if (!id || !["pending", "approved", "rejected"].includes(status)) {
-    return;
-  }
-
-  const { error } = await supabase.from("deck_suggestions").update({ status }).eq("id", id);
-
-  if (error) {
-    redirectAdminError("suggestion_update_failed", error.message);
-  }
-
-  revalidateAdminPaths();
-  redirect("/admin?notice=suggestion_updated");
+  void formData;
+  await requireAdminClient();
+  // Stage A stays paused independently of environment flags and DB migrations.
+  redirect("/admin?section=decks&deckSection=suggestions&notice=suggestion_paused");
 }
 
 export async function approveSuggestionAsArchetype(formData: FormData) {
-  const supabase = await requireAdminClient();
-  const suggestionId = String(formData.get("suggestion_id") ?? "");
-  const className = String(formData.get("class_name") ?? "").trim();
-  const name = String(formData.get("name") ?? "").trim();
-
-  if (!suggestionId || !className || !name) {
-    return;
-  }
-
-  const { error: archetypeError } = await supabase.from("deck_archetypes").insert({
-    class_name: className,
-    name,
-    is_active: true,
-    sort_order: 0
-  });
-
-  if (archetypeError) {
-    redirectAdminError("suggestion_approve_failed", archetypeError.message);
-  }
-
-  const { error: suggestionError } = await supabase
-    .from("deck_suggestions")
-    .update({ status: "approved" })
-    .eq("id", suggestionId);
-
-  if (suggestionError) {
-    redirectAdminError("suggestion_status_after_approve_failed", suggestionError.message);
-  }
-
-  revalidateAdminPaths();
-  redirect("/admin?notice=suggestion_approved");
+  void formData;
+  await requireAdminClient();
+  // Stage A stays paused independently of environment flags and DB migrations.
+  redirect("/admin?section=decks&deckSection=suggestions&notice=suggestion_paused");
 }
 
 function readArchetypeForm(formData: FormData) {

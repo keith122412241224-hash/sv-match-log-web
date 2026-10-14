@@ -14,6 +14,9 @@ export function SuggestionsPanel({ suggestions }: { suggestions: DeckSuggestion[
         <p className="mt-1 text-sm text-muted">ユーザーが「一覧にないデッキ」として提案した候補です。</p>
       </div>
       <div className="grid gap-3 p-4">
+        <p role="status" className="rounded-md bg-amber-50 p-3 text-sm text-amber-900">
+          標準デッキ候補の採用・却下は移行作業のため一時停止中です。候補の閲覧とその他の管理機能は引き続き利用できます。
+        </p>
         {pending.length === 0 ? (
           <p className="text-sm text-muted">未処理の提案はありません。</p>
         ) : (
@@ -28,9 +31,9 @@ export function SuggestionsPanel({ suggestions }: { suggestions: DeckSuggestion[
                 </div>
                 <label className="grid gap-1.5 text-sm font-semibold text-ink">
                   標準デッキ名
-                  <Input name="name" defaultValue={suggestion.suggested_name} />
+                  <Input disabled name="name" defaultValue={suggestion.suggested_name} />
                 </label>
-                <SubmitButton type="submit" pendingLabel="採用中...">採用</SubmitButton>
+                <SubmitButton disabled type="submit" pendingLabel="採用中...">採用</SubmitButton>
               </form>
 
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -38,7 +41,7 @@ export function SuggestionsPanel({ suggestions }: { suggestions: DeckSuggestion[
                 <form action={updateSuggestionStatus}>
                   <input name="id" type="hidden" value={suggestion.id} />
                   <input name="status" type="hidden" value="rejected" />
-                  <SubmitButton type="submit" variant="secondary" pendingLabel="却下中...">却下</SubmitButton>
+                  <SubmitButton disabled type="submit" variant="secondary" pendingLabel="却下中...">却下</SubmitButton>
                 </form>
               </div>
             </article>

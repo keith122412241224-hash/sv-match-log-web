@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),cp=require('node:child_process'),{createHash}=require('node:crypto');
+const {test}=require('node:test'),assert=require('node:assert/strict'),cp=require('node:child_process'),{createHash}=require('node:crypto');
 const {batchResult,batchSummary,readBatchValues,sameBatchValues}=require('../src/lib/admin-batch');
 const {runAdminBatch}=require('../src/lib/admin-batch-server');
 const id='00000000-0000-4000-8000-000000000001';
@@ -26,12 +26,12 @@ test('QA2-009 scope pins Phase 1 only and preserves other actions, SQL, dependen
  const {base,hashes,added,readBeforeAdminBatch}=require('./admin-batch-scope.cjs');
  const expected=['src/app/admin/actions.ts','src/app/admin/page.tsx','src/app/admin/environments/route.ts','src/components/admin/AdminEnvironmentTable.tsx','src/components/admin/AdminArchetypeTable.tsx',...added];
  assert.deepEqual(Object.keys(hashes).sort(),expected.sort());
- for(const[file,hash]of Object.entries(hashes))assert.equal(createHash('sha256').update(fs.readFileSync(file,'utf8').replaceAll('\r\n','\n')).digest('hex'),hash,file);
+ for(const[file,hash]of Object.entries(hashes))assert.equal(createHash('sha256').update(require('./suggestion-maintenance-scope.cjs').readBeforeSuggestionMaintenance(file)).digest('hex'),hash,file);
  const git=args=>cp.execFileSync('git',args,{encoding:'utf8',maxBuffer:64e6}).replaceAll('\r\n','\n');
  const files=git(['ls-tree','-r','--name-only',base]).trim().split('\n').filter(f=>/^(src|supabase)\//.test(f)||/^package(-lock)?\.json$/.test(f));
  for(const file of files)assert.equal(readBeforeAdminBatch(file),git(['show',base+':'+file]),file);
  assert.deepEqual(git(['ls-files','--cached','--others','--exclude-standard','--','src','supabase']).trim().split('\n').sort(),[...files.filter(f=>/^(src|supabase)\//.test(f)),...added].sort());
  const ts=require('typescript'),functions=s=>Object.fromEntries(ts.createSourceFile('actions.ts',s,ts.ScriptTarget.Latest,true).statements.filter(n=>ts.isFunctionDeclaration(n)).map(n=>[n.name.text,n.getText()]));
- const before=functions(git(['show',base+':src/app/admin/actions.ts'])),after=functions(fs.readFileSync('src/app/admin/actions.ts','utf8').replaceAll('\r\n','\n'));
+ const before=functions(git(['show',base+':src/app/admin/actions.ts'])),after=functions(require('./suggestion-maintenance-scope.cjs').readBeforeSuggestionMaintenance('src/app/admin/actions.ts'));
  for(const[name,code]of Object.entries(before))if(!['updateEnvironmentsBatch','updateArchetypesBatch'].includes(name))assert.equal(after[name],code,name+' remains unchanged');
 });
