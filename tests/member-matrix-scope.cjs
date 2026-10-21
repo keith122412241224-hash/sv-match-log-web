@@ -2,6 +2,9 @@
 const fs=require('node:fs'),cp=require('node:child_process'),assert=require('node:assert/strict'),{createHash}=require('node:crypto');
 const base='1784bc53067bb07d94666da800db437a7d5766a5';
 const hashes={
+  // Later display-only revision: pin the exact renderer bytes for historical guards.
+  // matrix-display.test.cjs compares its complete rendered output with this baseline.
+  'src/components/MatchupMatrix.tsx':'4298471e7825de14ee331776dc7a8830cfa5b9eb1697a254738f4c375816bd34',
   'src/app/matrix/page.tsx':'db2fa7235e7673ca1dbeba5d0c634a721caaeeee94242bb137e5042d37f72c61',
   'src/components/matrix/MatrixFilters.tsx':'5c5b77790944ff06cd88499f43719758a14413df81e233bb817cfc3992cd8ab1',
   'src/lib/matchup-data.ts':'e6d5d9552ea50d73eda6d05843c0ccca397f01748aefb8124d320abb67af4834',

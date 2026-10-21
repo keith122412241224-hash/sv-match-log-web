@@ -4,7 +4,6 @@ import { Download } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/Button";
 import { ClassIcon, DeckWithClassIcon } from "@/components/ClassIcon";
-import { LOW_SAMPLE_THRESHOLD } from "@/lib/constants";
 import { cn, formatPercent } from "@/lib/utils";
 import type { DeckLike, MatrixCell } from "@/lib/analytics";
 
@@ -163,7 +162,7 @@ export function MatchupMatrix({
                 <h2 className="text-xl font-bold text-ink">{title}</h2>
                 {populationLabel ? <p className="text-xs text-muted">{populationLabel}</p> : null}
                 <p className="text-xs text-muted">
-                  {environmentName} / 作成日 {createdAt} / 参考値: {LOW_SAMPLE_THRESHOLD - 1}戦以下
+                  {environmentName} / 作成日 {createdAt}
                 </p>
               </div>
               <div className="text-right text-xs font-bold text-muted">SV Match Log Web</div>
@@ -189,7 +188,7 @@ export function MatchupMatrix({
                       <DeckWithClassIcon className={row.myDeck.class_name} name={row.myDeck.name} />
                     </th>
                     {row.cells.map((cell) => (
-                      <td className={cn("h-24 min-w-32 border border-slate-200 px-2 py-2", bandClasses[cell.band])} key={cell.opponentDeckId}>
+                      <td className={cn("h-16 min-w-32 border border-slate-200 px-2 py-2", bandClasses[cell.band])} key={cell.opponentDeckId}>
                         {cell.total === 0 ? (
                           <span className="text-xs">未対戦</span>
                         ) : (
@@ -198,8 +197,6 @@ export function MatchupMatrix({
                             <span className="text-xs">
                               {cell.wins}勝 / {cell.total}戦
                             </span>
-                            {cell.isLowSample ? <span className="text-[11px] font-bold">参考値</span> : null}
-                            <span className="text-[11px]">指数 {cell.environmentIndex}</span>
                           </div>
                         )}
                       </td>

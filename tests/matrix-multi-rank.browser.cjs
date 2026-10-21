@@ -62,6 +62,24 @@ async function main() {
   await login(h.ADMIN);
   const page = await context.newPage(); page.on('pageerror', e => { if (!fail) report.errors.push({ url: page.url(), message: e.message }); });
   page.on('console', msg => { if (msg.type() === 'error' && !fail) report.errors.push({url:page.url(),message:msg.text()}); });
+  async function plainMatrix() {
+    const content=await page.locator('.matrix-scrollbar').innerText();assert.doesNotMatch(content,/指数|参考値/);
+    const cells=await page.locator('tbody td').evaluateAll(es=>es.map(e=>({text:e.innerText,spans:e.querySelectorAll('span').length,fits:[...e.querySelectorAll('span')].every(s=>{const a=s.getBoundingClientRect(),b=e.getBoundingClientRect();return a.top>=b.top&&a.bottom<=b.bottom&&a.left>=b.left&&a.right<=b.right;})})));
+    for(const c of cells){assert.equal(c.spans,c.text==='未対戦'?1:2);assert.ok(c.fits,'cell text stays inside its border');}
+  }
+  async function exportMatrix(name) {
+    await plainMatrix();const before=report.calls.length;
+    await page.evaluate(()=>{
+      window.matrixExportSvg=null;const descriptor=Object.getOwnPropertyDescriptor(HTMLImageElement.prototype,'src');
+      window.restoreMatrixExport=()=>Object.defineProperty(HTMLImageElement.prototype,'src',descriptor);
+      Object.defineProperty(HTMLImageElement.prototype,'src',{...descriptor,set(value){if(typeof value==='string'&&value.startsWith('data:image/svg+xml')){const svg=value.includes(';base64,')?atob(value.split(',')[1]):decodeURIComponent(value.slice(value.indexOf(',')+1));if(svg.includes('foreignObject'))window.matrixExportSvg=svg;}return descriptor.set.call(this,value);}});
+    });
+    const waiting=page.waitForEvent('download');await page.getByRole('button',{name:'PNG保存',exact:true}).click();await (await waiting).saveAs(path.join(out,name+'.png'));
+    const exported=await page.evaluate(()=>{window.restoreMatrixExport();const svg=window.matrixExportSvg;if(!svg)return null;const doc=new DOMParser().parseFromString(svg,'image/svg+xml');return{text:doc.querySelector('foreignObject')?.textContent,cells:[...doc.querySelectorAll('td')].map(e=>e.textContent)};});
+    assert.ok(exported);assert.doesNotMatch(exported.text,/指数|参考値/);assert.ok(exported.cells.length);assert.equal(report.calls.length,before,'PNG does not refetch data');
+    for(const text of exported.cells)assert.ok(text==='未対戦'||/^\d+(?:\.\d+)?%\d+勝 \/ \d+戦$/.test(text),text);
+    assert.equal(fs.readFileSync(path.join(out,name+'.png')).subarray(1,4).toString(),'PNG');
+  }
   const settled = async () => { await page.waitForLoadState('networkidle'); assert.equal(await page.locator('main [role=alert]').count(), 0); };
   const trigger = () => page.locator('button[aria-haspopup=dialog]');
   const dialog = () => page.getByRole('dialog', { name: 'ランクを選択' });
@@ -86,6 +104,10 @@ async function main() {
     }
     assert.equal(await page.locator('input[name=ranks]').inputValue(), selection.join(',')); report.conditions++;
     const html=await page.content();for(const id of [h.ADMIN,h.MEMBER,h.OTHER])assert.ok(!html.includes(id),'No user IDs in the matrix HTML/RSC');
+    await plainMatrix();
+    const classes=await page.locator('tbody td').evaluateAll(es=>es.map(e=>e.className));
+    const colors={favored:'bg-emerald-700',slightly_favored:'bg-emerald-100',even:'bg-slate-100',slightly_unfavored:'bg-amber-100',unfavored:'bg-red-700',empty:'bg-white'};
+    cells.forEach((c,i)=>assert.ok(classes[i].split(' ').includes(colors[c.band]),'unchanged rate background'));
   }
   const custom = ['master:ruby', 'master:sapphire', 'grandmaster:epic'];
   await page.goto(origin + '/matrix', { waitUntil: 'networkidle' }); await verify(RANK_ATOMS);
@@ -157,12 +179,14 @@ async function main() {
     await page.keyboard.press('Escape');
     if(width===390)await page.screenshot({path:path.join(out,'member-all-mobile.png'),fullPage:true});
   }
-  const n = report.calls.length, download = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'PNG保存', exact: true }).click(); const png = await download; await png.saveAs(path.join(out, 'matrix-export.png'));
-  assert.equal(fs.readFileSync(path.join(out, 'matrix-export.png')).subarray(1, 4).toString(), 'PNG');
+  const n = report.calls.length;await exportMatrix('matrix-export');
   await page.locator('button[aria-pressed]').filter({ hasText: h.decks[1].name }).click(); assert.equal(await page.locator('tbody td').count(), 16);
   await page.getByRole('button', { name: '全表示', exact: true }).click(); assert.equal(await page.locator('tbody td').count(), 25); assert.equal(report.calls.length, n);
   report.checks.push('320/390/768/1440px no page/dialog overflow; PNG and deck visibility no refetch');
+  for(const scope of ['mine','all'])for(const width of [1440,390]){
+    await page.setViewportSize({width,height:1000});await page.goto(origin+'/matrix?'+new URLSearchParams({environment:h.NEW,scope,ranks:custom.join(',')}),{waitUntil:'networkidle'});
+    await verify(custom,scope);await exportMatrix(`${scope}-export-${width}`);await page.screenshot({path:path.join(out,`${scope}-${width}.png`),fullPage:true});
+  }
   for(const [id,anonymous]of [[h.MEMBER,false],[h.MEMBER,true],[h.ADMIN,false]]){
     await login(id,anonymous);
     await page.goto(origin+'/analysis?'+new URLSearchParams({environment:h.NEW,scope:'all',ranks:custom.join(',')}),{waitUntil:'networkidle'});
@@ -188,6 +212,17 @@ async function main() {
   await login(null);
   for(const route of ['/matrix','/analysis']){const n=report.calls.length;await page.goto(origin+route+'?scope=all',{waitUntil:'networkidle'});assert.equal(new URL(page.url()).pathname,'/login');assert.equal(report.calls.length,n);}
   report.checks.push('member and Guest analysis all-scope clamped to own; Creator/OBS admin-only; Guest matrix own preserved; unsigned redirected without aggregates');
+  // The actual browser Guest uses localStorage, independently of Supabase anonymous Auth.
+  await page.goto(origin+'/guest',{waitUntil:'networkidle'});
+  const guestRows=Array.from({length:8},(_,i)=>({...h.row(),my_deck_id:h.decks[0].id,opponent_deck_id:h.decks[1].id,my_archetype_id:h.decks[0].id,opponent_archetype_id:h.decks[1].id,result:i<5?'win':'lose'}));
+  await page.evaluate(data=>localStorage.setItem('svml:guest-matches:v1',JSON.stringify(data)),guestRows);
+  await page.reload({waitUntil:'networkidle'});await page.locator('nav').getByRole('button',{name:'相性表',exact:true}).click();
+  for(const width of [1440,390]){
+    await page.setViewportSize({width,height:1000});await plainMatrix();assert.match(await page.locator('tbody').innerText(),/62\.5%\s+5勝 \/ 8戦/);assert.match(await page.locator('tbody').innerText(),/未対戦/);
+    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await exportMatrix(`guest-export-${width}`);await page.screenshot({path:path.join(out,`guest-${width}.png`),fullPage:true});report.conditions++;
+  }
+  await page.evaluate(()=>localStorage.removeItem('svml:guest-matches:v1'));
+  report.checks.push('mine/all/localStorage Guest: rate and wins/count only, unchanged colors, empty cells, 1440/390px PNG actual SVG raster input has no index/reference labels');
   await login(h.MEMBER);
   fail = true; const beforeFail = report.calls.length;
   await page.goto(origin + '/matrix?scope=all&ranks=a,aa', { waitUntil: 'networkidle' }); assert.match(await page.locator('body').innerText(), /Application error/); assert.equal(await page.locator('tbody td').count(), 0); assert.equal(report.calls.length, beforeFail + 1);
