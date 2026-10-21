@@ -11,7 +11,7 @@ const files = [
   'creator', 'environment-dashboard-v4', 'guest-import', 'matchup-rank',
   'matchup-rpc', 'obs-matchups', 'period-report-environment', 'period-report-rank',
   'period-report-rpc', 'rank-save', 'match-mutations', 'environment-dashboard-v4-admin',
-  'environment-permissions', 'analysis-date', 'admin-batch', 'suggestion-approval', 'matrix-multi-rank'
+  'environment-permissions', 'analysis-date', 'admin-batch', 'suggestion-approval', 'matrix-multi-rank', 'member-matrix'
 ].map(name => path.join(__dirname, name + '.integration.cjs'));
 const env = {};
 for (const [key, value] of Object.entries(process.env)) {

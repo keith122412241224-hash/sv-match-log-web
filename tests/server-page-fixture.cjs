@@ -12,7 +12,7 @@ function setup() {
     auth: { getUser: async () => ({ data: { user: { id: 'owner', is_anonymous: false } } }) },
     rpc: async (name, args) => {
       state.calls.push({ name, args });
-      assert.ok(['get_home_dashboard', 'get_analysis_aggregates_v1', 'get_analysis_aggregates_v3', 'get_matchup_aggregates_v1', 'get_matchup_aggregates_v2'].includes(name));
+      assert.ok(['get_home_dashboard', 'get_analysis_aggregates_v1', 'get_analysis_aggregates_v3', 'get_matchup_aggregates_v1', 'get_matchup_aggregates_v2', 'get_member_matchup_aggregates_v1'].includes(name));
       return { error: null, data: name === 'get_home_dashboard'
         ? { summary: { total: 0, wins: 0, winRate: null, firstWinRate: null, secondWinRate: null }, recent: [] }
         : name.startsWith('get_analysis_') ? analysisFixture([], args) : { version: 1, totalMatches: 0, groups: [] } };

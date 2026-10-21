@@ -13,7 +13,7 @@ export function MatrixFilters({
   canUseAllUsers,
   scope = "mine"
 }: {
-  environments: Environment[];
+  environments: Pick<Environment, "id" | "name">[];
   selectedEnvironmentId?: string;
   ranks: RankSelection;
   canUseAllUsers?: boolean;

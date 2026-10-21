@@ -68,7 +68,7 @@ test('OBS display changes only two pinned presentation files; aggregation, TOP5,
   const git = args => cp.execFileSync('git', args, { encoding: 'utf8', maxBuffer: 64e6 }).replaceAll('\r\n', '\n');
   const files = git(['ls-tree', '-r', '--name-only', scope.base]).trim().split('\n').filter(f => /^(src|supabase)\//.test(f) || /^package(-lock)?\.json$/.test(f));
   for (const file of files) assert.equal(scope.readBeforeObsTrendDisplay(file), git(['show', scope.base + ':' + file]), file);
-  assert.deepEqual(git(['ls-files', '--cached', '--others', '--exclude-standard', '--', 'src', 'supabase']).trim().split('\n').sort(), files.filter(f => /^(src|supabase)\//.test(f)).sort());
+  assert.deepEqual(git(['ls-files', '--cached', '--others', '--exclude-standard', '--', 'src', 'supabase']).trim().split('\n').sort(), [...files.filter(f => /^(src|supabase)\//.test(f)), ...require('./member-matrix-scope.cjs').added].sort());
   const file = 'src/components/environment/ObsEnvironmentView.tsx';
   const before = scope.readBeforeObsTrendDisplay(file), after = require('node:fs').readFileSync(file, 'utf8').replaceAll('\r\n', '\n');
   assert.equal(before.split('          <h2>{title}<span>')[0], after.split('          <h2>{title}<span>')[0]);

@@ -2,7 +2,7 @@
 const cp=require('node:child_process'),assert=require('node:assert/strict'),{createHash}=require('node:crypto');
 const base='81ceee42d371ddf51573a753bd8464082c948001';
 const hashes=require('./fixtures/suggestion-approval-source-hashes.json');
-const added=new Set(['src/lib/suggestion-decision.ts','src/components/admin/SuggestionDecisionForm.tsx','supabase/migrations/20261014005220_atomic_suggestion_approval.sql']);
+const added=new Set(['src/lib/suggestion-decision.ts','src/components/admin/SuggestionDecisionForm.tsx','supabase/migrations/20261014005220_atomic_suggestion_approval.sql',...require('./member-matrix-scope.cjs').added]);
 // Only historical scope assertions project a byte-verified Phase 2 patch away.
 // Behaviour, SQL and security tests always execute current product files.
 function readBeforeSuggestionApproval(file){

@@ -53,6 +53,7 @@ let response = { data: payload([]), error: null };
 let calls = [];
 let observedRows;
 let activeDecks = decks;
+const newEnvironment = '00000000-0000-4000-8000-000000000100';
 const mock = (relative, exports) => {
   const filename = require.resolve(relative);
   require.cache[filename] = { id: filename, filename, loaded: true, exports };
@@ -60,7 +61,7 @@ const mock = (relative, exports) => {
 mock('../src/lib/data', {
   getCurrentUser: async () => user,
   getIsAdmin: async () => admin,
-  getEnvironments: async () => [{ id: 'old', created_at: '2020-01-01' }, { id: 'new', created_at: '2021-01-01' }],
+  getEnvironments: async () => [{ id: 'old', created_at: '2020-01-01' }, { id: newEnvironment, created_at: '2021-01-01' }],
   getDecks: async () => decks,
   getActiveArchetypes: async () => activeDecks,
   getMatches: () => { throw new Error('Matrix must not fetch raw matches'); }
@@ -95,15 +96,16 @@ test('RPC failures propagate instead of displaying a successful empty matrix', a
   response = { data: payload([]), error: null };
 });
 
-test('actual matrix page keeps default environment, admin scope, active-deck choice and legacy deck order', async () => {
+test('actual matrix page keeps default environment, member/admin scopes, active-deck choice and legacy deck order', async () => {
   response = { data: payload([group('A', 'B', 1, 1)]), error: null };
   for (const isAdmin of [false, true]) {
     admin = isAdmin;
+    user = { id: isAdmin ? 'admin' : 'owner', is_anonymous: false };
     for (const archetypes of [decks.slice(1), []]) {
       activeDecks = archetypes;
       calls = [];
       renderToStaticMarkup(await MatrixPage({ searchParams: Promise.resolve({ scope: 'all' }) }));
-      assert.deepEqual(calls, [['get_matchup_aggregates_v1', { p_environment_id: 'new', p_include_all_users: isAdmin }]]);
+      assert.deepEqual(calls, [['get_member_matchup_aggregates_v1', { p_environment_id: newEnvironment, p_rank_filters: require('../src/lib/rank-selection').RANK_ATOMS }]]);
       const visible = archetypes.length ? archetypes : decks;
       assert.deepEqual(observedRows, buildWinRateMatrix([{ my_deck_id: 'A', opponent_deck_id: 'B', result: 'win' }], visible, visible));
     }

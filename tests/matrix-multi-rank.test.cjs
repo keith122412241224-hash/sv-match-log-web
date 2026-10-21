@@ -3,7 +3,8 @@ const { test } = require('node:test'), assert = require('node:assert/strict');
 const React = require('react'), { renderToStaticMarkup: render } = require('react-dom/server');
 const mock = (p, exports) => { const id = require.resolve(p); require.cache[id] = { id, filename: id, loaded: true, exports }; };
 let calls = [], data, error = null, admin = false;
-mock('../src/lib/data', { getCurrentUser: async () => ({ id: 'owner' }), getIsAdmin: async () => admin, getEnvironments: async () => [{ id: 'env', name: '環境', created_at: '2026-01-01' }], getDecks: async () => [], getActiveArchetypes: async () => [] });
+const env = '00000000-0000-4000-8000-000000000100';
+mock('../src/lib/data', { getCurrentUser: async () => ({ id: 'owner', is_anonymous: false }), getIsAdmin: async () => admin, getEnvironments: async () => [{ id: env, name: '環境', created_at: '2026-01-01' }], getDecks: async () => [], getActiveArchetypes: async () => [] });
 mock('../src/lib/supabase/server', { createSupabaseServerClient: async () => ({ rpc: async (name, args) => { calls.push({ name, args }); return { data, error }; } }) });
 mock('../src/components/AppShell', { AppShell: ({ children }) => React.createElement('main', null, children) });
 mock('next/navigation', { useRouter: () => ({ push() {} }) });
@@ -37,12 +38,15 @@ test('invalid/empty/ambiguous URL ranks and environments never issue an aggregat
     calls = []; assert.match(render(await Page({ searchParams: Promise.resolve(params) })), /role="alert"/); assert.deepEqual(calls, []);
   }
 });
-test('page renders reused multi-selector, old URLs, canonical ranks and member scope guard', async () => {
+test('page renders reused multi-selector, old URLs and canonical ranks; both members and admins use the dedicated all-users RPC', async () => {
   for (admin of [false, true]) for (const rank of ['all', 'master', 'grandmaster-plus', 'master:ruby']) {
     data = { version: 1, totalMatches: 0, groups: [] }; calls = [];
     const html = render(await Page({ searchParams: Promise.resolve({ rank, scope: 'all' }) }));
     assert.ok(html.includes(`name="ranks" value="${expandLegacyRankFilter(rank).join(',')}"`));
-    assert.match(html, /aria-haspopup="dialog"/); assert.doesNotMatch(html, /name="rank"/); assert.equal(calls[0].args.p_include_all_users, admin);
+    assert.match(html, /aria-haspopup="dialog"/); assert.doesNotMatch(html, /name="rank"/);
+    assert.equal(calls[0].name, 'get_member_matchup_aggregates_v1');
+    assert.deepEqual(calls[0].args, { p_environment_id: env, p_rank_filters: expandLegacyRankFilter(rank) });
+    assert.match(html, /name="scope"/);
   }
   data = empty; calls = [];
   assert.match(render(await Page({ searchParams: Promise.resolve({ ranks: 'a,unranked,a' }) })), /name="ranks" value="unranked,a"/);
@@ -55,5 +59,5 @@ test('matrix multi-rank changes only four pinned product files; SQL, analysis, O
   const git = args => cp.execFileSync('git', args, { encoding: 'utf8', maxBuffer: 64e6 }).replaceAll('\r\n', '\n');
   const files = git(['ls-tree', '-r', '--name-only', scope.base]).trim().split('\n').filter(f => /^(src|supabase)\//.test(f) || /^package(-lock)?\.json$/.test(f));
   for (const file of files) assert.equal(scope.readBeforeMatrixMultiRank(file), git(['show', scope.base + ':' + file]), file);
-  assert.deepEqual(git(['ls-files', '--cached', '--others', '--exclude-standard', '--', 'src', 'supabase']).trim().split('\n').sort(), files.filter(f => /^(src|supabase)\//.test(f)).sort());
+  assert.deepEqual(git(['ls-files', '--cached', '--others', '--exclude-standard', '--', 'src', 'supabase']).trim().split('\n').sort(), [...files.filter(f => /^(src|supabase)\//.test(f)), ...require('./member-matrix-scope.cjs').added].sort());
 });

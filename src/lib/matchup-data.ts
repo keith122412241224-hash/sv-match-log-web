@@ -5,6 +5,23 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { normalizeRankSelection, rankSelectionToMatrixFilter, type RankSelection } from "@/lib/rank-selection";
 import { getAnalysisAggregates } from "@/lib/analysis-data";
 
+/** Aggregate-only member endpoint. Never fall back to an admin analysis RPC. */
+export async function getMemberMatchupAggregates(environmentId: string, rankFilters: RankSelection): Promise<MatchupAggregates> {
+  const user = await getCurrentUser();
+  if (!user || user.is_anonymous !== false) throw new Error("全ユーザーの相性表には会員ログインが必要です。");
+  const ranks = normalizeRankSelection(rankFilters);
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(environmentId)) {
+    throw new Error("環境の指定が不正です。");
+  }
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("get_member_matchup_aggregates_v1", {
+    p_environment_id: environmentId,
+    p_rank_filters: ranks
+  });
+  if (error) throw new Error("相性表データを取得できませんでした。");
+  return parseMatchupAggregates(data);
+}
+
 export async function getMatchupAggregates(environmentId?: string, includeAllUsers = false, rankFilter: AnalysisRankFilter | RankSelection = "all"): Promise<MatchupAggregates> {
   const ranks = typeof rankFilter === "string" ? null : normalizeRankSelection(rankFilter);
   const rank = typeof rankFilter === "string" ? parseAnalysisRankFilter(rankFilter) : rankSelectionToMatrixFilter(ranks!);
