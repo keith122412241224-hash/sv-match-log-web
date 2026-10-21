@@ -8,9 +8,11 @@ const h = require('./member-matrix-db.cjs');
 const { RANK_ATOMS, RANK_PRESETS, expandLegacyRankFilter } = require('../src/lib/rank-selection');
 const { ANALYSIS_RANK_FILTERS } = require('../src/lib/analysis-rank-filter');
 const { buildWinRateMatrix } = require('../src/lib/analytics');
+const { openSelector, exerciseSelector, exerciseDeckUpdates, selectorDecks } = require('./matrix-deck-selector.browser.cjs');
 const origin = 'http://localhost:3301', out = path.resolve(process.env.MEMBER_MATRIX_BROWSER_OUT || 'build/member-matrix/browser');
 const report = { localOnly: true, checks: [], calls: [], errors: [], unexpected: [], conditions: 0 };
 let who = h.ADMIN, guest = false, db, rows, app, api, browser, fail = false;
+let availableDecks = h.decks;
 const user = () => ({ id: who, aud: 'authenticated', role: 'authenticated', is_anonymous: guest, email: 'local@example.test', app_metadata: {}, user_metadata: {} });
 const wait = ms => new Promise(r => setTimeout(r, ms));
 async function main() {
@@ -36,7 +38,7 @@ async function main() {
         }
         else if (name === 'admin_users') data = who === h.ADMIN ? { user_id: who } : null;
         else if (name === 'environments') data = h.environments.map(e=>({...e,user_id:h.ADMIN}));
-        else if (['decks', 'deck_archetypes'].includes(name)) data = h.decks.map(d=>({...d,user_id:h.ADMIN}));
+        else if (['decks', 'deck_archetypes'].includes(name)) data = availableDecks.map(d=>({...d,user_id:h.ADMIN}));
         else throw Error('Unexpected read ' + name);
       }
       res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(data));
@@ -69,6 +71,7 @@ async function main() {
   }
   async function exportMatrix(name) {
     await plainMatrix();const before=report.calls.length;
+    const expectedCells=await page.locator('tbody td').allTextContents();
     await page.evaluate(()=>{
       window.matrixExportSvg=null;const descriptor=Object.getOwnPropertyDescriptor(HTMLImageElement.prototype,'src');
       window.restoreMatrixExport=()=>Object.defineProperty(HTMLImageElement.prototype,'src',descriptor);
@@ -76,7 +79,7 @@ async function main() {
     });
     const waiting=page.waitForEvent('download');await page.getByRole('button',{name:'PNG保存',exact:true}).click();await (await waiting).saveAs(path.join(out,name+'.png'));
     const exported=await page.evaluate(()=>{window.restoreMatrixExport();const svg=window.matrixExportSvg;if(!svg)return null;const doc=new DOMParser().parseFromString(svg,'image/svg+xml');return{text:doc.querySelector('foreignObject')?.textContent,cells:[...doc.querySelectorAll('td')].map(e=>e.textContent)};});
-    assert.ok(exported);assert.doesNotMatch(exported.text,/指数|参考値/);assert.ok(exported.cells.length);assert.equal(report.calls.length,before,'PNG does not refetch data');
+    assert.ok(exported);assert.doesNotMatch(exported.text,/指数|参考値|表示するデッキ|全選択|全解除/);assert.deepEqual(exported.cells,expectedCells,'PNG contains exactly the selected matrix');assert.ok(exported.cells.length);assert.equal(report.calls.length,before,'PNG does not refetch data');
     for(const text of exported.cells)assert.ok(text==='未対戦'||/^\d+(?:\.\d+)?%\d+勝 \/ \d+戦$/.test(text),text);
     assert.equal(fs.readFileSync(path.join(out,name+'.png')).subarray(1,4).toString(),'PNG');
   }
@@ -180,6 +183,7 @@ async function main() {
     if(width===390)await page.screenshot({path:path.join(out,'member-all-mobile.png'),fullPage:true});
   }
   const n = report.calls.length;await exportMatrix('matrix-export');
+  await openSelector(page);
   await page.locator('button[aria-pressed]').filter({ hasText: h.decks[1].name }).click(); assert.equal(await page.locator('tbody td').count(), 16);
   await page.getByRole('button', { name: '全表示', exact: true }).click(); assert.equal(await page.locator('tbody td').count(), 25); assert.equal(report.calls.length, n);
   report.checks.push('320/390/768/1440px no page/dialog overflow; PNG and deck visibility no refetch');
@@ -223,6 +227,26 @@ async function main() {
   }
   await page.evaluate(()=>localStorage.removeItem('svml:guest-matches:v1'));
   report.checks.push('mine/all/localStorage Guest: rate and wins/count only, unchanged colors, empty cells, 1440/390px PNG actual SVG raster input has no index/reference labels');
+  // Additional selector scenarios use display-only synthetic metadata; the SQL fixtures stay unchanged.
+  availableDecks=selectorDecks(h);
+  await login(h.MEMBER);
+  for(const scope of ['mine','all']){
+    await page.goto(origin+'/matrix?'+new URLSearchParams({environment:h.NEW,scope,ranks:custom.join(',')}),{waitUntil:'networkidle'});
+    await exerciseSelector({page,decks:availableDecks,report,out,label:scope,exportMatrix});
+  }
+  await exerciseDeckUpdates({page,decks:availableDecks,report,h,setDecks:next=>{availableDecks=next;},origin});
+  availableDecks=selectorDecks(h);await login(null);
+  await page.goto(origin+'/guest',{waitUntil:'networkidle'});
+  await page.evaluate(data=>localStorage.setItem('svml:guest-matches:v1',JSON.stringify(data)),guestRows);
+  await page.reload({waitUntil:'networkidle'});await page.locator('nav').getByRole('button',{name:'相性表',exact:true}).click();
+  const stored=await page.evaluate(()=>localStorage.getItem('svml:guest-matches:v1'));
+  await exerciseSelector({page,decks:availableDecks,report,out,label:'guest',exportMatrix});
+  assert.equal(await page.evaluate(()=>localStorage.getItem('svml:guest-matches:v1')),stored,'selector never changes Guest storage');
+  await page.locator('nav').getByRole('button',{name:'戦績入力',exact:true}).click();await page.getByRole('button',{name:'勝ち',exact:true}).click();await page.getByRole('button',{name:'入力を試す',exact:true}).click();
+  await page.waitForFunction(()=>JSON.parse(localStorage.getItem('svml:guest-matches:v1')).length===9);
+  await page.reload({waitUntil:'networkidle'});assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('svml:guest-matches:v1')).length),9);
+  await page.evaluate(()=>localStorage.removeItem('svml:guest-matches:v1'));
+  availableDecks=h.decks;
   await login(h.MEMBER);
   fail = true; const beforeFail = report.calls.length;
   await page.goto(origin + '/matrix?scope=all&ranks=a,aa', { waitUntil: 'networkidle' }); assert.match(await page.locator('body').innerText(), /Application error/); assert.equal(await page.locator('tbody td').count(), 0); assert.equal(report.calls.length, beforeFail + 1);
