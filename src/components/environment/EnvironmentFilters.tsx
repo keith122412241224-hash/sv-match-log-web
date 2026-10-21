@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type SyntheticEvent } from "react";
 import { EnvironmentData } from "@/components/environment/EnvironmentData";
 import { RankMultiSelect } from "@/components/RankMultiSelect";
-import { parseRankSelection, rankSelectionToMatrixFilter, serializeRankSelection } from "@/lib/rank-selection";
+import { parseRankSelection, serializeRankSelection } from "@/lib/rank-selection";
 import { DASHBOARD_PERIODS, normalizeDashboardPeriod } from "@/lib/environment-dashboard-period";
 import { environmentHrefV4 as environmentHref, type DashboardSelectionV4 as DashboardSelection } from "@/lib/environment-dashboard-period";
 
@@ -50,8 +50,6 @@ export function EnvironmentFilters({ environments, activeDeckIds, initialSelecti
     if (pending) { e.preventDefault(); e.stopPropagation(); }
   }
   const ownQuery = new URLSearchParams({ environment: selection.environment, ranks: serializeRankSelection(selection.ranks), scope: "mine" });
-  const matrixRank = rankSelectionToMatrixFilter(selection.ranks);
-  const matrixQuery = new URLSearchParams({ environment: selection.environment, rank: matrixRank ?? "", scope: "mine" });
   return <>
     <form onSubmit={e => e.preventDefault()} className="rounded-md border border-slate-200 bg-white p-4">
       {/* Keep the native Tab sequence intact while a selection starts loading. */}
@@ -82,8 +80,7 @@ export function EnvironmentFilters({ environments, activeDeckIds, initialSelecti
       : data ? <EnvironmentData data={data} activeDeckIds={activeDeckIds} /> : <p className="rounded-md border border-slate-200 bg-white p-5">選択できる環境がありません。</p>)}
     <section className="rounded-md border border-slate-200 bg-white p-4"><h2 className="font-semibold">自分の登録データを見る</h2><p className="mt-2 text-sm text-muted">環境とランクを引き継ぎます。期間の指定は引き継ぎません。</p>
       <div className="mt-3 flex flex-wrap gap-3">{([ ["analysis", "分析"], ["matrix", "相性表"] ] as const).map(([target, label]) => <div key={target}>
-        {target === "analysis" || matrixRank !== null ? <Link prefetch={false} href={`/${target}?${target === "analysis" ? ownQuery : matrixQuery}`} className="inline-flex min-h-11 items-center rounded-md border border-slate-300 px-3 text-sm font-semibold">自分の{label}を見る</Link>
-          : <><span role="link" aria-disabled="true" className="inline-flex min-h-11 items-center rounded-md border border-slate-200 px-3 text-sm text-muted">自分の{label}を見る</span><p className="mt-1 text-xs text-muted">このランクの組み合わせは相性表ではまだ利用できません。</p></>}
+        <Link prefetch={false} href={`/${target}?${ownQuery}`} className="inline-flex min-h-11 items-center rounded-md border border-slate-300 px-3 text-sm font-semibold">自分の{label}を見る</Link>
       </div>)}</div>
     </section>
   </>;

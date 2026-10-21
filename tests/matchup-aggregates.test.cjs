@@ -71,6 +71,7 @@ mock('../src/lib/supabase/server', { createSupabaseServerClient: async () => ({
 }) });
 mock('../src/components/AppShell', { AppShell: ({ children }) => React.createElement('main', null, children) });
 mock('../src/components/MatchupMatrix', { MatchupMatrix: props => { observedRows = props.rows; return React.createElement('div'); } });
+mock('next/navigation', { useRouter: () => ({ push() {} }) });
 const { getMatchupAggregates } = require('../src/lib/matchup-data');
 const MatrixPage = require('../src/app/matrix/page').default;
 
@@ -94,14 +95,14 @@ test('RPC failures propagate instead of displaying a successful empty matrix', a
   response = { data: payload([]), error: null };
 });
 
-test('actual matrix page keeps environment fallback, admin scope, active-deck choice and legacy deck order', async () => {
+test('actual matrix page keeps default environment, admin scope, active-deck choice and legacy deck order', async () => {
   response = { data: payload([group('A', 'B', 1, 1)]), error: null };
   for (const isAdmin of [false, true]) {
     admin = isAdmin;
     for (const archetypes of [decks.slice(1), []]) {
       activeDecks = archetypes;
       calls = [];
-      renderToStaticMarkup(await MatrixPage({ searchParams: Promise.resolve({ scope: 'all', environment: 'invalid' }) }));
+      renderToStaticMarkup(await MatrixPage({ searchParams: Promise.resolve({ scope: 'all' }) }));
       assert.deepEqual(calls, [['get_matchup_aggregates_v1', { p_environment_id: 'new', p_include_all_users: isAdmin }]]);
       const visible = archetypes.length ? archetypes : decks;
       assert.deepEqual(observedRows, buildWinRateMatrix([{ my_deck_id: 'A', opponent_deck_id: 'B', result: 'win' }], visible, visible));
@@ -111,4 +112,10 @@ test('actual matrix page keeps environment fallback, admin scope, active-deck ch
   renderToStaticMarkup(await MatrixPage({ searchParams: Promise.resolve({ environment: 'old', scope: 'mine' }) }));
   assert.equal(calls[0][1].p_environment_id, 'old');
   assert.equal(calls[0][1].p_include_all_users, false);
+});
+
+test('matrix rejects an explicit invalid environment without silently loading the default', async () => {
+  calls = [];
+  const html = renderToStaticMarkup(await MatrixPage({ searchParams: Promise.resolve({ environment: 'invalid' }) }));
+  assert.match(html, /role="alert"/); assert.match(html, /環境の指定が不正/); assert.deepEqual(calls, []);
 });
