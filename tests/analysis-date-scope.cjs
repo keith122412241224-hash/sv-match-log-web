@@ -1,9 +1,9 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const fs=require('fs'),cp=require('child_process'),assert=require('assert/strict'),{createHash}=require('crypto');
+const cp=require('child_process'),assert=require('assert/strict'),{createHash}=require('crypto');
 const base='adc78e421fdbaddfd9b0218594ada5ab21d04319';
 const hashes=require('./fixtures/analysis-date-source-hashes.json');
 const added=new Set(['src/lib/analysis-date-query.ts','src/components/analysis/AnalysisDateQueryError.tsx']);
-const read=file=>fs.readFileSync(file,'utf8').replaceAll('\r\n','\n');
+const read=file=>require('./analysis-ux-scope.cjs').readBeforeAnalysisUx(file);
 // Historical scope guards receive the old source only after this exact patch is checked.
 // Dedicated date tests exercise the current code; no runtime/behavior test is projected.
 function readBeforeAnalysisDates(file){

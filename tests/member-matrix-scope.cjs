@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const fs=require('node:fs'),cp=require('node:child_process'),assert=require('node:assert/strict'),{createHash}=require('node:crypto');
+const cp=require('node:child_process'),assert=require('node:assert/strict'),{createHash}=require('node:crypto');
 const base='1784bc53067bb07d94666da800db437a7d5766a5';
 const hashes={
   // Later display-only revision: pin the exact renderer bytes for historical guards.
@@ -10,11 +10,11 @@ const hashes={
   'src/lib/matchup-data.ts':'e6d5d9552ea50d73eda6d05843c0ccca397f01748aefb8124d320abb67af4834',
   'supabase/migrations/20261021053918_member_matchup_aggregates_v1.sql':'09b7cb6cb34c292f88977ff1d1f11fa77b071ff38f8dc30fdf2f57d91835bdab'
 };
-const added=new Set(['supabase/migrations/20261021053918_member_matchup_aggregates_v1.sql']);
+const added=new Set(['supabase/migrations/20261021053918_member_matchup_aggregates_v1.sql',...require('./analysis-ux-scope.cjs').added]);
 // Historical guards retain their exact baselines only for these reviewed bytes.
 // Behaviour/security tests execute current modules and the actual SQL migration.
 function readBeforeMemberMatrix(file){
-  const source=fs.readFileSync(file,'utf8').replaceAll('\r\n','\n');
+  const source=require('./analysis-ux-scope.cjs').readBeforeAnalysisUx(file);
   if(!Object.hasOwn(hashes,file))return source;
   assert.equal(createHash('sha256').update(source).digest('hex'),hashes[file],'unreviewed member matrix change: '+file);
   assert.ok(!added.has(file),'new migration has no historical source');

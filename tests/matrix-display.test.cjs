@@ -29,7 +29,13 @@ test('normal and browser Guest matrices remove only index/reference labels and r
 });
 
 test('matrix display change leaves every other product file, SQL, migration and dependency unchanged',()=>{
+ const ux=require('./analysis-ux-scope.cjs');
  const changed=cp.execFileSync('git',['diff',base,'--name-only','--','src','supabase','package.json','package-lock.json'],{encoding:'utf8'}).trim().split('\n').filter(Boolean);
- assert.deepEqual(changed,[file]);
- assert.equal(cp.execFileSync('git',['ls-files','--others','--exclude-standard','--','src','supabase'],{encoding:'utf8'}).trim(),'');
+ for(const f of changed.filter(f=>f!==file)){
+  ux.assertReviewed(f);
+  if(ux.added.has(f))assert.equal(cp.execFileSync('git',['ls-tree','--name-only',base,'--',f],{encoding:'utf8'}).trim(),'','reviewed added file must not exist in the historical baseline');
+  else assert.equal(ux.readBeforeAnalysisUx(f),cp.execFileSync('git',['show',base+':'+f],{encoding:'utf8'}).replaceAll('\r\n','\n'));
+ }
+ assert.deepEqual(changed.filter(f=>!Object.hasOwn(ux.hashes,f)),[file]);
+ const untracked=cp.execFileSync('git',['ls-files','--others','--exclude-standard','--','src','supabase'],{encoding:'utf8'}).trim().split('\n').filter(Boolean);for(const f of untracked){assert.ok(ux.added.has(f));ux.assertReviewed(f);}
 });

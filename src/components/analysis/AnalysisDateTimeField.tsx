@@ -7,12 +7,14 @@ export function AnalysisDateTimeField({
   name,
   label,
   value,
-  defaultTime
+  defaultTime,
+  onChange
 }: {
   name: "playedFrom" | "playedTo";
   label: string;
   value: string;
   defaultTime: string;
+  onChange?: () => void;
 }) {
   const [date, setDate] = useState(value.split("T")[0] ?? "");
   const [time, setTime] = useState(value.split("T")[1] || defaultTime);
@@ -25,7 +27,7 @@ export function AnalysisDateTimeField({
           aria-label={`${label}の日付`}
           type="date"
           value={date}
-          onChange={(event) => setDate(event.target.value)}
+          onChange={(event) => { setDate(event.target.value); onChange?.(); }}
         />
         <Input
           aria-label={`${label}の時刻（日本時間）`}
@@ -33,7 +35,7 @@ export function AnalysisDateTimeField({
           step={60}
           value={time}
           required={Boolean(date)}
-          onChange={(event) => setTime(event.target.value)}
+          onChange={(event) => { setTime(event.target.value); onChange?.(); }}
         />
       </div>
       <input type="hidden" name={name} value={date && time ? `${date}T${time}` : ""} disabled={!date} />

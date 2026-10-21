@@ -2,8 +2,9 @@ import { LOW_SAMPLE_THRESHOLD } from "@/lib/constants";
 import { formatPercent } from "@/lib/utils";
 import { DeckWithClassIcon } from "@/components/ClassIcon";
 import type { DeckAnalysisSummary } from "@/lib/analytics";
+import { recentAnalysisStats } from "@/lib/analysis-presentation";
 
-export function DeckAnalysisCards({ summaries, combined = false, showTitle = true }: { summaries: DeckAnalysisSummary[]; combined?: boolean; showTitle?: boolean }) {
+export function DeckAnalysisCards({ summaries, combined = false, showTitle = true, recentDetails = false, showStreak = false }: { summaries: DeckAnalysisSummary[]; combined?: boolean; showTitle?: boolean; recentDetails?: boolean; showStreak?: boolean }) {
   const visible = summaries.filter((summary) => summary.total > 0);
 
   if (visible.length === 0) {
@@ -16,12 +17,13 @@ export function DeckAnalysisCards({ summaries, combined = false, showTitle = tru
       <div className="grid gap-3 lg:grid-cols-2">
         {visible.map((summary) => {
           const hasMatchups = summary.goodMatchups.length > 0 || summary.badMatchups.length > 0;
+          const recent = recentAnalysisStats(summary.recentResults);
 
           return (
-            <article className="rounded-md border border-slate-200 bg-white p-4" key={summary.deck.id}>
+            <article className={`rounded-md border border-slate-200 bg-white p-4${recentDetails ? " min-w-0" : ""}`} key={summary.deck.id}>
               <div className="flex flex-wrap items-start justify-between gap-2">
-                <div>
-                  <h3 className="font-bold text-ink">
+                <div className={recentDetails ? "min-w-0 max-w-full" : undefined}>
+                  <h3 className={`font-bold text-ink${recentDetails ? " [&_.truncate]:whitespace-normal [&_.truncate]:[overflow-wrap:anywhere]" : ""}`}>
                     <DeckWithClassIcon className={summary.deck.class_name} iconSize={28} name={summary.deck.name} />
                   </h3>
                 </div>
@@ -40,7 +42,15 @@ export function DeckAnalysisCards({ summaries, combined = false, showTitle = tru
                 </div>
               ) : null}
               <div className="mt-4">
-                <div className="mb-2 text-xs font-bold text-muted">{combined ? "直近10件（反転込み）" : "直近10戦"}</div>
+                <div className="mb-2 text-xs font-bold text-muted">{recentDetails ? `直近${recent.count}${combined ? "件（反転込み）" : "戦"}` : combined ? "直近10件（反転込み）" : "直近10戦"}</div>
+                {recentDetails ? <>
+                  <div className="mb-2 flex flex-wrap items-baseline gap-x-3 gap-y-1 tabular-nums">
+                    <span className="font-bold text-ink">{recent.wins}勝{recent.losses}敗</span>
+                    <span className="text-sm text-muted">勝率 <strong className="text-lg text-ink">{recent.winRate === null ? "—" : `${recent.winRate.toFixed(1)}%`}</strong></span>
+                    {showStreak && !combined && recent.count > 0 ? <span className="text-sm font-semibold text-ink">{recent.streakLabel}</span> : null}
+                  </div>
+                  <p className="mb-2 text-xs text-muted">現在の分析条件に一致する結果を最新順で表示します。{showStreak && !combined ? "連勝・連敗もこの対象範囲内の成績です。" : "連勝・連敗は自分のみ／使用者側のみで表示します。"}</p>
+                </> : null}
                 <div className="flex flex-wrap gap-1">
                   {summary.recentResults.map((result, index) => (
                     <span className={result === "win" ? "grid size-7 place-items-center rounded bg-emerald-700 text-xs font-bold text-white" : "grid size-7 place-items-center rounded bg-red-700 text-xs font-bold text-white"} key={`${summary.deck.id}-${index}`}>

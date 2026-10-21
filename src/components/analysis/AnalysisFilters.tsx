@@ -1,7 +1,8 @@
 import { RankMultiSelect } from "@/components/RankMultiSelect";
 import { RANK_ATOMS, type RankSelection } from "@/lib/rank-selection";
 import Link from "next/link";
-import { AnalysisDateTimeField } from "@/components/analysis/AnalysisDateTimeField";
+import { AnalysisPeriodFields } from "@/components/analysis/AnalysisPeriodFields";
+import type { AnalysisPeriod } from "@/lib/analysis-presentation";
 import { Button } from "@/components/Button";
 import { FieldLabel, Select } from "@/components/Field";
 import { RESULT_LABELS, TURN_ORDER_LABELS } from "@/lib/constants";
@@ -28,7 +29,9 @@ export function AnalysisFilters({
   values,
   canUseAllUsers,
   pending = false,
-  onRankApply
+  onRankApply,
+  onPeriodApply,
+  periodPreset
 }: {
   environments: Pick<Environment, "id" | "name">[];
   decks: DeckLike[];
@@ -36,6 +39,8 @@ export function AnalysisFilters({
   canUseAllUsers?: boolean;
   pending?: boolean;
   onRankApply?: (ranks: RankSelection) => void;
+  onPeriodApply?: (period: AnalysisPeriod, dates: { playedFrom: string; playedTo: string }) => void;
+  periodPreset?: string;
 }) {
   const scopeQuery = values.scope === "all" ? "&scope=all" : "";
   const resetHref = values.environmentId
@@ -133,29 +138,8 @@ export function AnalysisFilters({
           </Select>
         </FieldLabel>
 
-        <fieldset className="min-w-0 md:col-span-2 xl:col-span-1">
-          <legend className="mb-1.5 text-sm font-semibold text-ink">期間（日本時間）</legend>
-          {/* Keep the date fields intact; only adapt their layout within this period group. */}
-          <div className="flex flex-wrap items-center gap-2 [&_fieldset]:flex-[1_1_15.5rem] [&_fieldset>div]:grid-cols-[minmax(0,1fr)_6.5rem] [&_legend]:sr-only">
-            <AnalysisDateTimeField
-              key={`playedFrom:${values.playedFrom}`}
-              name="playedFrom"
-              label="開始日時"
-              value={values.playedFrom}
-              defaultTime="00:00"
-            />
-            <div className="flex min-w-0 flex-[1_1_17rem] items-center gap-2">
-              <span className="shrink-0 text-muted" aria-hidden="true">～</span>
-              <AnalysisDateTimeField
-                key={`playedTo:${values.playedTo}`}
-                name="playedTo"
-                label="終了日時"
-                value={values.playedTo}
-                defaultTime="23:59"
-              />
-            </div>
-          </div>
-        </fieldset>
+        <AnalysisPeriodFields key={`${values.playedFrom}:${values.playedTo}:${periodPreset}`} from={values.playedFrom} to={values.playedTo}
+          preset={periodPreset} pending={pending} onApply={onPeriodApply} />
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-slate-200 pt-3">

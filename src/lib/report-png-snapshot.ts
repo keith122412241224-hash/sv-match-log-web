@@ -18,6 +18,9 @@ export function createReportPngSnapshot(source: HTMLElement, minimumWidth = 0) {
     img.loading = "eager";
   });
   snapshot.querySelectorAll("[data-png-exclude]").forEach(node => node.remove());
+  // Collapsed analysis content stays mounted; only the detached export is expanded.
+  const expanded = snapshot.querySelectorAll<HTMLElement>("[data-png-expand]");
+  expanded.forEach(node => { node.hidden = false; });
   snapshot.removeAttribute("id");
   snapshot.removeAttribute("aria-labelledby");
   snapshot.querySelectorAll("[id]").forEach(node => node.removeAttribute("id"));
@@ -53,6 +56,10 @@ export function createReportPngSnapshot(source: HTMLElement, minimumWidth = 0) {
   });
   host.append(snapshot);
   document.body.append(host);
+  if (expanded.length) {
+    const overflow = Math.max(0, ...Array.from(snapshot.querySelectorAll<HTMLElement>(".overflow-x-auto"), node => node.scrollWidth - node.clientWidth));
+    snapshot.style.width = `${Math.min(1600, Math.ceil(snapshot.getBoundingClientRect().width + overflow))}px`;
+  }
   return { snapshot, remove: () => host.remove() };
 }
 
