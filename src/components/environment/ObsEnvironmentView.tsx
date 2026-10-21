@@ -41,8 +41,11 @@ export function ObsEnvironmentView({ data, environmentName, matchups }: { data: 
       <Ranking title="勝率TOP5" rows={view.wins} metric="winRate" total={data.current.total.totalMatches} />
       {data.previous && <div className={styles.trends}>
         {([["増加TOP3", view.increases, "increase"], ["減少TOP3", view.decreases, "decrease"]] as const).map(([title, rows, direction]) => <section key={title} aria-label={title} className={styles[direction]}>
-          <h2>{title}<span>遭遇率・前期間比</span></h2>
-          {rows.length ? <ol>{rows.map(row => <li key={row.key}><span className={styles.trendDeck}>{row.name}</span><strong>{row.trend!.delta! > 0 ? "+" : ""}{row.trend!.delta!.toFixed(1)}<small>pt</small></strong></li>)}</ol>
+          <h2>{title}<span>順位：遭遇率の前期間比 ／ 表示：当期の遭遇率・対戦数</span></h2>
+          {rows.length ? <ol>{rows.map(row => <li key={row.key}>
+            <span className={styles.trendDeck}>{row.name}</span>
+            <span className={styles.trendValue}><strong>{percent(row.encounterRate!)}</strong><small className={styles.trendCount}>（{row.current.encounter.count!.toLocaleString("ja-JP")}戦）</small></span>
+          </li>)}</ol>
             : <p className={styles.empty}>{data.previous?.total.status === "no_data" ? "前の期間のデータがありません。" : data.current.total.status === "no_data" ? "今の期間のデータがありません。" : `比較できる${direction === "increase" ? "増加" : "減少"}データがありません。`}</p>}
         </section>)}
       </div>}
