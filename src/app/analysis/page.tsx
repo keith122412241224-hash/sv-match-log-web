@@ -1,3 +1,4 @@
+import { DeckSelectionError } from "@/lib/analysis-deck-selection";
 import { AppShell } from "@/components/AppShell";
 import { AnalysisDashboard } from "@/components/analysis/AnalysisDashboard";
 import { getAnalysisPageData, type AnalysisSearchParams } from "@/lib/analysis-page-data";
@@ -14,5 +15,10 @@ export default async function AnalysisPage({ searchParams }: { searchParams: Pro
     return <AppShell><AnalysisDateQueryError key={query} query={query} /></AppShell>;
   }
   const initialQuery = new URLSearchParams(Object.entries(params).filter((entry): entry is [string, string] => typeof entry[1] === "string")).toString();
-  return <AppShell><AnalysisDashboard initialData={await getAnalysisPageData(params)} initialQuery={initialQuery} /></AppShell>;
+  try {
+    return <AppShell><AnalysisDashboard initialData={await getAnalysisPageData(params)} initialQuery={initialQuery} /></AppShell>;
+  } catch (error) {
+    if (!(error instanceof DeckSelectionError)) throw error;
+    return <AppShell><div role="alert" className="rounded-md border p-4"><p>{error.message}</p><a href="/analysis" className="underline">条件をリセット</a></div></AppShell>;
+  }
 }

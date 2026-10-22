@@ -1,25 +1,29 @@
+import { normalizeDeckSelection, type DeckSelection } from "@/lib/analysis-deck-selection";
 import { parseAnalysisPageRankFilter, type AnalysisPageRankFilter } from "@/lib/analysis-page-rank-filter";
-import { normalizeRankSelection, type RankSelection } from "@/lib/rank-selection";
+import { expandLegacyRankFilter, normalizeRankSelection, type RankSelection } from "@/lib/rank-selection";
 import { AnalysisDataError, emptyAnalysisAggregates, parseAnalysisAggregates } from "@/lib/analysis-aggregates";
 import { getCurrentUser, type MatchFilters } from "@/lib/data";
 import type { WinRateMode } from "@/lib/match-perspectives";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
-export async function getAnalysisAggregates(environmentId: string, mode: WinRateMode, filters: MatchFilters, recentDeckIds?: readonly string[], rankFilter: AnalysisPageRankFilter | RankSelection = "all") {
+export async function getAnalysisAggregates(environmentId: string, mode: WinRateMode, filters: MatchFilters & { myDeckIds?: DeckSelection; opponentDeckIds?: DeckSelection }, recentDeckIds?: readonly string[], rankFilter: AnalysisPageRankFilter | RankSelection = "all") {
   const ranks = typeof rankFilter === "string" ? null : normalizeRankSelection(rankFilter);
   const rank = typeof rankFilter === "string" ? parseAnalysisPageRankFilter(rankFilter) : "all";
+  const myIds = filters.myDeckIds === undefined ? filters.myDeckId ? [filters.myDeckId] : null : normalizeDeckSelection(filters.myDeckIds);
+  const opponentIds = filters.opponentDeckIds === undefined ? filters.opponentDeckId ? [filters.opponentDeckId] : null : normalizeDeckSelection(filters.opponentDeckIds);
+  const multiple = (myIds?.length ?? 0) > 1 || (opponentIds?.length ?? 0) > 1;
   if (!await getCurrentUser()) return emptyAnalysisAggregates();
   const supabase = await createSupabaseServerClient();
   let response;
   try {
-    response = await supabase.rpc(ranks ? "get_analysis_aggregates_v3" : rank === "all" ? "get_analysis_aggregates_v1" : "get_analysis_aggregates_v2", {
-      ...(ranks ? { p_rank_filters: ranks } : rank === "all" ? {} : { p_rank_filter: rank }),
+    response = await supabase.rpc(multiple ? "get_analysis_aggregates_v4" : ranks ? "get_analysis_aggregates_v3" : rank === "all" ? "get_analysis_aggregates_v1" : "get_analysis_aggregates_v2", {
+      ...(multiple ? { p_rank_filters: ranks ?? expandLegacyRankFilter(rank) } : ranks ? { p_rank_filters: ranks } : rank === "all" ? {} : { p_rank_filter: rank }),
       p_environment_id: environmentId || null,
       p_include_all_users: Boolean(filters.includeAllUsers),
       p_include_reversed: mode === "combined",
       p_use_archetype: filters.deckIdField === "archetype",
-      p_my_deck_id: filters.myDeckId || null,
-      p_opponent_deck_id: filters.opponentDeckId || null,
+      ...(multiple ? { p_my_deck_ids: myIds, p_opponent_deck_ids: opponentIds }
+        : { p_my_deck_id: myIds?.[0] ?? null, p_opponent_deck_id: opponentIds?.[0] ?? null }),
       p_result: filters.result || null,
       p_turn_order: filters.turnOrder || null,
       p_played_from: filters.playedAtFrom || null,

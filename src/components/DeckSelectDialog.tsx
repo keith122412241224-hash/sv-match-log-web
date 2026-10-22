@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type SyntheticEvent } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronDown, X } from "lucide-react";
 import { ClassIcon } from "@/components/ClassIcon";
@@ -8,6 +8,42 @@ import { SHADOWVERSE_CLASSES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
 export type SelectableDeck = { id: string; name: string; class_name: string };
+
+export const deckDialogClassName = "fixed bottom-3 left-1/2 top-auto m-0 max-h-[85dvh] w-[calc(100%-1rem)] max-w-xl -translate-x-1/2 flex-col overflow-hidden rounded-lg border border-slate-300 bg-white p-0 text-sm text-ink shadow-xl backdrop:bg-slate-900/40 open:flex sm:bottom-auto sm:top-1/2 sm:-translate-y-1/2";
+export function groupDecks(decks: readonly SelectableDeck[]) {
+  const unique = [...new Map(decks.map(deck => [deck.id, deck])).values()];
+  const classes = [...new Set<string>([...SHADOWVERSE_CLASSES, ...unique.map(deck => deck.class_name)])];
+  return classes.map(className => ({ className, decks: unique.filter(deck => deck.class_name === className) })).filter(group => group.decks.length);
+}
+export function useDeckDialog() {
+  const id = useId(), trigger = useRef<HTMLButtonElement>(null), dialog = useRef<HTMLDialogElement>(null);
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    dialog.current?.showModal();
+    // Native modal provides focus containment/inert background; prevent background scrolling too.
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = overflow; };
+  }, [open]);
+  function close() {
+    dialog.current?.close();
+    setOpen(false);
+    trigger.current?.focus({ preventScroll: true });
+  }
+  const dialogEvents = {
+    onCancel: (event: SyntheticEvent<HTMLDialogElement>) => { event.preventDefault(); event.stopPropagation(); close(); },
+      onKeyDown: (event: KeyboardEvent<HTMLDialogElement>) => {
+        event.stopPropagation();
+        if (event.key !== "Tab") return;
+        const buttons = [...event.currentTarget.querySelectorAll<HTMLElement>("button:not(:disabled), input:not(:disabled)")].filter(button => button.getClientRects().length > 0);
+        const first = buttons[0], last = buttons.at(-1);
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+      }
+  };
+  return { id, trigger, dialog, open, setOpen, close, dialogEvents };
+}
 
 // Form-local draft: selecting a deck must neither request data nor render the analysis results.
 export function DeckSelectDialogField({ value, selectionRevision, ...props }: Omit<Parameters<typeof DeckSelectDialog>[0], "onChange"> & { selectionRevision?: object }) {
@@ -25,28 +61,11 @@ export function DeckSelectDialog({ decks, value, onChange, label, name, allowAll
   allowAll?: boolean;
   disabled?: boolean;
 }) {
-  const id = useId(), trigger = useRef<HTMLButtonElement>(null), dialog = useRef<HTMLDialogElement>(null);
-  const [open, setOpen] = useState(false), [expanded, setExpanded] = useState<string[]>([]);
-  const groups = useMemo(() => {
-    const unique = [...new Map(decks.map(deck => [deck.id, deck])).values()];
-    const classes = [...new Set<string>([...SHADOWVERSE_CLASSES, ...unique.map(deck => deck.class_name)])];
-    return classes.map(className => ({ className, decks: unique.filter(deck => deck.class_name === className) })).filter(group => group.decks.length);
-  }, [decks]);
+  const { id, trigger, dialog, open, setOpen, close, dialogEvents } = useDeckDialog();
+  const [expanded, setExpanded] = useState<string[]>([]);
+  const groups = useMemo(() => groupDecks(decks), [decks]);
   const selected = decks.find(deck => deck.id === value);
   const selectedName = selected?.name ?? (value ? "元のデッキ（現在選択肢なし）" : allowAll ? "すべて" : "デッキを選択");
-  useEffect(() => {
-    if (!open) return;
-    dialog.current?.showModal();
-    // Native modal provides focus containment/inert background; prevent background scrolling too.
-    const overflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => { document.body.style.overflow = overflow; };
-  }, [open]);
-  function close() {
-    dialog.current?.close();
-    setOpen(false);
-    trigger.current?.focus({ preventScroll: true });
-  }
   function choose(next: string) {
     if (disabled) return;
     onChange(next);
@@ -64,16 +83,7 @@ export function DeckSelectDialog({ decks, value, onChange, label, name, allowAll
     </button>
     {name && <input type="hidden" name={name} value={value} />}
     {open && createPortal(<dialog ref={dialog} id={`${id}-dialog`} aria-labelledby={`${id}-title`}
-      onCancel={event => { event.preventDefault(); event.stopPropagation(); close(); }}
-      onKeyDown={event => {
-        event.stopPropagation();
-        if (event.key !== "Tab") return;
-        const buttons = [...event.currentTarget.querySelectorAll<HTMLButtonElement>("button:not(:disabled)")].filter(button => button.getClientRects().length > 0);
-        const first = buttons[0], last = buttons.at(-1);
-        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
-        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
-      }}
-      className="fixed bottom-3 left-1/2 top-auto m-0 max-h-[85dvh] w-[calc(100%-1rem)] max-w-xl -translate-x-1/2 flex-col overflow-hidden rounded-lg border border-slate-300 bg-white p-0 text-sm text-ink shadow-xl backdrop:bg-slate-900/40 open:flex sm:bottom-auto sm:top-1/2 sm:-translate-y-1/2">
+      {...dialogEvents} className={deckDialogClassName}>
       <div className="flex shrink-0 items-center justify-between gap-2 border-b border-slate-200 p-3">
         <h2 id={`${id}-title`} className="text-lg font-bold">{label}を選択</h2>
         <button type="button" aria-label="閉じる" onClick={close} className="flex size-11 shrink-0 items-center justify-center rounded hover:bg-slate-100 focus-visible:ring-2"><X aria-hidden="true" size={20} /></button>

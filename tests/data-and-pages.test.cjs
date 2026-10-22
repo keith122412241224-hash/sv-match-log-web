@@ -10,7 +10,8 @@ let currentUser = { id: 'owner' };
 let records = [];
 let calls = [];
 let failAnalysisRpc = false;
-const decks = ['A', 'B'].map(id => ({ id, name: id, class_name: 'エルフ', is_active: true }));
+const A='00000000-0000-4000-8000-000000000001', B='00000000-0000-4000-8000-000000000002';
+const decks = [A, B].map(id => ({ id, name: id === A ? 'A' : 'B', class_name: 'エルフ', is_active: true }));
 const environment = { id: 'environment', name: 'Test environment', created_at: '2026-09-01', allow_match_input: true };
 function mockModule(relative, exports) {
   const filename = require.resolve(relative);
@@ -23,7 +24,7 @@ const supabase = {
       calls.push({ rpc: name, args });
       return { data: periodFixture(records, args), error: null };
     }
-    assert.equal(name, 'get_analysis_aggregates_v3');
+    assert.ok(['get_analysis_aggregates_v3','get_analysis_aggregates_v4'].includes(name));
     assert.deepEqual(args.p_rank_filters, require('../src/lib/rank-selection').RANK_ATOMS);
     calls.push({ rpc: name, args });
     if (failAnalysisRpc) return { error: { code: '42501', message: 'PRIVATE-DATABASE-DETAIL' } };
@@ -60,7 +61,7 @@ const AnalysisPage = require('../src/app/analysis/page').default;
 const { buildWeeklyReport, buildWeeklyPeriod } = require('../src/lib/weekly-report');
 const { WeeklyReportTables } = require('../src/components/admin/WeeklyReportViews');
 function record(i, extra = {}) {
-  return { id: String(i), user_id: 'owner', environment_id: 'environment', my_deck_id: 'A', opponent_deck_id: 'B', my_archetype_id: 'A', opponent_archetype_id: 'B', result: 'win', turn_order: 'first', played_at: '2026-09-05T01:00:00.000Z', ...extra };
+  return { id: String(i), user_id: 'owner', environment_id: 'environment', my_deck_id: A, opponent_deck_id: B, my_archetype_id: A, opponent_archetype_id: B, result: 'win', turn_order: 'first', played_at: '2026-09-05T01:00:00.000Z', ...extra };
 }
 
 test('legacy match paging and one period RPC preserve 2,505 registrations; no mutation queries', async () => {
@@ -76,7 +77,7 @@ test('legacy match paging and one period RPC preserve 2,505 registrations; no mu
   assert.equal(calls.filter(row => row.rpc === 'get_period_report_aggregates_v1').length, 1);
   assert.equal(report.totalMatches, 2505);
   assert.equal(report.previousTotalMatches, 0);
-  assert.equal(report.myDeckWinRates.find(row => row.deckId === 'B').reversed.matches, 2505);
+  assert.equal(report.myDeckWinRates.find(row => row.deckId === B).reversed.matches, 2505);
   assert.equal(report.opponentDeckRanking[0].matches, 2505);
 });
 test('exactly 1,000 results requests the final empty page', async () => {
@@ -101,7 +102,7 @@ test('non-admin cannot expand data access via includeAllUsers or scope=all', asy
 test('actual analysis page defaults to combined for all users; reverse-only filtered view renders', async () => {
   records = [record(1)];
   calls = [];
-  const html = renderToStaticMarkup(await AnalysisPage({ searchParams: Promise.resolve({ scope: 'all', myDeck: 'B', opponentDeck: 'A', turnOrder: 'second', result: 'lose' }) }));
+  const html = renderToStaticMarkup(await AnalysisPage({ searchParams: Promise.resolve({ scope: 'all', myDeck: B, opponentDeck: A, turnOrder: 'second', result: 'lose' }) }));
   assert.match(html, /勝率集計: 対戦相手反転込み/);
   assert.match(html, /対象登録戦績: 1件/);
   assert.match(html, /環境勝率/);
@@ -109,11 +110,11 @@ test('actual analysis page defaults to combined for all users; reverse-only filt
   assert.equal(calls.filter(row => row.table === 'matches').length, 0);
   const rpc = calls.find(row => row.rpc);
   assert.equal(rpc.args.p_include_reversed, true);
-  assert.equal(rpc.args.p_my_deck_id, 'B');
+  assert.equal(rpc.args.p_my_deck_id, B);
   assert.equal(rpc.args.p_turn_order, 'second');
   const mine = renderToStaticMarkup(await AnalysisPage({ searchParams: Promise.resolve({}) }));
   assert.match(mine, /勝率集計: 使用者側のみ/);
-  const direct = renderToStaticMarkup(await AnalysisPage({ searchParams: Promise.resolve({ scope: 'all', winRateMode: 'direct', myDeck: 'B' }) }));
+  const direct = renderToStaticMarkup(await AnalysisPage({ searchParams: Promise.resolve({ scope: 'all', winRateMode: 'direct', myDeck: B }) }));
   assert.match(direct, /対象登録戦績: 0件/);
 });
 
@@ -138,6 +139,21 @@ test('analysis API reuses page scoping, rejects invalid ranks before RPC and ret
   assert.equal(calls.filter(c => c.rpc).length, 1); assert.equal(calls.filter(c => c.table === 'matches').length, 0);
   failAnalysisRpc = false;
 });
+test('analysis deck API: v3 for all/single, v4 for either/both sets; invalid values fail before aggregation and errors stay errors', async () => {
+  const {GET}=require('../src/app/api/analysis/route');
+  const {getAnalysisPageData}=require('../src/lib/analysis-page-data');
+  records=[record(1),record(2,{my_archetype_id:B,opponent_archetype_id:A})];
+  for(const params of [{},{myDeck:A},{myDeckIds:B+','+A+','+B},{opponentDeckIds:A+','+B},{myDeckIds:A+','+B,opponentDeckIds:B+','+A}]){
+    calls=[];const response=await GET(new Request('http://localhost/api/analysis?'+new URLSearchParams(params)));assert.equal(response.status,200);const body=await response.json(),rpc=calls.filter(c=>c.rpc);assert.equal(rpc.length,1);
+    assert.equal(rpc[0].rpc,params.myDeckIds||params.opponentDeckIds?'get_analysis_aggregates_v4':'get_analysis_aggregates_v3');
+    assert.deepEqual(body.selectedMyDeckIds,params.myDeckIds?[A,B]:params.myDeck?[A]:null);assert.deepEqual(body.selectedOpponentDeckIds,params.opponentDeckIds?[A,B]:null);
+    if(rpc[0].rpc.endsWith('v4')){assert.deepEqual(rpc[0].args.p_my_deck_ids,body.selectedMyDeckIds);assert.deepEqual(rpc[0].args.p_opponent_deck_ids,body.selectedOpponentDeckIds);assert.equal(Object.hasOwn(rpc[0].args,'p_my_deck_id'),false);}
+  }
+  for(const query of ['myDeckIds=','myDeck=invalid','myDeckIds='+A+',','myDeckIds='+A+'&myDeck='+B,'myDeckIds='+A+'&myDeckIds='+B,'myDeckIds=00000000-0000-4000-8000-999999999999']){calls=[];assert.equal((await GET(new Request('http://localhost/api/analysis?'+query))).status,400);assert.equal(calls.filter(c=>c.rpc).length,0);}
+  calls=[];await assert.rejects(getAnalysisPageData({myDeck:[A,A]}));assert.equal(calls.filter(c=>c.rpc).length,0);
+  failAnalysisRpc=true;assert.equal((await GET(new Request('http://localhost/api/analysis?myDeckIds='+A+','+B))).status,503);failAnalysisRpc=false;
+});
+
 test('report chart and PNG content include environment rate and both breakdowns', () => {
   const report = buildWeeklyReport([record(1)], [], decks, buildWeeklyPeriod('2026-09-05'));
   const html = renderToStaticMarkup(React.createElement(WeeklyReportTables, {

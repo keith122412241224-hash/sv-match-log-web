@@ -6,6 +6,8 @@ function analysisFixture(records,args){
   const views=source.flatMap(r=>[{...r,source:'direct'},...(args.p_include_reversed?[{...r,source:'reversed',my_deck_id:r.opponent_deck_id,opponent_deck_id:r.my_deck_id,my_archetype_id:r.opponent_archetype_id,opponent_archetype_id:r.my_archetype_id,result:r.result==='win'?'lose':'win',turn_order:r.turn_order==='first'?'second':'first'}]:[])])
     .filter(r=>(!args.p_my_deck_id||(args.p_use_archetype?r.my_archetype_id:r.my_deck_id)===args.p_my_deck_id)
       &&(!args.p_opponent_deck_id||(args.p_use_archetype?r.opponent_archetype_id:r.opponent_deck_id)===args.p_opponent_deck_id)
+      &&(!args.p_my_deck_ids||args.p_my_deck_ids.includes(args.p_use_archetype?r.my_archetype_id:r.my_deck_id))
+      &&(!args.p_opponent_deck_ids||args.p_opponent_deck_ids.includes(args.p_use_archetype?r.opponent_archetype_id:r.opponent_deck_id))
       &&(!args.p_result||r.result===args.p_result)&&(!args.p_turn_order||r.turn_order===args.p_turn_order));
   const groups=new Map(),recent=new Map();
   views.forEach((v,i)=>{

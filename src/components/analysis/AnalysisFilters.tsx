@@ -1,4 +1,4 @@
-import { DeckSelectDialogField } from "@/components/DeckSelectDialog";
+import { DeckMultiSelectDialog } from "@/components/DeckMultiSelectDialog";
 import { RankMultiSelect } from "@/components/RankMultiSelect";
 import { RANK_ATOMS, type RankSelection } from "@/lib/rank-selection";
 import Link from "next/link";
@@ -13,6 +13,8 @@ import type { Environment, MatchResult, TurnOrder } from "@/types/database";
 
 export type AnalysisFilterValues = {
   environmentId: string;
+  myDeckIds?: readonly string[] | null;
+  opponentDeckIds?: readonly string[] | null;
   myDeckId: string;
   opponentDeckId: string;
   turnOrder: string;
@@ -90,11 +92,11 @@ export function AnalysisFilters({
           </Select>
         </FieldLabel>
 
-        <DeckSelectDialogField label="使用デッキ" name="myDeck" decks={decks} value={values.myDeckId}
-          allowAll disabled={pending} selectionRevision={selectionRevision} />
+        <DeckMultiSelectDialog label="使用デッキ" name="myDeck" decks={decks} value={values.myDeckIds === undefined ? values.myDeckId ? [values.myDeckId] : null : values.myDeckIds}
+          disabled={pending} selectionRevision={selectionRevision} />
 
-        <DeckSelectDialogField label="相手デッキ" name="opponentDeck" decks={decks} value={values.opponentDeckId}
-          allowAll disabled={pending} selectionRevision={selectionRevision} />
+        <DeckMultiSelectDialog label="相手デッキ" name="opponentDeck" decks={decks} value={values.opponentDeckIds === undefined ? values.opponentDeckId ? [values.opponentDeckId] : null : values.opponentDeckIds}
+          disabled={pending} selectionRevision={selectionRevision} />
 
       </div>
 

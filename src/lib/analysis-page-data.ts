@@ -1,3 +1,4 @@
+import { parseDeckSelection } from '@/lib/analysis-deck-selection';
 import { selectInitialEnvironmentId } from '@/lib/environment-selection';
 import { parseRankSelection } from '@/lib/rank-selection';
 import { isMatchResult, isTurnOrder } from '@/components/analysis/AnalysisFilters';
@@ -7,8 +8,10 @@ import { resolveWinRateMode } from '@/lib/match-perspectives';
 import { validateAnalysisDates } from '@/lib/analysis-date-query';
 export type AnalysisSearchParams = {
   environment?: string;
-  myDeck?: string;
-  opponentDeck?: string;
+  myDeck?: string | string[];
+  myDeckIds?: string | string[];
+  opponentDeck?: string | string[];
+  opponentDeckIds?: string | string[];
   turnOrder?: string;
   result?: string;
   playedFrom?: string | string[];
@@ -20,6 +23,8 @@ export type AnalysisSearchParams = {
 };
 
 export async function getAnalysisPageData(params: AnalysisSearchParams) {
+  parseDeckSelection(params.myDeck, params.myDeckIds);
+  parseDeckSelection(params.opponentDeck, params.opponentDeckIds);
   const selectedRanks = parseRankSelection(params);
   const dates = validateAnalysisDates(params);
   if (!dates.ok) throw new Error(dates.error.message);
@@ -30,16 +35,17 @@ export async function getAnalysisPageData(params: AnalysisSearchParams) {
   const [decks, archetypes] = await Promise.all([getDecks(), getActiveArchetypes()]);
   const selectedEnvironmentName = environments.find((environment) => environment.id === selectedEnvironmentId)?.name;
   const matrixDecks = archetypes.length > 0 ? archetypes : decks;
-  const filterDeckIds = new Set(matrixDecks.map((deck) => deck.id));
-  const selectedMyDeckId = params.myDeck && filterDeckIds.has(params.myDeck) ? params.myDeck : "";
-  const selectedOpponentDeckId = params.opponentDeck && filterDeckIds.has(params.opponentDeck) ? params.opponentDeck : "";
+  const selectedMyDeckIds = parseDeckSelection(params.myDeck, params.myDeckIds, matrixDecks);
+  const selectedOpponentDeckIds = parseDeckSelection(params.opponentDeck, params.opponentDeckIds, matrixDecks);
+  const selectedMyDeckId = selectedMyDeckIds?.length === 1 ? selectedMyDeckIds[0] : "";
+  const selectedOpponentDeckId = selectedOpponentDeckIds?.length === 1 ? selectedOpponentDeckIds[0] : "";
   const selectedTurnOrder = params.turnOrder && isTurnOrder(params.turnOrder) ? params.turnOrder : "";
   const selectedResult = params.result && isMatchResult(params.result) ? params.result : "";
   const { playedFrom: selectedPlayedFrom, playedTo: selectedPlayedTo } = dates.value;
   const deckIdField = archetypes.length > 0 ? "archetype" : "deck";
   const directionalFilters = {
-    myDeckId: selectedMyDeckId,
-    opponentDeckId: selectedOpponentDeckId,
+    myDeckIds: selectedMyDeckIds,
+    opponentDeckIds: selectedOpponentDeckIds,
     turnOrder: selectedTurnOrder || undefined,
     result: selectedResult || undefined,
     deckIdField
@@ -55,6 +61,6 @@ export async function getAnalysisPageData(params: AnalysisSearchParams) {
   const deckLabels = (items: typeof matrixDecks) => items.map(({ id, name, class_name }) => ({ id, name, class_name }));
   return { environments: environments.map(({ id, name }) => ({ id, name })), isAdmin, selectedRanks, selectedScope, winRateMode, selectedEnvironmentId,
     decks: deckLabels(decks), archetypes: deckLabels(archetypes), selectedEnvironmentName, matrixDecks: deckLabels(matrixDecks),
-    selectedMyDeckId, selectedOpponentDeckId, selectedTurnOrder, selectedResult, selectedPlayedFrom, selectedPlayedTo, aggregates };
+    selectedMyDeckIds, selectedOpponentDeckIds, selectedMyDeckId, selectedOpponentDeckId, selectedTurnOrder, selectedResult, selectedPlayedFrom, selectedPlayedTo, aggregates };
 }
 export type AnalysisPageData = Awaited<ReturnType<typeof getAnalysisPageData>>;

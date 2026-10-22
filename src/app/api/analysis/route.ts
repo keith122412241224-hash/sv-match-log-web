@@ -1,3 +1,4 @@
+import { DeckSelectionError } from "@/lib/analysis-deck-selection";
 import { getCurrentUser } from "@/lib/data";
 import { getAnalysisPageData, type AnalysisSearchParams } from "@/lib/analysis-page-data";
 import { parseRankSelection } from "@/lib/rank-selection";
@@ -7,7 +8,7 @@ export async function GET(request: Request) {
   const headers = { "Cache-Control": "private, no-store", Vary: "Cookie" };
   if (!await getCurrentUser()) return Response.json({ error: "ログインが必要です。" }, { status: 401, headers });
   const query = new URL(request.url).searchParams;
-  const allowed = ["environment", "myDeck", "opponentDeck", "turnOrder", "result", "playedFrom", "playedTo", "scope", "winRateMode", "rank", "ranks"];
+  const allowed = ["environment", "myDeck", "opponentDeck", "myDeckIds", "opponentDeckIds", "turnOrder", "result", "playedFrom", "playedTo", "scope", "winRateMode", "rank", "ranks"];
   const params = Object.fromEntries(query) as AnalysisSearchParams;
   const dates = validateAnalysisDates(analysisDatesFromQuery(query));
   if (!dates.ok) return Response.json({ error: dates.error.message, field: dates.error.field }, { status: 400, headers });
@@ -17,7 +18,8 @@ export async function GET(request: Request) {
   } catch { return Response.json({ error: "絞り込み条件が不正です。" }, { status: 400, headers }); }
   try {
     return Response.json(await getAnalysisPageData(params), { headers });
-  } catch {
+  } catch (error) {
+    if (error instanceof DeckSelectionError) return Response.json({ error: error.message }, { status: 400, headers });
     return Response.json({ error: "分析データを取得できませんでした。" }, { status: 503, headers });
   }
 }

@@ -55,7 +55,16 @@ test('member matrix: full migrations preserve existing policies, table grants, f
     tables:(await database.query("select n.nspname,c.relname,c.relacl::text,c.relrowsecurity,c.relforcerowsecurity from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname in ('public','private') and c.relkind='r' order by 1,2")).rows,
     functions:(await database.query("select n.nspname,p.proname,pg_get_functiondef(p.oid) def,p.proacl::text acl from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname in ('public','private') and p.proname<>'get_member_matchup_aggregates_v1' order by 1,2,p.oid")).rows
   });
-  const setupResult=await setup({beforeMigration:async(database,file)=>{if(file===h.migration.split('/').at(-1))before=await catalog(database);}});
+  const setupResult=await setup({beforeMigration:async(database,file)=>{if(file===h.migration.split('/').at(-1))before=await catalog(database);},afterMigration:async(database,file)=>{
+    if(file===h.migration.split('/').at(-1))assert.deepEqual(await catalog(database),before);
+    if(file==='20261022050000_analysis_deck_sets.sql'){
+      require('./analysis-deck-multi-scope.cjs').assertReviewed('supabase/migrations/'+file);
+      const current=await catalog(database),added=current.functions.filter(f=>f.proname==='get_analysis_aggregates_v4');
+      assert.equal(added.length,1);
+      assert.deepEqual({...current,functions:current.functions.filter(f=>f.proname!=='get_analysis_aggregates_v4')},before,'later additive analysis RPC preserves every existing policy/grant/function');
+      before=current;
+    }
+  }});
   const database=setupResult.db;t.after(()=>database.close());assert.deepEqual(await catalog(database),before);
   const direct=(schema='public',ranks=RANK_ATOMS,env=ids.env)=>database.query(`select ${schema}.get_member_matchup_aggregates_v1($1::uuid,$2::text[]) as data`,[env,ranks]);
   const sourceBefore=(await database.query('select * from public.matches order by id')).rows;

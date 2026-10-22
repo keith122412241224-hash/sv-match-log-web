@@ -1,4 +1,5 @@
 "use client";
+import { canonicalDeckQuery } from "@/lib/analysis-deck-selection";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { DeckAnalysisCards } from "@/components/analysis/DeckAnalysisCards";
 import { ExportableAnalysisBlock } from "@/components/analysis/ExportableAnalysisBlock";
@@ -26,6 +27,7 @@ export function AnalysisDashboard({ initialData, initialQuery }: { initialData: 
   const [summarySort, setSummarySort] = useState<SummarySort>("count");
   const [minimumCount, setMinimumCount] = useState(0);
   const [periodPreset, setPeriodPreset] = useState(new URLSearchParams(initialQuery).get('periodPreset') ?? undefined);
+  const catalog = useRef(initialData.matrixDecks);
   const currentQuery = useRef(initialQuery), serverData = useRef(initialData);
   const load = useCallback(async (query: URLSearchParams, updateUrl: boolean) => {
     controller.current?.abort();
@@ -36,6 +38,7 @@ export function AnalysisDashboard({ initialData, initialQuery }: { initialData: 
       setInvalidDateQuery(query.toString()); setPending(false); return;
     }
     try {
+      query = canonicalDeckQuery(query, catalog.current);
       const ranks = parseRankSelection(Object.fromEntries(query));
       // The preset is presentation metadata in the URL; the existing API accepts dates only.
       const apiQuery = new URLSearchParams(query); apiQuery.delete('periodPreset');
@@ -43,26 +46,38 @@ export function AnalysisDashboard({ initialData, initialQuery }: { initialData: 
       if (!response.ok) throw new Error();
       const next = await response.json() as AnalysisPageData;
       if (serializeRankSelection(next.selectedRanks) !== serializeRankSelection(ranks)) throw new Error();
+      const accepted = new URLSearchParams();
+      if (next.selectedMyDeckIds) accepted.set('myDeckIds', next.selectedMyDeckIds.join(','));
+      if (next.selectedOpponentDeckIds) accepted.set('opponentDeckIds', next.selectedOpponentDeckIds.join(','));
+      const expected = canonicalDeckQuery(accepted, next.matrixDecks);
+      for (const key of ['myDeck', 'myDeckIds', 'opponentDeck', 'opponentDeckIds']) if (query.get(key) !== expected.get(key)) throw new Error();
       next.aggregates = parseAnalysisAggregates(next.aggregates, next.matrixDecks.map(d => d.id));
       if (!request.signal.aborted) {
+        catalog.current = next.matrixDecks;
         setData(next); currentQuery.current = query.toString();
         setPeriodPreset(query.get('periodPreset') ?? undefined);
         setInvalidDateQuery(null);
-        if (updateUrl) window.history.replaceState(window.history.state, '', '/analysis?' + query);
+        if (updateUrl || new URLSearchParams(window.location.search).toString() !== query.toString()) window.history.replaceState(window.history.state, '', '/analysis?' + query);
       }
     } catch { if (!request.signal.aborted) setFailed(true); }
     finally { if (!request.signal.aborted) setPending(false); }
   }, []);
   useLayoutEffect(() => {
-    const query = new URLSearchParams(window.location.search);
+    let query = new URLSearchParams(window.location.search);
+    let canonicalInitial: string;
+    try {
+      query = canonicalDeckQuery(query, initialData.matrixDecks);
+      canonicalInitial = canonicalDeckQuery(new URLSearchParams(initialQuery), initialData.matrixDecks).toString();
+    } catch { void load(query, false); return; }
+    if (query.toString() !== new URLSearchParams(window.location.search).toString()) window.history.replaceState(window.history.state, '', '/analysis?' + query);
     // A history entry changed by client Apply can retain an older RSC payload.
     // Never install that payload over the selection named by the restored URL.
-    if (queryKey(initialQuery) !== queryKey(query.toString())) {
+    if (queryKey(canonicalInitial) !== queryKey(query.toString())) {
       if (queryKey(currentQuery.current) !== queryKey(query.toString())) void load(query, false);
       return;
     }
-    if (serverData.current === initialData) return;
-    serverData.current = initialData;
+    if (serverData.current === initialData) { currentQuery.current = query.toString(); return; }
+    serverData.current = initialData; catalog.current = initialData.matrixDecks;
     controller.current?.abort();
     currentQuery.current = query.toString();
     setData(initialData); setPending(false); setFailed(false);
@@ -142,6 +157,8 @@ export function AnalysisDashboard({ initialData, initialQuery }: { initialData: 
           periodPreset={periodPreset}
           values={{
             environmentId: selectedEnvironmentId,
+            myDeckIds: data.selectedMyDeckIds,
+            opponentDeckIds: data.selectedOpponentDeckIds,
             myDeckId: selectedMyDeckId,
             opponentDeckId: selectedOpponentDeckId,
             turnOrder: selectedTurnOrder,
@@ -155,7 +172,7 @@ export function AnalysisDashboard({ initialData, initialQuery }: { initialData: 
         />
 
         {pending && <p role="status" className="text-sm text-muted">分析条件を適用中…</p>}
-        {failed && <p role="alert" className="text-sm text-red-700">分析データを取得できませんでした。もう一度条件を適用してください。</p>}
+        {failed && <p role="alert" className="text-sm text-red-700">分析データを取得できませんでした。表示中の集計は前回の条件です。もう一度条件を適用してください。</p>}
         <p className="text-sm text-muted">
           勝率集計: {winRateMode === "combined" ? "対戦相手反転込み" : "使用者側のみ"} / 対象登録戦績: {registeredMatches}件。
           {winRateMode === "combined" ? "デッキ・先後・勝敗の条件は集計する側の視点に適用します。各デッキの対象件数は視点数で、同デッキ対戦は両側を含みます。" : ""}
