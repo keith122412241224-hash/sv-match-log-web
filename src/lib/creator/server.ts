@@ -28,14 +28,14 @@ export async function requireCreatorPage() {
 
 export function databaseError(error: { code?: string; message: string } | null) {
   if (!error) return;
-  if (error.code === "23503") throw new CreatorError("Tier表・相関図で使用中の画像は削除できません。または参照先が削除されています。再読み込みして確認してください。", 409);
+  if (error.code === "23503") throw new CreatorError("Tier表・相関図・OBSセットで使用中です。参照元から外すか別の作品へ変更してから削除してください。参照先が見つからない場合は再読み込みしてください。", 409);
   if (error.code === "23505") throw new CreatorError("同じTier表の相関図が既に存在します。再読み込みして編集してください。", 409);
   if (error.code === "23514" || error.code === "22P02") throw new CreatorError("保存データが不正です。入力内容を確認してください。");
   throw new CreatorError("データを処理できませんでした。接続と制作ツール用migrationの適用状況を確認してください。", 503);
 }
 
 type Client = Awaited<ReturnType<typeof creatorClient>>["client"];
-async function creatorPage<T>(client: Client, table: "creator_images" | "creator_tier_works", cursor: string | null, columns: string): Promise<CreatorPage<T>> {
+export async function creatorPage<T>(client: Client, table: "creator_images" | "creator_tier_works" | "creator_correlations" | "creator_obs_sets", cursor: string | null, columns: string): Promise<CreatorPage<T>> {
   const boundary = parseCreatorCursor(cursor), column = table === "creator_images" ? "created_at" : "updated_at";
   const query = () => client.from(table).select(columns).order(column, { ascending: false }).order("id", { ascending: false });
   const after = (q: ReturnType<typeof query>, b: { time: string; id: string }) => q.or(`${column}.lt.${b.time},and(${column}.eq.${b.time},id.lt.${b.id})`);

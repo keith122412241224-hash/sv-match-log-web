@@ -58,13 +58,19 @@ async function main() {
           res.writeHead(200, { 'Content-Type': object.type }); res.end(object.bytes); return;
         }
         const table = url.pathname.split('/').at(-1);
-        if (!['admin_users', 'deck_archetypes', 'creator_images', 'creator_tier_works', 'creator_tier_image_refs', 'creator_storage_cleanup', 'creator_correlations', 'creator_correlation_image_refs'].includes(table)) throw Error('Unexpected table: ' + table);
+        if (!['admin_users', 'deck_archetypes', 'creator_images', 'creator_tier_works', 'creator_tier_image_refs', 'creator_storage_cleanup', 'creator_correlations', 'creator_correlation_image_refs', 'creator_obs_sets'].includes(table)) throw Error('Unexpected table: ' + table);
         const values = [], where = [];
         for (const [column, filter] of url.searchParams) {
           if (['select', 'order', 'limit', 'offset'].includes(column)) continue;
+          if (column === 'or') {
+            const m = /^\((created_at|updated_at)\.lt\.([^,]+),and\(\1\.eq\.\2,id\.lt\.([a-f0-9-]+)\)\)$/.exec(filter);
+            assert(m, 'strict keyset filter'); values.push(m[2], m[3]);
+            where.push(`(${m[1]}<$${values.length-1} or (${m[1]}=$${values.length-1} and id<$${values.length}))`); continue;
+          }
           assert.match(column, /^[a-z_]+$/);
           if (filter.startsWith('eq.')) { values.push(filter.slice(3)); where.push(`${column}=$${values.length}`); }
           else if (filter.startsWith('lt.')) { values.push(filter.slice(3)); where.push(`${column}<$${values.length}`); }
+          else if (filter.startsWith('gt.')) { values.push(filter.slice(3)); where.push(`${column}>$${values.length}`); }
           else if (filter.startsWith('in.(')) { values.push(filter.slice(4, -1).split(',')); where.push(`${column}=any($${values.length}::uuid[])`); }
           else throw Error('Unexpected filter ' + filter);
         }
@@ -72,7 +78,7 @@ async function main() {
         let sql;
         if (req.method === 'GET' || req.method === 'HEAD') {
           sql = `select * from public.${table}${condition}`;
-          if (url.searchParams.has('order')) { const [column, direction] = url.searchParams.get('order').split('.'); assert.match(column, /^[a-z_]+$/); sql += ` order by ${column} ${direction === 'desc' ? 'desc' : 'asc'}`; }
+          if (url.searchParams.has('order')) { sql += ' order by '+url.searchParams.get('order').split(',').map(term=>{const [column,direction]=term.split('.');assert.match(column,/^[a-z_]+$/);return `${column} ${direction==='desc'?'desc':'asc'}`;}).join(','); }
           if (url.searchParams.has('limit')) sql += ' limit ' + Number(url.searchParams.get('limit'));
         } else if (req.method === 'DELETE') sql = `delete from public.${table}${condition} returning *`;
         else {
@@ -81,8 +87,11 @@ async function main() {
           sql = req.method === 'POST' ? `insert into public.${table}(${columns.join(',')}) values(${slots.join(',')}) returning *` : `update public.${table} set ${columns.map((c,i) => c + '=' + slots[i]).join(',')}${condition} returning *`;
         }
         const { rows } = await db.query(sql, values);
+        if(table==='creator_storage_cleanup') (report.cleanupTrace??=[]).push({method:req.method,rows:rows.map(r=>({ready_after:r.ready_after,object_path:r.object_path})),values});
         // getIsAdmin queries own row; mirror that behavior even on this small fixture.
-        const result = table === 'admin_users' && mode !== 'admin' ? [] : rows;
+        let result = table === 'admin_users' && mode !== 'admin' ? [] : rows;
+        const projection=url.searchParams.get('select');
+        if(projection && projection!=='*')result=result.map(row=>Object.fromEntries(projection.split(',').map(column=>column==='title:document->>title'?['title',row.document?.title??null]:[column,row[column]])));
         if (req.headers.accept?.includes('vnd.pgrst.object')) return result.length ? json(res, 200, result[0]) : json(res, 406, { code: 'PGRST116', details: 'The result contains 0 rows', message: '0 rows' });
         return json(res, 200, result);
       } catch (error) {
@@ -93,7 +102,7 @@ async function main() {
   });
   await new Promise(resolve => api.listen(54339, '127.0.0.1', resolve));
   const log = fs.openSync(path.join(out, 'server.log'), 'w');
-  const app = spawn(process.execPath, [require.resolve('next/dist/bin/next'), 'start', '-p', '3296'], { windowsHide: true, stdio: ['ignore', log, log], env: { ...process.env, NEXT_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:54339', NEXT_PUBLIC_SUPABASE_ANON_KEY: 'test-public-key', NEXT_TELEMETRY_DISABLED: '1' } });
+  const app = spawn(process.execPath, [require.resolve('next/dist/bin/next'), 'start', '-p', '3296'], { cwd:process.env.CREATOR_APP_ROOT||process.cwd(), windowsHide: true, stdio: ['ignore', log, log], env: { ...process.env, NEXT_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:54339', NEXT_PUBLIC_SUPABASE_ANON_KEY: 'test-public-key', NEXT_TELEMETRY_DISABLED: '1' } });
   let browser;
   try {
     for (let i = 0; i < 100; i++) { try { if ((await fetch(origin + '/privacy')).ok) break; } catch {} await new Promise(r => setTimeout(r, 200)); }
@@ -112,6 +121,10 @@ async function main() {
     const transparent = await sharp({ create: { width: 128, height: 128, channels: 4, background: { r: 255, g: 0, b: 0, alpha: 0.5 } } }).png().toBuffer();
     const jpeg = await sharp(png).jpeg().toBuffer(), webp = await sharp(png).webp().toBuffer();
     const files = [{ name: 'デッキ.png', mimeType: 'image/png', buffer: png }, { name: '透明.png', mimeType: 'image/png', buffer: transparent }, { name: 'デッキ.jpg', mimeType: 'image/jpeg', buffer: jpeg }, { name: 'デッキ.webp', mimeType: 'image/webp', buffer: webp }];
+    if(process.env.CREATOR_INDEPENDENT==='1'){
+      await require('./creator-independent.browser.cjs')({page,context,db,origin,report,out,observe,files,objects,setMode:v=>{mode=v;}});
+      assert.deepEqual(report.events,[]);assert.deepEqual(report.unexpected,[]);return;
+    }
     if(process.env.CREATOR_CORRELATION_DISPLAY==='1'){
       await require('./correlation-display.browser.cjs')({page,context,db,origin,report,out,observe});
       assert.deepEqual(report.events,[]);assert.deepEqual(report.unexpected,[]);return;
@@ -238,7 +251,14 @@ async function main() {
     assert.equal((await db.query('select object_path from public.creator_images where id=$1',[image.id])).rows[0].object_path,updated.object_path);
     failDelete=true;
     const replacement = await context.request.post(origin+'/admin/creator/api',{headers:{Origin:origin},multipart:{file:files[0],id:updated.id,revision:String(updated.revision)}}); assert.equal(replacement.status(),200);
-    assert.ok((await replacement.json()).warning); failDelete=false;
+    let cleanupWarning=(await replacement.json()).warning;
+    // PostgreSQL keeps microseconds while the API cleanup boundary has milliseconds.
+    // A just-enqueued obsolete object can legitimately await the next cleanup pass.
+    if(!cleanupWarning){
+      const queued=await db.query("update creator_storage_cleanup set ready_after=clock_timestamp()-interval '1 second' where object_path=$1 returning *",[updated.object_path]);assert.equal(queued.rows.length,1);
+      const retry=await apiPost({action:'cleanup'});assert.equal(retry.status(),200);cleanupWarning=(await retry.json()).warning;
+    }
+    assert.ok(cleanupWarning); failDelete=false;
     assert.equal((await apiPost({action:'cleanup'})).status(),200);
     const referenced = (await db.query('select i.* from public.creator_images i join public.creator_tier_image_refs r on r.image_id=i.id limit 1')).rows[0];
     assert.equal((await apiPost({action:'delete-image',id:referenced.id,revision:referenced.revision})).status(),409);

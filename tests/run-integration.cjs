@@ -7,7 +7,7 @@ const fs = require('node:fs'), path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const root = path.resolve(__dirname, '..');
 const files = [
-  'analysis-rank', 'analysis-rpc', 'correlation', 'creator-matchups', 'creator-ux',
+  'creator-independent', 'analysis-rank', 'analysis-rpc', 'correlation', 'creator-matchups', 'creator-ux',
   'creator', 'environment-dashboard-v4', 'guest-import', 'matchup-rank',
   'matchup-rpc', 'obs-matchups', 'period-report-environment', 'period-report-rank',
   'period-report-rpc', 'rank-save', 'match-mutations', 'environment-dashboard-v4-admin',

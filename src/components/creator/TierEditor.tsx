@@ -13,7 +13,7 @@ import { CreatorPager, useCreatorPage } from "./CreatorPager";
 import styles from "./Creator.module.css";
 
 type Data = { imagePage: ImagePage; workPage: CreatorPage<TierSummary>; decks: { id: string; name: string }[]; selection: TierSelection | null };
-export function TierEditor({ initial, initialDocument }: { initial: Data; initialDocument: TierDocument }) {
+export function TierEditor({ initial, initialDocument, libraryOnly = false }: { initial: Data; initialDocument: TierDocument; libraryOnly?: boolean }) {
   const router = useRouter();
   const initialWork = initial.selection?.work ?? null;
   const imageList = useCreatorPage<CreatorImage, ImagePage>("images", initial.imagePage);
@@ -136,9 +136,9 @@ export function TierEditor({ initial, initialDocument }: { initial: Data; initia
     });
   }
   return <main className={styles.page}>
-    <header className={styles.header}><div><p className={styles.muted}>コンテンツ制作</p><h1>Tier表メーカー</h1><p className={styles.muted}>画像を置いて、名前を整えて、PNG・OBSへ。</p></div><Link href="/admin?section=tools" className={styles.button} onClick={e => { if (dirty && !window.confirm("未保存の変更を破棄して管理画面へ戻りますか？")) e.preventDefault(); }}>管理画面へ</Link></header>
+    <header className={styles.header}><div><p className={styles.muted}>コンテンツ制作</p><h1>{libraryOnly ? "共通画像ライブラリ" : "Tier表メーカー"}</h1><p className={styles.muted}>{libraryOnly ? "Tier表と相関図で使う画像を追加・管理できます。" : "画像を置いて、名前を整えて、PNG・OBSへ。"}</p></div><div className={styles.toolbar}><Link href="/admin/creator" className={styles.button} onClick={e=>{if(!confirmLeave())e.preventDefault();}}>クリエイターツールへ</Link><Link href="/admin?section=tools" className={styles.button} onClick={e => { if (dirty && !window.confirm("未保存の変更を破棄して管理画面へ戻りますか？")) e.preventDefault(); }}>管理画面へ</Link></div></header>
     {notice && <p role={notice.error ? "alert" : "status"} className={`${styles.notice} ${notice.error ? styles.error : ""}`}>{notice.text}</p>}
-    <div className={styles.toolbar} aria-busy={busy}>
+    {!libraryOnly && <div className={styles.toolbar} aria-busy={busy}>
       <button disabled={busy} onClick={() => openWork(null)}>新しいTier表</button>
       <button className={styles.primary} disabled={busy} onClick={() => void run(async () => {
         const result = await request({ action: "save", id: current?.id, revision: current?.revision, document: parseTierDocument(doc) });
@@ -153,19 +153,19 @@ export function TierEditor({ initial, initialDocument }: { initial: Data; initia
       {current && hasCorrelation(current.id) && <a className={styles.button} href={`/admin/obs/set/${current.id}${transparent ? "?transparent=1" : ""}`} target="_blank" rel="noreferrer">セットOBS</a>}
       <span className={styles.muted}>{dirty ? "未保存の変更あり" : current ? "保存済み" : "新規作品"}</span>
       {dirty && current && <span className={styles.muted}>相関図へ進む前にTier表を保存してください。</span>}
-    </div>
-    <section className={`${styles.panel} ${styles.productionBoard}`} aria-label="Tier編集">
-      <div className={styles.boardHeading}>
+    </div>}
+    <section className={`${styles.panel} ${styles.productionBoard}`} aria-label={libraryOnly ? "共通画像の管理" : "Tier編集"}>
+      {!libraryOnly && <><div className={styles.boardHeading}>
       <label>作品タイトル<input value={doc.title} maxLength={120} disabled={busy} onChange={e=>edit({...doc,title:e.target.value})} /></label>
       <div className={styles.toolbar}>
         <label className={styles.check}><input type="checkbox" checked={doc.showTitle} disabled={busy} onChange={e=>edit({...doc,showTitle:e.target.checked})} />タイトルを表示</label>
         <label className={styles.check}><input type="checkbox" checked={transparent} disabled={busy} onChange={e=>setTransparent(e.target.checked)} />PNG・OBSの背景を透明にする</label>
       </div>
       </div>
-      <div ref={preview}><TierCanvas document={doc} images={data.images} transparent={transparent} disabled={busy} selected={selected} onSelect={setSelected} onRow={setActiveRow} onName={(id,name)=>setRow(id,{name})} onPlace={place} /></div>
+      <div ref={preview}><TierCanvas document={doc} images={data.images} transparent={transparent} disabled={busy} selected={selected} onSelect={setSelected} onRow={setActiveRow} onName={(id,name)=>setRow(id,{name})} onPlace={place} /></div></>}
       <ImageLibrary images={imageList.page.items} decks={data.decks} busy={busy} pending={pending} onUpload={upload} onMutation={mutation} onSelect={setSelected}
         pagination={<CreatorPager label="画像" index={imageList.index} hasNext={!!imageList.page.nextCursor} busy={busy} loading={imageList.loading} error={imageList.error} onPage={index => void run(async () => { await imageList.load(index); setSelected(null); })} onRetry={() => void run(() => imageList.load(imageList.retryTarget))} />} />
-      <p className={styles.muted}>画像をTierへドラッグ。表全体を画面に合わせて表示しています。PNG・OBSは1920×1080です。</p>
+      {!libraryOnly && <><p className={styles.muted}>画像をTierへドラッグ。表全体を画面に合わせて表示しています。PNG・OBSは1920×1080です。</p>
       <div className={styles.toolbar}>
         <label>編集するTier<select aria-label="編集するTier" value={row.id} disabled={busy} onChange={e=>setActiveRow(e.target.value)}>{doc.rows.map(r=><option key={r.id} value={r.id}>{r.name}</option>)}</select></label>
         <label>背景色<input aria-label={(rowIndex+1)+"行目の背景色"} type="color" value={row.color} disabled={busy} onChange={e=>setRow(row.id,{color:e.target.value})} /></label>
@@ -185,10 +185,10 @@ export function TierEditor({ initial, initialDocument }: { initial: Data; initia
           </>}
           <button onClick={()=>setSelected(null)}>選択を解除</button>
         </div>
-      </div>}
+      </div>}</>}
     </section>
-    <section className={styles.panel} aria-label="保存済み作品"><h2>保存済みTier表</h2>{!workList.page.items.length && <p className={styles.muted}>このページに作品はありません。</p>}{workList.page.items.map(work => <div key={work.id} className={styles.work}><div><strong>{work.title || "無題のTier表"}</strong><p className={styles.muted}>{new Date(work.updated_at).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })}（日本時間）</p></div><div className={styles.toolbar}><button disabled={busy} onClick={() => openWork(work)}>再編集</button><button disabled={busy} onClick={() => openCorrelation(work)}>{hasCorrelation(work.id) ? "相関図を編集" : "相関図を追加"}</button><button disabled={busy} onClick={() => mutation({ action: "delete-work", id: work.id, revision: work.revision }, "保存済みのTier表を削除しますか？関連する相関図がある場合は先に相関図を削除してください。")}>作品を削除</button></div></div>)}
+    {!libraryOnly && <section className={styles.panel} aria-label="保存済み作品"><h2>保存済みTier表</h2>{!workList.page.items.length && <p className={styles.muted}>このページに作品はありません。</p>}{workList.page.items.map(work => <div key={work.id} className={styles.work}><div><strong>{work.title || "無題のTier表"}</strong><p className={styles.muted}>{new Date(work.updated_at).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })}（日本時間）</p></div><div className={styles.toolbar}><button disabled={busy} onClick={() => openWork(work)}>再編集</button><button disabled={busy} onClick={() => openCorrelation(work)}>{hasCorrelation(work.id) ? "相関図を編集" : "相関図を追加"}</button><button disabled={busy} onClick={() => mutation({ action: "delete-work", id: work.id, revision: work.revision }, "保存済みのTier表を削除しますか？関連する相関図やOBSセットから先に外してください。")}>作品を削除</button></div></div>)}
       <CreatorPager label="作品" index={workList.index} hasNext={!!workList.page.nextCursor} busy={busy} loading={workList.loading} error={workList.error} onPage={index => void run(() => workList.load(index))} onRetry={() => void run(() => workList.load(workList.retryTarget))} />
-    </section>
+    </section>}
   </main>;
 }

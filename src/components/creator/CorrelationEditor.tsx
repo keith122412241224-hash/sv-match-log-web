@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import type { CreatorImage, TierWork } from "@/lib/creator/model";
-import { boundNode, parseCorrelation, removeNode, type CorrelationDocument, type CorrelationEdge, type CorrelationNode, type CorrelationWork } from "@/lib/creator/correlation";
+import { boundNode, newCorrelationDocument, parseCorrelation, removeNode, type CorrelationDocument, type CorrelationEdge, type CorrelationNode, type CorrelationWork } from "@/lib/creator/correlation";
 import { linkedDeck, matchupCandidates, sameSelection, withAutomaticData, type DataSelection, type MatchupCandidate, type MatchupData } from "@/lib/creator/matchup-data";
 import { DASHBOARD_PERIODS, dashboardPeriodLabel } from "@/lib/environment-dashboard-period";
 import { RANK_ATOMS } from "@/lib/rank-selection";
@@ -16,18 +16,19 @@ import { mergeCreatorImages, type ImagePage } from "@/lib/creator/pagination";
 import { CreatorPager, useCreatorPage } from "./CreatorPager";
 import styles from "./Creator.module.css";
 
-export function CorrelationEditor({ tier, initial, images: initialImages, library, displayNames: initialNames = {}, environments, defaultEnvironment }: { tier: TierWork; initial: CorrelationWork; images: CreatorImage[]; library: ImagePage; displayNames?: Record<string,string>; environments: {id:string;name:string}[]; defaultEnvironment:string }) {
+export function CorrelationEditor({ tier, initial, images: initialImages, library, displayNames: initialNames = {}, environments, defaultEnvironment }: { tier: TierWork | null; initial: CorrelationWork | null; images: CreatorImage[]; library: ImagePage; displayNames?: Record<string,string>; environments: {id:string;name:string}[]; defaultEnvironment:string }) {
   const router = useRouter();
   const imageList = useCreatorPage<CreatorImage, ImagePage>("images", library);
   const [references, setReferences] = useState(initialImages);
   const [referenceNames, setReferenceNames] = useState(initialNames);
   const images = mergeCreatorImages(references, imageList.page.items);
   const displayNames = { ...referenceNames, ...imageList.page.displayNames };
-  const [work,setWork] = useState(initial), [doc,setDoc] = useState(initial.document);
+  const initialDocument = initial?.document ?? newCorrelationDocument();
+  const [work,setWork] = useState(initial), [doc,setDoc] = useState(initialDocument);
   const [dirty,setDirty] = useState(false), [busy,setBusy] = useState(false), [transparent,setTransparent] = useState(false);
-  const [selected,setSelected] = useState(initial.document.nodes[0]?.id ?? "");
+  const [selected,setSelected] = useState(initialDocument.nodes[0]?.id ?? "");
   const [actualSize,setActualSize] = useState(false);
-  const [source,setSource] = useState(initial.document.nodes[0]?.id ?? ""), [target,setTarget] = useState(initial.document.nodes[1]?.id ?? "");
+  const [source,setSource] = useState(initialDocument.nodes[0]?.id ?? ""), [target,setTarget] = useState(initialDocument.nodes[1]?.id ?? "");
   const [asset,setAsset] = useState(library.items[0]?.id ?? "");
   const [notice,setNotice] = useState<{ error: boolean; text: string } | null>(null);
   const [candidates,setCandidates]=useState<MatchupCandidate[]|null>(null), [chosen,setChosen]=useState<string[]>([]);
@@ -79,7 +80,7 @@ export function CorrelationEditor({ tier, initial, images: initialImages, librar
   }
   function dataStatus(edge:CorrelationEdge) {
     const a=linkedDeck(doc,edge.sourceNodeId,images),b=linkedDeck(doc,edge.targetNodeId,images),snapshot=edge.dataSnapshot;
-    if(!a||!b)return "デッキ未設定 — Tier表の画像管理で標準デッキを選択するか、手動入力をご利用ください。";
+    if(!a||!b)return "デッキ未設定 — 共通画像ライブラリで標準デッキを選択するか、手動入力をご利用ください。";
     if(edge.dataSource!=="auto")return "手動入力";
     if(!snapshot)return "未取得 — データを更新してください。手動入力にも切り替えられます。";
     if(!sameSelection(selection,snapshot.selection)||a!==snapshot.sourceDeckId||b!==snapshot.targetDeckId)return "条件が変更されています — 表示中の値を更新するには「データを更新」を押してください。";
@@ -87,20 +88,21 @@ export function CorrelationEditor({ tier, initial, images: initialImages, librar
   }
   const obsQuery = transparent ? "?transparent=1" : "";
   return <main className={styles.page}>
-    <header className={styles.header}><div><p className={styles.muted}>環境解説セット · Tier表 → 相関図</p><h1>相関図を編集</h1><p className="break-words">{tier.document.title || "無題のTier表"}</p></div><Link className={styles.button} href={`/admin/creator/tier?work=${tier.id}`} onClick={e => { if (busy || !confirmLeave()) e.preventDefault(); }}>Tier表に戻る</Link></header>
+    <header className={styles.header}><div><p className={styles.muted}>相関図メーカー</p><h1>{work ? "相関図を編集" : "新しい相関図"}</h1><p className="break-words">{tier ? `作成元：${tier.document.title || "無題のTier表"}` : "画像を配置して、自由に相性をつなげます。"}</p></div><div className={styles.toolbar}>{tier && <Link className={styles.button} href={`/admin/creator/tier?work=${tier.id}`} onClick={e => { if (busy || !confirmLeave()) e.preventDefault(); }}>Tier表に戻る</Link>}<Link className={styles.button} href="/admin/creator/correlation" onClick={e=>{if(busy||!confirmLeave())e.preventDefault();}}>相関図一覧へ</Link></div></header>
     {notice && <p role={notice.error ? "alert" : "status"} className={`${styles.notice} ${notice.error ? styles.error : ""}`}>{notice.text}</p>}
     <div className={styles.toolbar} aria-busy={busy}>
       <button className={styles.primary} disabled={busy} onClick={() => void run(async () => {
-        const result = await request({ action: "save-correlation", id: work.id, revision: work.revision, document: parseCorrelation(doc) });
+        const result = await request({ action: "save-correlation", id: work?.id, revision: work?.revision, document: parseCorrelation(doc) });
+        if (!work) window.history.replaceState(null, "", `/admin/creator/correlation/${result.correlation.id}`);
         setWork(result.correlation); setDirty(false); setNotice({ error: false, text: "相関図を保存しました。OBSを再読み込みすると反映されます。" });
       })}>{busy ? "処理中…" : "相関図を保存"}</button>
       <button disabled={busy} onClick={() => void run(async () => {
         const artwork = preview.current?.querySelector<HTMLElement>("[data-correlation-artwork]");
         if (artwork) { await saveArtworkPng(artwork,"correlation"); setNotice({ error: false, text: "相関図PNG（1920×1080）を出力しました。" }); }
       })}>相関図PNG</button>
-      <a className={styles.button} href={`/admin/obs/set/${tier.id}${obsQuery}`} target="_blank" rel="noreferrer">セットOBS</a>
-      <a className={styles.button} href={`/admin/obs/correlation/${tier.id}${obsQuery}`} target="_blank" rel="noreferrer">相関図OBS</a>
-      <span className={styles.muted}>{dirty ? "未保存の変更あり" : "保存済み"}</span>
+      {tier && work && <a className={styles.button} href={`/admin/obs/set/${tier.id}${obsQuery}`} target="_blank" rel="noreferrer">セットOBS</a>}
+      {work && <a className={styles.button} href={`${tier ? `/admin/obs/correlation/${tier.id}` : `/admin/obs/correlation-work/${work.id}`}${obsQuery}`} target="_blank" rel="noreferrer">相関図OBS</a>}
+      <span className={styles.muted}>{dirty ? "未保存の変更あり" : work ? "保存済み" : "新規作品（未保存）"}</span>
     </div>
     <div className={styles.correlationColumns}>
       <section className={styles.panel} aria-label="相関図キャンバス">
@@ -110,7 +112,7 @@ export function CorrelationEditor({ tier, initial, images: initialImages, librar
         <button type="button" aria-pressed={actualSize} onClick={() => setActualSize(value => !value)}>原寸で確認</button>
         {actualSize && <p className={styles.muted}>上下左右にスクロールして、PNG・OBSと同じ文字サイズを確認できます。</p>}
         <div ref={preview} data-correlation-preview style={{ overflow: "auto", maxHeight: actualSize ? "70vh" : undefined }}>
-          <div style={{ width: actualSize ? 1920 : "100%" }}><CorrelationCanvas document={doc} images={images} displayNames={displayNames} title={tier.document.title} transparent={transparent} selectedId={selected} onSelect={setSelected} onMove={move} disabled={busy} /></div>
+          <div style={{ width: actualSize ? 1920 : "100%" }}><CorrelationCanvas document={doc} images={images} displayNames={displayNames} title={tier?.document.title ?? doc.title ?? ""} transparent={transparent} selectedId={selected} onSelect={setSelected} onMove={move} disabled={busy} /></div>
         </div>
         <div className={styles.toolbar}>
           <label className={styles.check}><input type="checkbox" checked={doc.showTitle} disabled={busy} onChange={e => edit({ ...doc,showTitle:e.target.checked })} />相関図タイトルを表示</label>
@@ -131,7 +133,8 @@ export function CorrelationEditor({ tier, initial, images: initialImages, librar
         <label>ライブラリの画像<select aria-label="追加する画像" value={asset} disabled={busy} onChange={e => setAsset(e.target.value)}><option value="">選択してください</option>{imageList.page.items.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}</select></label>
         <CreatorPager label="画像" index={imageList.index} hasNext={!!imageList.page.nextCursor} busy={busy} loading={imageList.loading} error={imageList.error} onPage={index => void run(async () => { await imageList.load(index); setAsset(""); })} onRetry={() => void run(async () => { await imageList.load(imageList.retryTarget); setAsset(""); })} />
         <button disabled={busy || !asset || doc.nodes.length >= 300} onClick={() => { const node = { id: crypto.randomUUID(), imageId: asset, x: 880, y: 448, width: 160, height: 184 }; edit({ ...doc,nodes:[...doc.nodes,node] }); setSelected(node.id); }}>画像ノードを追加</button>
-        <p className={styles.muted}>作成時にTierの画像を引き継いでいます。その後の配置は独立します。画像のアップロード・差し替えはTier表の画像ライブラリから行えます。</p>
+        <p className={styles.muted}>{tier ? "Tier表から引き継いだ画像の配置は、相関図で独立して編集できます。" : "共通画像ライブラリから画像を選んで配置できます。"}画像を追加したら「最新の画像」で読み込んでください。</p>
+        <a className={styles.button} href="/admin/creator/images" target="_blank" rel="noreferrer">共通画像ライブラリを開く</a>
       </section>
     </div>
     <section className={styles.panel} aria-label="データ集計条件"><h2>データ集計条件</h2>
@@ -174,8 +177,8 @@ export function CorrelationEditor({ tier, initial, images: initialImages, librar
         <button disabled={busy||!chosen.length} onClick={()=>void run(async()=>{const edges:CorrelationEdge[]=candidates.filter(c=>chosen.includes(c.sourceNodeId+":"+c.targetNodeId)).map(c=>({id:crypto.randomUUID(),sourceNodeId:c.sourceNodeId,targetNodeId:c.targetNodeId,origin:"manual",label:"有利",visible:true,type:"forward",dataSource:"auto",winRate:c.winRate,matchCount:c.matchCount,dataSnapshot:c.snapshot}));edit(parseCorrelation({...doc,dataSelection:selection,edges:[...doc.edges,...edges]}));setNotice({error:false,text:`${edges.length}本の矢印を追加しました。`});})}>選択した矢印を追加</button>
       </>}
     </section>
-    <section className={styles.panel}><h2>相関図の管理</h2><p className={styles.muted}>相関図を削除しても、親のTier表と画像ライブラリは残ります。</p>
-      <button disabled={busy} onClick={() => { if (!window.confirm("この相関図を削除しますか？未保存の編集も破棄されます。Tier表は残ります。")) return; void run(async () => { await request({action:"delete-correlation",id:work.id,revision:work.revision}); setDirty(false); router.push(`/admin/creator/tier?work=${tier.id}`); }); }}>相関図を削除</button>
+    <section className={styles.panel}><h2>相関図の管理</h2><p className={styles.muted}>相関図を削除しても、Tier表と画像ライブラリは残ります。OBSセットで使用中の場合は、先にセットから外してください。</p>
+      <button disabled={busy || !work} onClick={() => { if (!work || !window.confirm("この相関図を削除しますか？未保存の編集も破棄されます。Tier表は残ります。")) return; void run(async () => { await request({action:"delete-correlation",id:work.id,revision:work.revision}); setDirty(false); router.push(tier ? `/admin/creator/tier?work=${tier.id}` : "/admin/creator/correlation"); }); }}>相関図を削除</button>
     </section>
   </main>;
 }

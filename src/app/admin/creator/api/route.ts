@@ -5,6 +5,8 @@ import { CreatorError, creatorClient, databaseError, getCreatorData, getCreatorI
 import { IMAGE_BUCKET, MAX_IMAGE_BYTES, UUID, parseTierDocument, validateImageFile } from "@/lib/creator/model";
 import { correlationFromTier, parseCorrelation } from "@/lib/creator/correlation";
 import { getCreatorMatchups } from "@/lib/creator/matchup-server";
+import { getCorrelationPage, getCorrelationWork, getObsSetPage, getObsSet } from "@/lib/creator/independent-server";
+import { parseObsSet } from "@/lib/creator/obs-set";
 
 export const runtime = "nodejs";
 const response = (data: unknown, status = 200) => NextResponse.json(data, { status, headers: { "Cache-Control": "private, no-store" } });
@@ -36,9 +38,13 @@ export async function GET(request: NextRequest) {
     const kind = params.get("kind");
     if (!kind && params.size === 0) return response(await getCreatorData(client));
     if (kind === "work" && !params.has("cursor")) return response(await getCreatorWork(client, id(params.get("id"))));
+    if (kind === "correlation" && !params.has("cursor")) return response(await getCorrelationWork(client, id(params.get("id"))));
+    if (kind === "obs-set" && !params.has("cursor")) return response(await getObsSet(client, id(params.get("id"))));
     if (params.has("id")) throw new CreatorError("取得条件が不正です。");
     if (kind === "images") return response(await getCreatorImagePage(client, params.get("cursor")));
     if (kind === "works") return response(await getCreatorWorkPage(client, params.get("cursor")));
+    if (kind === "correlations") return response(await getCorrelationPage(client, params.get("cursor")));
+    if (kind === "obs-sets") return response(await getObsSetPage(client, params.get("cursor")));
     throw new CreatorError("取得条件が不正です。");
   }
   catch (error) { return failure(error); }
@@ -119,7 +125,7 @@ export async function POST(request: NextRequest) {
         }
         case "delete-work": {
           const result = await client.from("creator_tier_works").delete().eq("id", id(body.id)).eq("revision", revision(body.revision)).select("id").maybeSingle();
-          if (result.error?.code === "23503") throw new CreatorError("関連する相関図があります。先に相関図を削除してからTier表を削除してください。", 409);
+          if (result.error?.code === "23503") throw new CreatorError("関連する相関図またはOBSセットで使用中です。OBSセットから外し、関連する相関図を削除してからTier表を削除してください。", 409);
           databaseError(result.error); conflict(result.data); break;
         }
         case "create-correlation": {
@@ -132,12 +138,27 @@ export async function POST(request: NextRequest) {
         }
         case "save-correlation": {
           const document = parseCorrelation(body.document);
-          const result = await client.from("creator_correlations").update({ document }).eq("id", id(body.id)).eq("revision", revision(body.revision)).select("*").maybeSingle();
+          const result = body.id
+            ? await client.from("creator_correlations").update({ document }).eq("id", id(body.id)).eq("revision", revision(body.revision)).select("*").maybeSingle()
+            : await client.from("creator_correlations").insert({ tier_work_id: null, document, created_by: user.id }).select("*").single();
           databaseError(result.error); conflict(result.data);
           return response({ correlation: result.data });
         }
         case "delete-correlation": {
           const result = await client.from("creator_correlations").delete().eq("id", id(body.id)).eq("revision", revision(body.revision)).select("id").maybeSingle();
+          databaseError(result.error); conflict(result.data);
+          return response({ deleted: true });
+        }
+        case "save-obs-set": {
+          const values = parseObsSet(body.values);
+          const result = body.id
+            ? await client.from("creator_obs_sets").update(values).eq("id", id(body.id)).eq("revision", revision(body.revision)).select("*").maybeSingle()
+            : await client.from("creator_obs_sets").insert({ ...values, created_by: user.id }).select("*").single();
+          databaseError(result.error); conflict(result.data);
+          return response({ set: result.data });
+        }
+        case "delete-obs-set": {
+          const result = await client.from("creator_obs_sets").delete().eq("id", id(body.id)).eq("revision", revision(body.revision)).select("id").maybeSingle();
           databaseError(result.error); conflict(result.data);
           return response({ deleted: true });
         }

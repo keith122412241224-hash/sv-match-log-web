@@ -16,9 +16,10 @@ export function parseCreatorCursor(value: string | null) {
   return { time, id };
 }
 
-export async function creatorRead<T>(kind: "images" | "works" | "work", value?: string | null): Promise<T> {
+export type CreatorListKind = "images" | "works" | "correlations" | "obs-sets";
+export async function creatorRead<T>(kind: CreatorListKind | "work" | "correlation" | "obs-set", value?: string | null): Promise<T> {
   const query = new URLSearchParams({ kind });
-  if (value) query.set(kind === "work" ? "id" : "cursor", value);
+  if (value) query.set(["work", "correlation", "obs-set"].includes(kind) ? "id" : "cursor", value);
   const response = await fetch(`/admin/creator/api?${query}`, { cache: "no-store" });
   const result = await response.json();
   if (!response.ok) throw Error(result.error || "一覧を取得できませんでした。再試行してください。");

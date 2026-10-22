@@ -5,7 +5,7 @@ const { PGlite } = require(process.env.PGLITE_MODULE || path.resolve('build/migr
 const uuid = n => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const ADMIN = uuid(1), MEMBER = uuid(2);
 const migration = fs.readdirSync('supabase/migrations').find(f => f.endsWith('_creator_tier_tools.sql'));
-async function createDb({ux = true} = {}) {
+async function createDb({ux = true, independent = true} = {}) {
   const db = await PGlite.create();
   await db.exec(`create role anon nologin; create role authenticated nologin;
     create schema auth; create schema storage;
@@ -29,6 +29,8 @@ async function createDb({ux = true} = {}) {
   if (correlationMigration) await db.exec(fs.readFileSync('supabase/migrations/' + correlationMigration, 'utf8'));
   const uxMigration = fs.readdirSync('supabase/migrations').find(f=>f.endsWith('_creator_ux.sql'));
   if (ux && uxMigration) await db.exec(fs.readFileSync('supabase/migrations/'+uxMigration,'utf8'));
+  const independentMigration = fs.readdirSync('supabase/migrations').find(f=>f.endsWith('_creator_independent_correlation.sql'));
+  if (independent && independentMigration) await db.exec(fs.readFileSync('supabase/migrations/'+independentMigration,'utf8'));
   await identity(db);
   return db;
 }

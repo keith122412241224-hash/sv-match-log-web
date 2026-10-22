@@ -1,9 +1,9 @@
 "use client";
 import { useState } from "react";
-import { creatorRead, type CreatorPage } from "@/lib/creator/pagination";
+import { creatorRead, type CreatorPage, type CreatorListKind } from "@/lib/creator/pagination";
 import styles from "./Creator.module.css";
 
-export function useCreatorPage<T, P extends CreatorPage<T>>(kind: "images" | "works", initial: P) {
+export function useCreatorPage<T, P extends CreatorPage<T>>(kind: CreatorListKind, initial: P) {
   const [page, setPage] = useState(initial);
   const [cursors, setCursors] = useState<(string | null)[]>([null]);
   const [index, setIndex] = useState(0);

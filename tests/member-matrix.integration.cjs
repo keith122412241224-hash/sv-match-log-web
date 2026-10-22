@@ -64,6 +64,13 @@ test('member matrix: full migrations preserve existing policies, table grants, f
       assert.deepEqual({...current,functions:current.functions.filter(f=>f.proname!=='get_analysis_aggregates_v4')},before,'later additive analysis RPC preserves every existing policy/grant/function');
       before=current;
     }
+    if(file==='20261022101117_creator_independent_correlation.sql'){
+      require('./creator-independent-scope.cjs').assertReviewed('supabase/migrations/'+file);
+      const current=await catalog(database),newTables=current.tables.filter(t=>t.relname==='creator_obs_sets'),newPolicies=current.policies.filter(p=>p.tablename==='creator_obs_sets');
+      assert.equal(newTables.length,1);assert.equal(newTables[0].relrowsecurity,true);assert.equal(newPolicies.length,1);
+      assert.deepEqual({...current,tables:current.tables.filter(t=>t.relname!=='creator_obs_sets'),policies:current.policies.filter(p=>p.tablename!=='creator_obs_sets')},before,'Creator extension preserves every pre-existing policy/grant/function');
+      before=current;
+    }
   }});
   const database=setupResult.db;t.after(()=>database.close());assert.deepEqual(await catalog(database),before);
   const direct=(schema='public',ranks=RANK_ATOMS,env=ids.env)=>database.query(`select ${schema}.get_member_matchup_aggregates_v1($1::uuid,$2::text[]) as data`,[env,ranks]);

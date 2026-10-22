@@ -4,7 +4,10 @@ import { parseDataSelection, parseDataSnapshot, type DataSelection, type DataSna
 export type CorrelationNode = { id: string; imageId: string; x: number; y: number; width: number; height: number };
 export type CorrelationEdge = { id: string; sourceNodeId: string; targetNodeId: string; origin: "manual"; label: string; visible: boolean; type?: "forward" | "bidirectional"; winRate?: number | null; matchCount?: number | null; dataSource?: "manual" | "auto"; dataSnapshot?: DataSnapshot };
 export type CorrelationDocument = { version: 1; title?: string; showTitle: boolean; showNames: boolean; showLabels?: boolean; showStats?: boolean; nodes: CorrelationNode[]; edges: CorrelationEdge[]; dataSelection?: DataSelection };
-export type CorrelationWork = { id: string; tier_work_id: string; document: CorrelationDocument; revision: number; created_at: string; updated_at: string };
+export type CorrelationWork = { id: string; tier_work_id: string | null; document: CorrelationDocument; revision: number; created_at: string; updated_at: string };
+export function newCorrelationDocument(): CorrelationDocument {
+  return { version: 1, title: "新しい相関図", showTitle: true, showNames: true, showLabels: true, showStats: true, nodes: [], edges: [] };
+}
 const validId = (id: unknown): id is string => typeof id === "string" && UUID.test(id);
 
 export function parseCorrelation(input: unknown, legacyTitle = ""): CorrelationDocument {

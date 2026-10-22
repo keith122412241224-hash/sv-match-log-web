@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),cp=require('node:child_process'),{createHash}=require('node:crypto');
+const {test}=require('node:test'),assert=require('node:assert/strict'),cp=require('node:child_process'),{createHash}=require('node:crypto');
 const {parseCreatorCursor,mergeCreatorImages,creatorRead}=require('../src/lib/creator/pagination');
 const id='00000000-0000-4000-8000-000000000001';
 test('Creator cursor preserves microseconds, UUID tie-break and timezone offsets',()=>{
@@ -59,7 +59,7 @@ test('QA2-007 scope pins Creator retrieval/UI only; all other product, SQL and d
  const {base,hashes,added,readBeforeCreatorPagination}=require('./creator-pagination-scope.cjs');
  const expected=['src/app/admin/creator/api/route.ts','src/app/admin/creator/tier/page.tsx','src/app/admin/creator/tier/[id]/correlation/page.tsx','src/app/admin/obs/tier/[id]/page.tsx','src/components/creator/TierEditor.tsx','src/components/creator/ImageLibrary.tsx','src/components/creator/CorrelationEditor.tsx','src/lib/creator/server.ts','src/lib/creator/correlation-server.ts',...added];
  assert.deepEqual(Object.keys(hashes).sort(),expected.filter(f=>!require('./admin-batch-scope.cjs').added.has(f)).sort());
- for(const[file,hash]of Object.entries(hashes))assert.equal(createHash('sha256').update(fs.readFileSync(file,'utf8').replaceAll('\r\n','\n')).digest('hex'),hash,file);
+ for(const[file,hash]of Object.entries(hashes))assert.equal(createHash('sha256').update(require('./creator-independent-scope.cjs').readBeforeIndependent(file)).digest('hex'),hash,file);
  const git=args=>cp.execFileSync('git',args,{encoding:'utf8',maxBuffer:64e6}).replaceAll('\r\n','\n');
  const files=git(['ls-tree','-r','--name-only',base]).trim().split('\n').filter(f=>/^(src|supabase)\//.test(f)||/^package(-lock)?\.json$/.test(f));
  for(const file of files)assert.equal(readBeforeCreatorPagination(file),git(['show',base+':'+file]),file);
