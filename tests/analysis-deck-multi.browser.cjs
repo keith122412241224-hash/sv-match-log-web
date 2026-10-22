@@ -1,8 +1,9 @@
 ﻿/* eslint-disable @typescript-eslint/no-require-imports */
 const assert=require('node:assert/strict');
+const {openFilters}=require('./analysis-filter-ux.browser.cjs');
 exports.verifyMulti=async({page,origin,out,report,go,quick,settle,compare,check,fixtures,getDecks,setDelay,setFail})=>{
  const form=()=>page.locator('form[action="/analysis"]'),values=()=>form().evaluate(f=>Object.fromEntries(new FormData(f))),trigger=label=>page.getByRole('button',{name:new RegExp('^'+label+' ')});
- const open=async label=>{await trigger(label).click();return page.getByRole('dialog',{name:label+'を選択',exact:true});};
+ const open=async label=>{await openFilters(page);await trigger(label).click();return page.getByRole('dialog',{name:label+'を選択',exact:true});};
  const expand=async(d,deck)=>{const b=d.getByRole('button',{name:new RegExp('^'+deck.class_name+'（')});if(await b.getAttribute('aria-expanded')!=='true')await b.click();};
  const pick=async(label,decks)=>{const d=await open(label);await d.getByRole('button',{name:'選択をクリア',exact:true}).click();for(const deck of decks){await expand(d,deck);await d.getByRole('checkbox',{name:deck.name,exact:true}).check();}await page.screenshot({path:out+'/screenshots/multi-'+(label==='使用デッキ'?'my':'opponent')+'.png'});await d.getByRole('button',{name:'決定',exact:true}).click();};
  const apply=async()=>{const n=report.rpc.length;await page.getByRole('button',{name:'表示',exact:true}).click();await page.waitForLoadState('networkidle');await settle();assert.equal(report.rpc.length,n+1);await compare();};

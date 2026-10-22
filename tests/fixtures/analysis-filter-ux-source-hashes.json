@@ -1,0 +1,5 @@
+{
+  "src/components/analysis/AnalysisDashboard.tsx": "8cc6f4327e8335b313b5346e564aa6a94e33e48e5cfc860418e32c896fda1d80",
+  "src/components/analysis/AnalysisFilters.tsx": "f8f77b9e0668809e20a67d5fa529a816eb251d92e11af3667108fc1398c67019",
+  "src/components/analysis/AnalysisFilterPanel.tsx": "b8735fec974f171eef1f967fa7a0c2833a93c52345a489ae037364913a85e40c"
+}

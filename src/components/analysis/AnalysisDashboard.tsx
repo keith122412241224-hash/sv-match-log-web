@@ -24,6 +24,7 @@ export function AnalysisDashboard({ initialData, initialQuery }: { initialData: 
   const container = useRef<HTMLDivElement>(null), controller = useRef<AbortController | null>(null);
   const [data, setData] = useState(initialData), [pending, setPending] = useState(false), [failed, setFailed] = useState(false);
   const [invalidDateQuery, setInvalidDateQuery] = useState<string | null>(null);
+  const [inputError, setInputError] = useState<string | null>(null);
   const [summarySort, setSummarySort] = useState<SummarySort>("count");
   const [minimumCount, setMinimumCount] = useState(0);
   const [periodPreset, setPeriodPreset] = useState(new URLSearchParams(initialQuery).get('periodPreset') ?? undefined);
@@ -33,9 +34,12 @@ export function AnalysisDashboard({ initialData, initialQuery }: { initialData: 
     controller.current?.abort();
     const request = new AbortController(); controller.current = request;
     currentQuery.current = query.toString();
-    setPending(true); setFailed(false);
-    if (!validateAnalysisDates(analysisDatesFromQuery(query)).ok) {
-      setInvalidDateQuery(query.toString()); setPending(false); return;
+    setPending(true); setFailed(false); setInputError(null);
+    const dates = validateAnalysisDates(analysisDatesFromQuery(query));
+    if (!dates.ok) {
+      if (updateUrl) setInputError(dates.error.message);
+      else setInvalidDateQuery(query.toString());
+      setPending(false); return;
     }
     try {
       query = canonicalDeckQuery(query, catalog.current);
@@ -83,6 +87,7 @@ export function AnalysisDashboard({ initialData, initialQuery }: { initialData: 
     setData(initialData); setPending(false); setFailed(false);
     setPeriodPreset(query.get('periodPreset') ?? undefined);
     setInvalidDateQuery(null);
+    setInputError(null);
   }, [initialData, initialQuery, load]);
   useLayoutEffect(() => {
     // Uncontrolled selects keep their DOM/focus, but must follow accepted navigation data.
@@ -110,6 +115,12 @@ export function AnalysisDashboard({ initialData, initialQuery }: { initialData: 
     query.delete('rank'); query.set('ranks', serializeRankSelection(ranks));
     void load(query, true);
   }
+  function applyForm(form: HTMLFormElement) {
+    if (pending || !form.reportValidity()) return;
+    const query = new URLSearchParams();
+    new FormData(form).forEach((value, key) => { if (typeof value === 'string') query.set(key, value); });
+    void load(query, true);
+  }
   function applyPeriod(period: AnalysisPeriod, dates: { playedFrom: string; playedTo: string }) {
     const form = container.current?.querySelector('form');
     if (pending || !form) return;
@@ -129,22 +140,10 @@ export function AnalysisDashboard({ initialData, initialQuery }: { initialData: 
       <div ref={container} className="grid gap-6">
         <section>
           <h1 className="text-2xl font-bold text-ink">分析</h1>
-          <p className="mt-1 text-sm text-muted">
+          <p className="mt-1 break-words text-sm text-muted [overflow-wrap:anywhere]">
             {selectedEnvironmentName ? `${selectedEnvironmentName} の戦績を分析しています。` : "環境を作成すると戦績を分析できます。"}
           </p>
         </section>
-
-        {isAdmin ? (
-          <section className="rounded-md border border-slate-200 bg-white p-4">
-            <div className="text-xs font-bold text-muted">管理者分析</div>
-            <div className="mt-1 text-lg font-bold text-ink">
-              {selectedScope === "all" ? "全ユーザー戦績" : "自分の戦績"}
-            </div>
-            <p className="mt-1 text-sm text-muted">
-              全ユーザー戦績は、管理者だけが閲覧できる総合集計です。通常ユーザーには表示されません。
-            </p>
-          </section>
-        ) : null}
 
         <AnalysisFilters
           decks={matrixDecks}
@@ -154,6 +153,7 @@ export function AnalysisDashboard({ initialData, initialQuery }: { initialData: 
           selectionRevision={data}
           onRankApply={applyRanks}
           onPeriodApply={applyPeriod}
+          onApply={applyForm}
           periodPreset={periodPreset}
           values={{
             environmentId: selectedEnvironmentId,
@@ -172,6 +172,7 @@ export function AnalysisDashboard({ initialData, initialQuery }: { initialData: 
         />
 
         {pending && <p role="status" className="text-sm text-muted">分析条件を適用中…</p>}
+        {inputError && <p role="alert" className="text-sm text-red-700">{inputError} 表示中の集計は前回の条件です。</p>}
         {failed && <p role="alert" className="text-sm text-red-700">分析データを取得できませんでした。表示中の集計は前回の条件です。もう一度条件を適用してください。</p>}
         <p className="text-sm text-muted">
           勝率集計: {winRateMode === "combined" ? "対戦相手反転込み" : "使用者側のみ"} / 対象登録戦績: {registeredMatches}件。
