@@ -42,7 +42,7 @@ export function ObsSetEditor({ initial }: { initial: { sets: CreatorPage<ObsSet>
   const url = current ? `/admin/obs/composition/${current.id}${transparent ? "?transparent=1" : ""}` : "";
   const pager = (label: string, list: typeof tiers | typeof correlations | typeof sets) => <CreatorPager label={label} index={list.index} hasNext={!!list.page.nextCursor} busy={busy} loading={list.loading} error={list.error} onPage={i=>void run(()=>list.load(i))} onRetry={()=>void run(()=>list.load(list.retryTarget))} />;
   return <main className={styles.page}>
-    <header className={styles.header}><h1>OBS表示セット</h1><Link className={styles.button} href="/admin/creator" onClick={e=>{if(busy||!confirmLeave())e.preventDefault();}}>クリエイターツールへ</Link></header>
+    <header className={styles.header}><h1>OBS表示セット</h1><Link className={styles.button} href="/admin?section=tools" aria-disabled={busy} onClick={e=>{if(busy||active.current||!confirmLeave())e.preventDefault();}}>運用ツールへ戻る</Link></header>
     {notice && <p role={notice.error ? "alert" : "status"} className={notice.error ? styles.error : styles.notice}>{notice.text}</p>}
     <section className={styles.panel} aria-label="セット編集"><div className={styles.toolbar}><button disabled={busy} onClick={()=>{if(confirmLeave()){select(null);setNotice(null);}}}>新しいセット</button><span>{dirty ? "未保存の変更あり" : current ? "保存済み" : "新規セット（未保存）"}</span></div>
       <label>セット名<input value={name} maxLength={120} disabled={busy} onChange={e=>{setName(e.target.value);setDirty(true);}} /></label>

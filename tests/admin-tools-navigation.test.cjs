@@ -8,7 +8,14 @@ test('admin navigation changes only the reviewed Creator entrance; auth, tabs, r
   const start = '        {section === "tools"', end = '          <section className="rounded-md border border-slate-200 bg-white p-4">';
   assert.equal(after.slice(0, after.indexOf(start)), before.slice(0, before.indexOf(start)));
   assert.equal(after.slice(after.indexOf(end, after.indexOf(start))), before.slice(before.indexOf(end, before.indexOf(start))));
-  assert.deepEqual(git('diff', scope.base, '--name-only', '--', 'src', 'supabase', 'package.json', 'package-lock.json').trim().split('\n'), [scope.file]);
+  const cleanup = require('./creator-navigation-cleanup-scope.cjs');
+  const changes = git('diff', scope.base, '--name-only', '--', 'src', 'supabase', 'package.json', 'package-lock.json').trim().split('\n');
+  assert.deepEqual(changes.filter(file => {
+    if (!Object.hasOwn(cleanup.hashes, file)) return true;
+    cleanup.assertReviewed(file);
+    assert.equal(cleanup.readBeforeCleanup(file), git('show', scope.base + ':' + file));
+    return false;
+  }), [scope.file]);
   const tracked = git('ls-tree', '-r', '--name-only', scope.base).trim().split('\n').filter(f => /^(src|supabase)\//.test(f));
   assert.deepEqual(git('ls-files', '--cached', '--others', '--exclude-standard', '--', 'src', 'supabase').trim().split('\n').sort(), tracked.sort());
 });

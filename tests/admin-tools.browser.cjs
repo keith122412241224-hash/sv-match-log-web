@@ -173,20 +173,20 @@ async function main() {
       await page.waitForURL(origin + '/admin/creator/tier');
       await page.getByRole('heading', { name: 'Tier表メーカー', exact: true, level: 1 }).waitFor();
       assert.equal(new URL(page.url()).pathname, '/admin/creator/tier'); assert.ok(!visits.includes('/admin/creator'));
-      await page.getByRole('link', { name: '管理画面へ', exact: true }).click(); await page.waitForURL(origin + '/admin?section=tools');
+      await page.getByRole('link', { name: '運用ツールへ戻る', exact: true }).click(); await page.waitForURL(origin + '/admin?section=tools');
       for (const [title, url] of [['相関図メーカー', '/admin/creator/correlation'], ['OBS表示セット', '/admin/creator/obs-sets']]) {
         const count = report.mutations.length;
         await page.getByRole('link', { name: title + 'を開く', exact: true }).click();
         await page.waitForURL(origin + url);
         await page.getByRole('heading', { name: title, exact: true, level: 1 }).waitFor(); assert.equal(new URL(page.url()).pathname, url);
         assert.equal(report.mutations.length, count, 'tool entry does not save a work');
-        await page.getByRole('link', { name: 'クリエイターツールへ', exact: true }).click();
-        await page.getByRole('link', { name: '← 管理画面', exact: true }).click(); await page.waitForURL(origin + '/admin?section=tools');
+        await page.getByRole('link', { name: '運用ツールへ戻る', exact: true }).click(); await page.waitForURL(origin + '/admin?section=tools');
       }
-      await go('/admin/creator'); await page.getByRole('heading', { name: 'クリエイターツール', exact: true }).waitFor();
+      await go('/admin/creator'); assert.equal(page.url(), origin + '/admin?section=tools');
+      await page.getByRole('heading', { name: '管理画面', exact: true }).waitFor();
       await page.getByRole('link', { name: 'Tier表メーカーを開く', exact: true }).click(); await page.getByRole('heading', { name: 'Tier表メーカー', exact: true, level: 1 }).waitFor();
       await go('/admin/creator/tier'); await page.getByRole('heading', { name: 'Tier表メーカー', exact: true }).waitFor();
-      await page.getByRole('link', { name: '管理画面へ', exact: true }).click();
+      await page.getByRole('link', { name: '運用ツールへ戻る', exact: true }).click();
       await page.getByRole('link', { name: 'レポートを開く', exact: true }).click(); await page.getByRole('heading', { name: '期間環境レポート', exact: true }).waitFor();
       assert.equal(new URL(page.url()).pathname, '/admin/weekly-report');
       await go('/admin/weekly-report?start=2026-10-01&end=2026-10-07&rank=master'); await page.getByRole('heading', { name: '期間環境レポート', exact: true }).waitFor();
@@ -250,7 +250,7 @@ async function main() {
         report.checks.push(`${name}: environment create/update; deck create/update/approval through unchanged actions (in-memory writes only)`);
       }
       admin = false;
-      const protectedRoutes = ['/admin', '/admin?section=decks', '/admin?section=tools', '/admin/creator/tier', '/admin/creator/correlation', '/admin/creator/obs-sets'];
+      const protectedRoutes = ['/admin', '/admin?section=decks', '/admin?section=tools', '/admin/creator', '/admin/creator/tier', '/admin/creator/correlation', '/admin/creator/obs-sets'];
       for (const role of ['member', 'guest']) {
         user.is_anonymous = role === 'guest';
         for (const route of protectedRoutes) {

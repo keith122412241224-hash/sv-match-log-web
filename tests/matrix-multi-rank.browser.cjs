@@ -39,6 +39,7 @@ async function main() {
         else if (name === 'admin_users') data = who === h.ADMIN ? { user_id: who } : null;
         else if (name === 'environments') data = h.environments.map(e=>({...e,user_id:h.ADMIN}));
         else if (['decks', 'deck_archetypes'].includes(name)) data = availableDecks.map(d=>({...d,user_id:h.ADMIN}));
+        else if (name === 'deck_suggestions') data = []; // AdminPage is the redirected Creator entrance.
         else throw Error('Unexpected read ' + name);
       }
       res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(data));
@@ -214,7 +215,7 @@ async function main() {
     for(const route of ['/admin/creator','/admin/obs/environment']){await page.goto(origin+route,{waitUntil:'networkidle'});assert.notEqual(new URL(page.url()).pathname,route);}
   }
   await login(h.ADMIN);
-  await page.goto(origin+'/admin/creator',{waitUntil:'networkidle'});assert.equal(new URL(page.url()).pathname,'/admin/creator');
+  await page.goto(origin+'/admin/creator',{waitUntil:'networkidle'});assert.equal(new URL(page.url()).pathname,'/admin');assert.equal(new URL(page.url()).search,'?section=tools');
   await page.goto(origin+'/admin/obs/environment?'+new URLSearchParams({environment:h.NEW,ranks:custom.join(',')}),{waitUntil:'networkidle'});assert.equal(new URL(page.url()).pathname,'/admin/obs/environment');
   await login(h.MEMBER,true);
   const beforeGuest=report.calls.length;

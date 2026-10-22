@@ -136,7 +136,7 @@ export function TierEditor({ initial, initialDocument, libraryOnly = false }: { 
     });
   }
   return <main className={styles.page}>
-    <header className={styles.header}><div><p className={styles.muted}>コンテンツ制作</p><h1>{libraryOnly ? "共通画像ライブラリ" : "Tier表メーカー"}</h1><p className={styles.muted}>{libraryOnly ? "Tier表と相関図で使う画像を追加・管理できます。" : "画像を置いて、名前を整えて、PNG・OBSへ。"}</p></div><div className={styles.toolbar}><Link href="/admin/creator" className={styles.button} onClick={e=>{if(!confirmLeave())e.preventDefault();}}>クリエイターツールへ</Link><Link href="/admin?section=tools" className={styles.button} onClick={e => { if (dirty && !window.confirm("未保存の変更を破棄して管理画面へ戻りますか？")) e.preventDefault(); }}>管理画面へ</Link></div></header>
+    <header className={styles.header}><div><p className={styles.muted}>コンテンツ制作</p><h1>{libraryOnly ? "共通画像ライブラリ" : "Tier表メーカー"}</h1><p className={styles.muted}>{libraryOnly ? "Tier表と相関図で使う画像を追加・管理できます。" : "画像を置いて、名前を整えて、PNG・OBSへ。"}</p></div><div className={styles.toolbar}><Link href="/admin?section=tools" className={styles.button} aria-disabled={busy} onClick={e=>{if(busy||operation.current||!confirmLeave())e.preventDefault();}}>運用ツールへ戻る</Link></div></header>
     {notice && <p role={notice.error ? "alert" : "status"} className={`${styles.notice} ${notice.error ? styles.error : ""}`}>{notice.text}</p>}
     {!libraryOnly && <div className={styles.toolbar} aria-busy={busy}>
       <button disabled={busy} onClick={() => openWork(null)}>新しいTier表</button>

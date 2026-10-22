@@ -16,6 +16,9 @@ const user = () => ({ id: mode === 'member' ? MEMBER : ADMIN, aud: 'authenticate
 function json(res, status, body) { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(body)); }
 async function main() {
   const db = await createDb();
+  // AdminPage, now reached by Creator returns, orders the deck fixture by class.
+  await db.exec("reset role; alter table public.deck_archetypes add column class_name text default 'エルフ', add column is_active boolean default true");
+  await identity(db);
   const fixture=require('./obs-environment-fixture.cjs');
   if(process.env.CREATOR_BOARD==='1'){
     await db.exec('reset role');for(const deck of fixture.decks)await db.query('insert into public.deck_archetypes(id,name) values($1,$2)',[deck.id,deck.name]);await identity(db);
@@ -57,6 +60,8 @@ async function main() {
           if (!object) return json(res, 404, { message: 'not found' });
           res.writeHead(200, { 'Content-Type': object.type }); res.end(object.bytes); return;
         }
+        // The legacy Creator entrance now returns to AdminPage, which reads suggestions.
+        if (url.pathname === '/rest/v1/deck_suggestions' && req.method === 'GET') return json(res, 200, []);
         const table = url.pathname.split('/').at(-1);
         if (!['admin_users', 'deck_archetypes', 'creator_images', 'creator_tier_works', 'creator_tier_image_refs', 'creator_storage_cleanup', 'creator_correlations', 'creator_correlation_image_refs', 'creator_obs_sets'].includes(table)) throw Error('Unexpected table: ' + table);
         const values = [], where = [];
@@ -91,7 +96,8 @@ async function main() {
         // getIsAdmin queries own row; mirror that behavior even on this small fixture.
         let result = table === 'admin_users' && mode !== 'admin' ? [] : rows;
         const projection=url.searchParams.get('select');
-        if(projection && projection!=='*')result=result.map(row=>Object.fromEntries(projection.split(',').map(column=>column==='title:document->>title'?['title',row.document?.title??null]:[column,row[column]])));
+        if(table==='deck_archetypes' && projection==='*, aliases:deck_aliases(id, alias_name)')result=result.map(row=>({...row,aliases:[]}));
+        else if(projection && projection!=='*')result=result.map(row=>Object.fromEntries(projection.split(',').map(column=>column==='title:document->>title'?['title',row.document?.title??null]:[column,row[column]])));
         if (req.headers.accept?.includes('vnd.pgrst.object')) return result.length ? json(res, 200, result[0]) : json(res, 406, { code: 'PGRST116', details: 'The result contains 0 rows', message: '0 rows' });
         return json(res, 200, result);
       } catch (error) {
@@ -123,6 +129,7 @@ async function main() {
     const files = [{ name: 'デッキ.png', mimeType: 'image/png', buffer: png }, { name: '透明.png', mimeType: 'image/png', buffer: transparent }, { name: 'デッキ.jpg', mimeType: 'image/jpeg', buffer: jpeg }, { name: 'デッキ.webp', mimeType: 'image/webp', buffer: webp }];
     if(process.env.CREATOR_INDEPENDENT==='1'){
       await require('./creator-independent.browser.cjs')({page,context,db,origin,report,out,observe,files,objects,setMode:v=>{mode=v;}});
+      await require('./creator-navigation-cleanup.browser.cjs')({page,context,db,origin,report,out,files,setMode:v=>{mode=v;}});
       assert.deepEqual(report.events,[]);assert.deepEqual(report.unexpected,[]);return;
     }
     if(process.env.CREATOR_CORRELATION_DISPLAY==='1'){

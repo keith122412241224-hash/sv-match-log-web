@@ -17,7 +17,7 @@ export function CorrelationList({ initial }: { initial: CreatorPage<CorrelationS
     finally { running.current = false; setBusy(false); }
   }
   return <main className={styles.page}>
-    <header className={styles.header}><h1>相関図メーカー</h1><Link href="/admin/creator" className={styles.button}>クリエイターツールへ</Link></header>
+    <header className={styles.header}><h1>相関図メーカー</h1><Link href="/admin?section=tools" className={styles.button} aria-disabled={busy} onClick={e=>{if(busy||running.current)e.preventDefault();}}>運用ツールへ戻る</Link></header>
     <div className={styles.toolbar}><Link className={styles.primary} href="/admin/creator/correlation/new">＋ 新しい相関図</Link><Link className={styles.button} href="/admin/creator/tier">Tier表から相関図を作成</Link><Link className={styles.button} href="/admin/creator/images">共通画像ライブラリ</Link></div>
     {error && <p role="alert" className={styles.error}>{error}</p>}
     <section className={styles.panel} aria-label="保存済み相関図"><h2>保存済み相関図</h2>
