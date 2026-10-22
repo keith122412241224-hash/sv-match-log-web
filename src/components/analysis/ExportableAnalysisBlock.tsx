@@ -1,9 +1,10 @@
 "use client";
 
 import { ChevronDown, Download } from "lucide-react";
-import { useId, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { Button } from "@/components/Button";
-import { saveAnalysisPng } from "@/lib/analysis-png";
+import { createAnalysisPng, saveAnalysisPng, type AnalysisPng } from "@/lib/analysis-png";
+import { AnalysisPngPreview } from "@/components/analysis/AnalysisPngPreview";
 
 export function ExportableAnalysisBlock({ title, filename, children, collapsible = false }: {
   title: string;
@@ -20,6 +21,18 @@ export function ExportableAnalysisBlock({ title, filename, children, collapsible
   const [error, setError] = useState("");
   const [progress, setProgress] = useState("");
   const [notice, setNotice] = useState("");
+  const [preview, setPreview] = useState<{ png: AnalysisPng; first: File } | null>(null);
+  const session = useRef<AnalysisPng | null>(null);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; session.current?.dispose(); };
+  }, []);
+  function closePreview() {
+    session.current?.dispose();
+    session.current = null;
+    setPreview(null);
+  }
 
   async function save() {
     if (!ref.current || busy.current) return;
@@ -29,18 +42,31 @@ export function ExportableAnalysisBlock({ title, filename, children, collapsible
     setNotice("");
     setProgress("");
     try {
-      const count = await saveAnalysisPng(ref.current, filename, (page, total) => setProgress(`${page} / ${total}`));
-      if (count > 1) setNotice(`${count}枚のPNGをZIPにまとめて保存しました。ZIPを展開してご利用ください。`);
+      const progress = (page: number, total: number) => { if (mounted.current) setProgress(`${page} / ${total}`); };
+      // Responsive presentation is independent from file-sharing API capability.
+      if (window.matchMedia("(max-width: 767px)").matches) {
+        session.current?.dispose();
+        const png = await createAnalysisPng(ref.current, filename);
+        if (!mounted.current) { png.dispose(); return; }
+        session.current = png;
+        const first = await png.page(0, progress);
+        if (mounted.current) setPreview({ png, first });
+      } else {
+        const count = await saveAnalysisPng(ref.current, filename, progress);
+        if (mounted.current && count > 1) setNotice(`${count}枚のPNGをZIPにまとめて保存しました。ZIPを展開してご利用ください。`);
+      }
     } catch {
-      setError("PNGを保存できませんでした。画像の読み込みや通信状況を確認して、もう一度お試しください。");
+      session.current?.dispose();
+      session.current = null;
+      if (mounted.current) setError("PNGを保存できませんでした。画像の読み込みや通信状況を確認して、もう一度お試しください。");
     } finally {
       busy.current = false;
-      setSaving(false);
+      if (mounted.current) setSaving(false);
     }
   }
 
   return (
-    <section ref={ref} aria-labelledby={titleId} className="min-w-0 rounded-md border border-slate-200 bg-white">
+    <><section ref={ref} aria-labelledby={titleId} className="min-w-0 rounded-md border border-slate-200 bg-white">
       <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 px-4 py-3">
         <h2 id={titleId} className="font-bold text-ink">{title}</h2>
         {collapsible ? <button type="button" data-png-exclude aria-expanded={open} aria-controls={contentId}
@@ -63,5 +89,6 @@ export function ExportableAnalysisBlock({ title, filename, children, collapsible
         <div id={contentId} hidden={!open} data-png-expand>{children}</div>
       </> : children}
     </section>
+    {preview ? <AnalysisPngPreview title={title} png={preview.png} first={preview.first} onClose={closePreview} /> : null}</>
   );
 }

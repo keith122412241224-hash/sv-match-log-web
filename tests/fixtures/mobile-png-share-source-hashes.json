@@ -1,0 +1,5 @@
+{
+  "src/lib/analysis-png.ts": "0784f14d3bc30939da648af80c5ff205bdb20479c6a000a62ab310a0b06f4380",
+  "src/components/analysis/ExportableAnalysisBlock.tsx": "4743120ecd4112d2a123af61f86c1b761afc42036c3ad5b763f2789a56358cdf",
+  "src/components/analysis/AnalysisPngPreview.tsx": "851ad8329b1edf1c841a62cdd9b503fd1ff59af5c29470db1ab427f681bca901"
+}

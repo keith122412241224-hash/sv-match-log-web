@@ -4,8 +4,10 @@ const base = 'd4f1f376f495cf6a11ae3d1ea0278dc93548da58';
 const selection = require('./deck-select-dialog-scope.cjs');
 const multi = require('./analysis-deck-multi-scope.cjs');
 const filter = require('./analysis-filter-ux-scope.cjs');
-const hashes = { ...selection.hashes, ...multi.hashes, ...Object.fromEntries([...filter.added].map(file => [file, filter.hashes[file]])), 'src/app/decks/page.tsx': '4c76033236bd7353a2de1c740c1e976a207a20ae95cf58b144f0f131cd266ab2' };
+const mobile = require('./mobile-png-share-scope.cjs');
+const hashes = { ...selection.hashes, ...multi.hashes, ...Object.fromEntries([...filter.added].map(file => [file, filter.hashes[file]])), ...mobile.hashes, 'src/app/decks/page.tsx': '4c76033236bd7353a2de1c740c1e976a207a20ae95cf58b144f0f131cd266ab2' };
 function assertReviewed(file) {
+  if (Object.hasOwn(mobile.hashes, file)) return mobile.assertReviewed(file);
   if (filter.added.has(file)) return filter.assertReviewed(file);
   if (Object.hasOwn(multi.hashes,file)) return multi.assertReviewed(file);
   if (Object.hasOwn(selection.hashes, file)) return selection.assertReviewed(file);
