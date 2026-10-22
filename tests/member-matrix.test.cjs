@@ -48,11 +48,11 @@ test('matrix serializes only display metadata to client components, never owner 
   assert.doesNotMatch(JSON.stringify(props),/private-owner|private-date|private-memo|user_id/);archetypes=[];
 });
 test('member matrix scope preserves all existing SQL/auth/analysis/renderer/dependencies byte-for-byte',()=>{
-  const cp=require('node:child_process'),fs=require('node:fs'),{createHash}=require('node:crypto');
+  const cp=require('node:child_process'),{createHash}=require('node:crypto');
   const s=require('./member-matrix-scope.cjs');
   const git=args=>cp.execFileSync('git',args,{encoding:'utf8',maxBuffer:64e6}).replaceAll('\r\n','\n');
   const files=git(['ls-tree','-r','--name-only',s.base]).trim().split('\n').filter(f=>/^(src|supabase)\//.test(f)||/^package(-lock)?\.json$/.test(f));
   for(const file of files)assert.equal(s.readBeforeMemberMatrix(file),git(['show',s.base+':'+file]),file);
   assert.deepEqual(git(['ls-files','--cached','--others','--exclude-standard','--','src','supabase']).trim().split('\n').sort(),[...files.filter(f=>/^(src|supabase)\//.test(f)),...s.added].sort());
-  for(const [file,hash]of Object.entries(s.hashes))assert.equal(createHash('sha256').update(fs.readFileSync(file,'utf8').replaceAll('\r\n','\n')).digest('hex'),hash,file);
+  for(const [file,hash]of Object.entries(s.hashes))assert.equal(createHash('sha256').update(require('./matrix-mobile-png-share-scope.cjs').readBeforeMatrixPng(file)).digest('hex'),hash,file);
 });

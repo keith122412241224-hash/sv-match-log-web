@@ -116,4 +116,4 @@ async function verifyMobilePng({page,out,report,go,fixtures,region,check,verifyP
  await page.setViewportSize({width:390,height:844});await open(blocks[3][0]);const preview=await image().getAttribute('src');await download('url-lifetime');const urls=await page.evaluate(()=>window.mobilePng.created.filter(u=>u.type==='image/png').map(u=>u.url));await close();assert.ok(await page.evaluate(url=>window.mobilePng.revoked.includes(url),preview));assert.ok(await page.evaluate(urls=>urls.some(u=>!window.mobilePng.revoked.includes(u)),urls));await page.waitForTimeout(61000);assert.ok(await page.evaluate(urls=>urls.every(u=>window.mobilePng.revoked.includes(u)),urls));
  await memory('after-close-and-url-grace');await cdp.detach();result.passed=true;fs.writeFileSync(dir+'/report.json',JSON.stringify(result,null,2));check('320/390 mobile and 768/1152/1920 automatic desktop; bounded aspect ratio, download grace and eventual URL cleanup');
 }
-module.exports={verifyMobilePng};
+module.exports={verifyMobilePng,install};

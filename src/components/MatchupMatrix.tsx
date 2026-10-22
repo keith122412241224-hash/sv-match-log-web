@@ -1,12 +1,14 @@
 "use client";
 
 import { ChevronDown, Download } from "lucide-react";
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type MouseEvent } from "react";
 import { Button } from "@/components/Button";
 import { ClassIcon, DeckWithClassIcon, isShadowverseClass } from "@/components/ClassIcon";
 import { SHADOWVERSE_CLASSES } from "@/lib/constants";
 import { cn, formatPercent } from "@/lib/utils";
 import type { DeckLike, MatrixCell } from "@/lib/analytics";
+import { PngSharePreview } from "@/components/PngSharePreview";
+import { matrixPngFile, matrixPngSize, MATRIX_PNG_TOO_LARGE } from "@/lib/matrix-png";
 
 type MatrixRow = {
   myDeck: DeckLike;
@@ -57,6 +59,16 @@ export function MatchupMatrix({
     });
   }, [opponentDecks]);
   const ref = useRef<HTMLDivElement>(null);
+  const busy = useRef(false);
+  const saveTrigger = useRef<HTMLButtonElement | null>(null);
+  const mounted = useRef(true);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [preview, setPreview] = useState<File | null>(null);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
   const createdAt = useMemo(
     () => createdAtLabel ?? new Date().toLocaleDateString("ja-JP"),
     [createdAtLabel]
@@ -104,26 +116,52 @@ export function MatchupMatrix({
     );
   }
 
-  async function saveImage() {
-    if (!ref.current || visibleRows.length === 0) {
+  async function saveImage(event: MouseEvent<HTMLButtonElement>) {
+    if (!ref.current || visibleRows.length === 0 || busy.current) {
       return;
     }
 
-    const { toPng } = await import("html-to-image");
-    const dataUrl = await toPng(ref.current, {
-      cacheBust: true,
-      backgroundColor: "#ffffff",
-      pixelRatio: 2
-    });
-    const link = document.createElement("a");
-    link.download = `sv-matchup-${new Date().toISOString().slice(0, 10)}.png`;
-    link.href = dataUrl;
-    link.click();
+    busy.current = true;
+    saveTrigger.current = event.currentTarget;
+    setSaving(true);
+    setSaveError("");
+    try {
+      const node = ref.current;
+      const mobile = window.matchMedia("(max-width: 767px)").matches;
+      matrixPngSize(node, mobile);
+      const { toPng } = await import("html-to-image");
+      await document.fonts.ready;
+      if (!mounted.current) return;
+      matrixPngSize(node, mobile);
+      const dataUrl = await toPng(node, {
+        cacheBust: true,
+        // Next image URLs identify each icon through their query string.
+        includeQueryParams: true,
+        backgroundColor: "#ffffff",
+        pixelRatio: 2
+      });
+      if (!mounted.current) return;
+      const filename = `sv-matchup-${new Date().toISOString().slice(0, 10)}.png`;
+      if (mobile) setPreview(matrixPngFile(dataUrl, filename));
+      else {
+        if (!dataUrl.startsWith("data:image/png;base64,")) throw new Error("PNG encoding failed");
+        const link = document.createElement("a");
+        link.download = filename;
+        link.href = dataUrl;
+        link.click();
+      }
+    } catch (error) {
+      if (mounted.current) setSaveError(error instanceof RangeError && error.message === MATRIX_PNG_TOO_LARGE
+        ? MATRIX_PNG_TOO_LARGE : "PNGを保存できませんでした。画像の読み込みや表示するデッキ数を確認して、もう一度お試しください。");
+    } finally {
+      busy.current = false;
+      if (mounted.current) setSaving(false);
+    }
   }
 
   return (
     <div className="grid gap-4">
-      <section aria-label="表示するデッキ" className="min-w-0 rounded-md border border-slate-200 bg-white">
+      <section aria-label="表示するデッキ" inert={saving ? true : undefined} className="min-w-0 rounded-md border border-slate-200 bg-white">
         <h2>
           <button
             aria-controls={selectionId}
@@ -213,11 +251,15 @@ export function MatchupMatrix({
           <span className="rounded bg-amber-100 px-2 py-1 text-amber-950">40-44% 微不利</span>
           <span className="rounded bg-red-700 px-2 py-1 text-white">39%以下 不利</span>
         </div>
-        <Button type="button" variant="secondary" onClick={saveImage} disabled={visibleRows.length === 0}>
+        <Button type="button" variant="secondary" onClick={saveImage} disabled={visibleRows.length === 0 || saving} aria-busy={saving || undefined}>
           <Download size={17} aria-hidden="true" />
-          PNG保存
+          {saving ? "画像を作成しています…" : "PNG保存"}
         </Button>
       </div>
+
+      {saving ? <p role="status" className="text-sm text-muted">画像を作成しています…</p> : null}
+      {saveError ? <p role="alert" className="text-sm text-red-700">{saveError}</p> : null}
+      {preview ? <PngSharePreview title={title} first={preview} onClose={() => setPreview(null)} dialogTitle="相性表画像の保存" returnFocus={saveTrigger.current} /> : null}
 
       {visibleRows.length === 0 ? (
         <p className="rounded-md border border-slate-200 bg-white p-4 text-sm text-muted">

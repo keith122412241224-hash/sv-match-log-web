@@ -77,11 +77,21 @@ async function main() {
       window.restoreMatrixExport=()=>Object.defineProperty(HTMLImageElement.prototype,'src',descriptor);
       Object.defineProperty(HTMLImageElement.prototype,'src',{...descriptor,set(value){if(typeof value==='string'&&value.startsWith('data:image/svg+xml')){const svg=value.includes(';base64,')?atob(value.split(',')[1]):decodeURIComponent(value.slice(value.indexOf(',')+1));if(svg.includes('foreignObject'))window.matrixExportSvg=svg;}return descriptor.set.call(this,value);}});
     });
-    const waiting=page.waitForEvent('download');await page.getByRole('button',{name:'PNG保存',exact:true}).click();await (await waiting).saveAs(path.join(out,name+'.png'));
+    const waiting=page.waitForEvent('download');await page.getByRole('button',{name:'PNG保存',exact:true}).click();
+    const preview=page.getByRole('dialog',{name:'相性表画像の保存',exact:true});
+    if(page.viewportSize().width<768){await preview.getByRole('img').waitFor();await preview.getByRole('button',{name:'PNGをダウンロード',exact:true}).click();}
+    await (await waiting).saveAs(path.join(out,name+'.png'));
+    if(page.viewportSize().width<768)await preview.getByRole('button',{name:'閉じる',exact:true}).click();
     const exported=await page.evaluate(()=>{window.restoreMatrixExport();const svg=window.matrixExportSvg;if(!svg)return null;const doc=new DOMParser().parseFromString(svg,'image/svg+xml');return{text:doc.querySelector('foreignObject')?.textContent,cells:[...doc.querySelectorAll('td')].map(e=>e.textContent)};});
     assert.ok(exported);assert.doesNotMatch(exported.text,/指数|参考値|表示するデッキ|全選択|全解除/);assert.deepEqual(exported.cells,expectedCells,'PNG contains exactly the selected matrix');assert.ok(exported.cells.length);assert.equal(report.calls.length,before,'PNG does not refetch data');
     for(const text of exported.cells)assert.ok(text==='未対戦'||/^\d+(?:\.\d+)?%\d+勝 \/ \d+戦$/.test(text),text);
     assert.equal(fs.readFileSync(path.join(out,name+'.png')).subarray(1,4).toString(),'PNG');
+  }
+  // Run the PNG/share scenarios against this same real Next + isolated SQL fixture.
+  if (process.env.MATRIX_MOBILE_PNG === '1') {
+    await require('./matrix-mobile-png-share.browser.cjs').verify({page,report,out,h,login,origin,openSelector,setDecks:next=>{availableDecks=next;}});
+    assert.deepEqual(report.errors, []); assert.deepEqual(report.unexpected, []); report.passed = true;
+    return;
   }
   const settled = async () => { await page.waitForLoadState('networkidle'); assert.equal(await page.locator('main [role=alert]').count(), 0); };
   const trigger = () => page.locator('button[aria-haspopup=dialog]');

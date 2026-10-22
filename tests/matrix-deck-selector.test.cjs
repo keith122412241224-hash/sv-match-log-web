@@ -1,9 +1,11 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),cp=require('node:child_process'),Module=require('node:module'),path=require('node:path'),ts=require('typescript');
+const {test}=require('node:test'),assert=require('node:assert/strict'),cp=require('node:child_process'),Module=require('node:module'),path=require('node:path'),ts=require('typescript');
 const React=require('react'),{renderToStaticMarkup:render}=require('react-dom/server');
 const {MatchupMatrix}=require('../src/components/MatchupMatrix'),{SHADOWVERSE_CLASSES}=require('../src/lib/constants'),{buildWinRateMatrix}=require('../src/lib/analytics');
 const file='src/components/MatchupMatrix.tsx',base='e8068a2a9baa6b9c2d1975eec37686ef7b511a8a';
-const old=cp.execFileSync('git',['show',base+':'+file],{encoding:'utf8'}).replaceAll('\r\n','\n'),current=fs.readFileSync(file,'utf8').replaceAll('\r\n','\n');
+// Preserve this historical source guard after validating the current PNG-only patch.
+// The rendered component above and the new PNG browser tests use current source.
+const old=cp.execFileSync('git',['show',base+':'+file],{encoding:'utf8'}).replaceAll('\r\n','\n'),current=require('./matrix-mobile-png-share-scope.cjs').readBeforeMatrixPng(file);
 const baseline=new Module(path.resolve(file),module);baseline.filename=path.resolve(file);baseline.paths=module.paths;baseline._compile(ts.transpileModule(old,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX,esModuleInterop:true}}).outputText,baseline.filename);
 const decks=[{id:'witch2',name:'ウィッチ後発',class_name:'ウィッチ'},{id:'elf',name:'長い名前'.repeat(30),class_name:'エルフ'},{id:'witch1',name:'ウィッチ先発',class_name:'ウィッチ'},{id:'unknown',name:'新クラスのデッキ',class_name:'未定義クラス'},{id:'blank',name:'クラス未設定',class_name:''},{id:'royal',name:'ロイヤルデッキ',class_name:'ロイヤル'}];
 const props={rows:buildWinRateMatrix(Array.from({length:8},(_,i)=>({my_deck_id:'witch2',opponent_deck_id:'elf',result:i<5?'win':'lose'})),decks,decks),opponentDecks:decks,createdAtLabel:'2026/10/21'};

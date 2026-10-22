@@ -1,0 +1,6 @@
+{
+  "src/components/MatchupMatrix.tsx": "2106ae9a10e34f6b6e430e8801bde6fa9aa7f2f9b07ae7feb0f194e15885cfd0",
+  "src/components/analysis/AnalysisPngPreview.tsx": "32d644e091c202005fd4e9e6e993b82ba46a649375161955085d89ddd12abab9",
+  "src/components/PngSharePreview.tsx": "3e58c2dc0e286cb33fe754eebf91de14803c6887f89ff556a2fb6d99f0ea9762",
+  "src/lib/matrix-png.ts": "37b57ffa46a862534ebd6d4607bd6c562312057f8e5a7f612fbeb0bb1396d388"
+}
