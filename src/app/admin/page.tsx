@@ -160,13 +160,21 @@ export default async function AdminPage({
         </>}
 
         {section === "tools" && <div className="grid items-start gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-          <section className="flex flex-col gap-3 rounded-md border border-slate-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between lg:col-span-2">
-            <div>
-              <h2 className="text-lg font-bold">Tier表・相関図制作</h2>
-              <p className="mt-1 text-sm text-muted">Tier表・相関図を作成し、PNG・OBS表示に利用します。</p>
-            </div>
-            <Link className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold" href="/admin/creator/tier" prefetch={false}>制作画面を開く</Link>
-          </section>
+          <div className="grid min-w-0 gap-3 lg:col-span-2 lg:grid-cols-3">
+            {[
+              { title: "Tier表メーカー", description: "Tier表を作成・編集し、PNG・OBSで利用できます。", href: "/admin/creator/tier" },
+              { title: "相関図メーカー", description: "Tier表を作らずに、相関図を単独で作成・編集できます。", href: "/admin/creator/correlation" },
+              { title: "OBS表示セット", description: "保存済みのTier表と相関図を自由に組み合わせて表示できます。", href: "/admin/creator/obs-sets" }
+            ].map(({ title, description, href }) => (
+              <section key={href} className="flex min-w-0 flex-col gap-3 rounded-md border border-slate-200 bg-white p-4">
+                <div>
+                  <h2 className="text-lg font-bold">{title}</h2>
+                  <p className="mt-1 text-sm text-muted">{description}</p>
+                </div>
+                <Link className="mt-auto inline-flex min-h-11 items-center justify-center rounded-md border border-slate-300 px-4 py-2 text-center text-sm font-semibold" href={href} prefetch={false}>{title}を開く</Link>
+              </section>
+            ))}
+          </div>
           <section className="rounded-md border border-slate-200 bg-white p-4">
             <h2 className="text-lg font-bold">期間レポート</h2>
             <p className="mt-1 text-sm text-muted">指定期間の戦績を集計・分析します。</p>
