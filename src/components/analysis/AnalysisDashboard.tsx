@@ -136,6 +136,7 @@ export function AnalysisDashboard({ initialData, initialQuery }: { initialData: 
           environments={environments}
           canUseAllUsers={isAdmin}
           pending={pending}
+          selectionRevision={data}
           onRankApply={applyRanks}
           onPeriodApply={applyPeriod}
           periodPreset={periodPreset}

@@ -16,11 +16,13 @@ export function ClassIcon({
   className,
   size = 28,
   showLabel = false,
+  loading,
   imageClassName
 }: {
   className: string;
   size?: number;
   showLabel?: boolean;
+  loading?: "eager" | "lazy";
   imageClassName?: string;
 }) {
   if (!isShadowverseClass(className)) {
@@ -33,6 +35,7 @@ export function ClassIcon({
         alt={className}
         className={cn("shrink-0 rounded-full", imageClassName)}
         height={size}
+        loading={loading}
         src={classIconSrc(className)}
         width={size}
       />

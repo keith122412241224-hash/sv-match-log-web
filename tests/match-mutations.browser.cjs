@@ -6,6 +6,7 @@ const { spawn } = require('node:child_process'), assert = require('node:assert/s
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const { setup, ids, quote } = require('./match-mutations-db.cjs');
 const origin = 'http://localhost:3268', output = path.resolve(process.env.MATCH_MUTATIONS_OUTPUT || 'build/match-mutations');
+const apiPort = Number(process.env.MATCH_API_PORT || 54329), apiOrigin = 'http://127.0.0.1:' + apiPort;
 const user = { id: ids.a, aud: 'authenticated', role: 'authenticated', is_anonymous: false, email: 'local@example.test', app_metadata: {}, user_metadata: {} };
 const errors = [], warnings = [], pageerrors = [], calls = [], checks = [];
 let failWrite = false, delayWrite = 0, chain = Promise.resolve();
@@ -18,7 +19,7 @@ async function until(fn) { for (let i = 0; i < 100; i++) { if (await fn()) retur
   // Serialize role-setting and queries on this single embedded DB connection.
   const api = http.createServer((req, res) => {
     chain = chain.then(async () => {
-      const url = new URL(req.url, 'http://127.0.0.1:54329');
+      const url = new URL(req.url, apiOrigin);
       res.setHeader('Content-Type', 'application/json');
       const loggedIn = req.headers.authorization?.startsWith('Bearer ey');
       const subject = loggedIn ? JSON.parse(Buffer.from(req.headers.authorization.split('.')[1], 'base64url').toString()).sub : null;
@@ -47,6 +48,7 @@ async function until(fn) { for (let i = 0; i < 100; i++) { if (await fn()) retur
           } else q.eq(key, raw);
         }
         else if (value.startsWith('in.(')) q.in(key, value.slice(4, -1).split(',').map(v => v.replaceAll('"', '')));
+        else if (value.startsWith('gt.')) q.gt(key, value.slice(3));
         else if (!['on_conflict', 'columns'].includes(key)) throw Error('Unexpected query ' + key);
       }
       if (['PATCH', 'DELETE'].includes(req.method) && table === 'matches') {
@@ -74,9 +76,9 @@ async function until(fn) { for (let i = 0; i < 100; i++) { if (await fn()) retur
       res.end(JSON.stringify(result.data));
     }).catch(error => { console.error('LOCAL HTTP:', error.message); res.statusCode = 500; res.end(JSON.stringify({ message: error.message })); });
   });
-  await new Promise(r => api.listen(54329, '127.0.0.1', r));
+  await new Promise(r => api.listen(apiPort, '127.0.0.1', r));
   const log = fs.openSync(path.join(output, 'server.log'), 'w');
-  const app = spawn(process.execPath, [require.resolve('next/dist/bin/next'), 'start', '-p', '3268'], { windowsHide: true, stdio: ['ignore', log, log], env: { ...process.env, NEXT_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:54329', NEXT_PUBLIC_SUPABASE_ANON_KEY: 'test-public-key', OPENAI_API_KEY: '' } });
+  const app = spawn(process.execPath, [require.resolve('next/dist/bin/next'), 'start', '-p', '3268'], { windowsHide: true, stdio: ['ignore', log, log], env: { ...process.env, NEXT_PUBLIC_SUPABASE_URL: apiOrigin, NEXT_PUBLIC_SUPABASE_ANON_KEY: 'test-public-key', OPENAI_API_KEY: '' } });
   let browser;
   try {
     await until(async () => { try { return (await fetch(origin + '/privacy')).ok; } catch { return false; } });
@@ -87,13 +89,13 @@ async function until(fn) { for (let i = 0; i < 100; i++) { if (await fn()) retur
     await context.route('**/*', route => ['localhost', '127.0.0.1'].includes(new URL(route.request().url()).hostname) ? route.continue() : route.abort());
     const token = ['eyJhbGciOiJIUzI1NiJ9', Buffer.from(JSON.stringify({ sub: user.id, exp: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url'), 'fixture'].join('.');
     for (const [filter, expected] of [['is_active=eq.true', [ids.arch, ids.arch2]], ['is_active=eq.false', []], ['name=eq.true', []]]) {
-      const response = await fetch('http://127.0.0.1:54329/rest/v1/deck_archetypes?select=id&' + filter, { headers: { Authorization: 'Bearer ' + token } });
+      const response = await fetch(apiOrigin + '/rest/v1/deck_archetypes?select=id&' + filter, { headers: { Authorization: 'Bearer ' + token } });
       assert.equal(response.status, 200);
       assert.deepEqual((await response.json()).map(row => row.id).sort(), expected);
     }
     checks.push('HTTP boolean filters preserve true/false and textual values');
     const direct = async (method, target, authorization, body) => {
-      const response = await fetch('http://127.0.0.1:54329/rest/v1/matches?id=eq.' + target, {
+      const response = await fetch(apiOrigin + '/rest/v1/matches?id=eq.' + target, {
         method, headers: { 'Content-Type': 'application/json', ...(authorization ? { Authorization: 'Bearer ' + authorization } : {}) },
         ...(body ? { body: JSON.stringify(body) } : {})
       });
@@ -115,6 +117,7 @@ async function until(fn) { for (let i = 0; i < 100; i++) { if (await fn()) retur
     const page = await context.newPage();
     page.on('console', msg => { if (msg.type() === 'error') errors.push(msg.text()); if (msg.type() === 'warning') warnings.push(msg.text()); });
     page.on('pageerror', error => pageerrors.push(error.message));
+    await require('./deck-select-dialog.browser.cjs').verifyMatchSelection({ page, origin, output, db, claim, ids, until, calls, idle: () => chain, checks, normalFault });
     const menu = async () => { await page.getByRole('button', { name: '戦績の操作', exact: true }).first().click(); await page.getByRole('heading', { name: '戦績の操作' }).waitFor(); };
     const edit = async () => { await menu(); await page.getByRole('button', { name: '編集', exact: true }).click(); await page.getByRole('heading', { name: '戦績を編集' }).waitFor(); };
     const remove = async () => { await menu(); await page.getByRole('button', { name: '削除', exact: true }).click(); await page.getByRole('heading', { name: 'この戦績を削除しますか？' }).waitFor(); };
@@ -144,10 +147,10 @@ async function until(fn) { for (let i = 0; i < 100; i++) { if (await fn()) retur
       assert.ok(await own()); checks.push(width + 'px menus/editor/delete confirmation/cancels');
     }
     await edit();
-    await page.locator('dialog select').nth(1).selectOption(ids.arch2);
+    await require('./deck-select-dialog.browser.cjs').choose(page, '使用デッキ', 'デッキB', 'ロイヤル');
     await page.getByRole('button', { name: '負け', exact: true }).click();
     await page.getByRole('button', { name: '後攻', exact: true }).click();
-    await page.locator('dialog button[aria-haspopup=dialog]').click();
+    await page.getByRole('button', { name: /^対戦時点の自分のランク/ }).click();
     await page.locator('input[value="master:ruby"]').click();
     failWrite = true;
     await page.getByRole('button', { name: '変更を保存' }).click();
@@ -188,7 +191,7 @@ async function until(fn) { for (let i = 0; i < 100; i++) { if (await fn()) retur
     await edit(); await page.getByRole('button', { name: '負け', exact: true }).click(); await page.getByRole('button', { name: '編集をキャンセル' }).click(); assert.equal(await guestRaw(), guestBefore);
     await remove(); await page.getByRole('button', { name: 'キャンセル', exact: true }).click(); assert.equal(await guestRaw(), guestBefore);
     await edit(); await page.getByRole('button', { name: '負け', exact: true }).click();
-    await page.locator('dialog select').nth(1).selectOption(ids.arch2);
+    await require('./deck-select-dialog.browser.cjs').choose(page, '使用デッキ', 'デッキB', 'ロイヤル');
     await page.getByRole('button', { name: '変更を保存' }).click(); await page.getByRole('status').filter({ hasText: '戦績を更新しました' }).waitFor();
     const editedGuest = JSON.parse(await guestRaw())[0]; assert.equal(editedGuest.result, 'lose');
     assert.equal(editedGuest.my_archetype_id, ids.arch2); assert.equal(editedGuest.played_at, JSON.parse(guestBefore)[0].played_at);

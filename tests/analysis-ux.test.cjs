@@ -56,7 +56,7 @@ test('Analysis UX scope pins only presentation and keeps all existing server/API
  const files=git('ls-tree','-r','--name-only',s.base).trim().split('\n').filter(f=>/^(src|supabase)\//.test(f)||/^package(-lock)?\.json$/.test(f));
  for(const f of files)assert.equal(s.readBeforeAnalysisUx(f),git('show',s.base+':'+f),f);
  assert.deepEqual(git('ls-files','--cached','--others','--exclude-standard','--','src','supabase').trim().split('\n').sort(),[...files.filter(f=>/^(src|supabase)\//.test(f)),...s.added].sort());
- const dashboard=s.read('src/components/analysis/AnalysisDashboard.tsx'),before=git('show',s.base+':src/components/analysis/AnalysisDashboard.tsx');
+ const dashboard=require('./deck-select-dialog-scope.cjs').readBeforeDeckSelect('src/components/analysis/AnalysisDashboard.tsx'),before=git('show',s.base+':src/components/analysis/AnalysisDashboard.tsx');
  const load=x=>x.slice(x.indexOf('  const load = useCallback'),x.indexOf('  function applyRanks'));
  const expectedLoad=load(before).replace("      const response = await fetch('/api/analysis?' + query,", "      // The preset is presentation metadata in the URL; the existing API accepts dates only.\n      const apiQuery = new URLSearchParams(query); apiQuery.delete('periodPreset');\n      const response = await fetch('/api/analysis?' + apiQuery,")
  .replace("        setData(next); currentQuery.current = query.toString();","        setData(next); currentQuery.current = query.toString();\n        setPeriodPreset(query.get('periodPreset') ?? undefined);")

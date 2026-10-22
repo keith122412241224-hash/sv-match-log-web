@@ -1,3 +1,4 @@
+import { DeckSelectDialogField } from "@/components/DeckSelectDialog";
 import { RankMultiSelect } from "@/components/RankMultiSelect";
 import { RANK_ATOMS, type RankSelection } from "@/lib/rank-selection";
 import Link from "next/link";
@@ -29,6 +30,7 @@ export function AnalysisFilters({
   values,
   canUseAllUsers,
   pending = false,
+  selectionRevision,
   onRankApply,
   onPeriodApply,
   periodPreset
@@ -38,6 +40,7 @@ export function AnalysisFilters({
   values: AnalysisFilterValues;
   canUseAllUsers?: boolean;
   pending?: boolean;
+  selectionRevision?: object;
   onRankApply?: (ranks: RankSelection) => void;
   onPeriodApply?: (period: AnalysisPeriod, dates: { playedFrom: string; playedTo: string }) => void;
   periodPreset?: string;
@@ -87,29 +90,11 @@ export function AnalysisFilters({
           </Select>
         </FieldLabel>
 
-        <FieldLabel>
-          使用デッキ
-          <Select name="myDeck" defaultValue={values.myDeckId}>
-            <option value="">すべて</option>
-            {decks.map((deck) => (
-              <option key={`my-${deck.id}`} value={deck.id}>
-                {deck.name}
-              </option>
-            ))}
-          </Select>
-        </FieldLabel>
+        <DeckSelectDialogField label="使用デッキ" name="myDeck" decks={decks} value={values.myDeckId}
+          allowAll disabled={pending} selectionRevision={selectionRevision} />
 
-        <FieldLabel>
-          相手デッキ
-          <Select name="opponentDeck" defaultValue={values.opponentDeckId}>
-            <option value="">すべて</option>
-            {decks.map((deck) => (
-              <option key={`opponent-${deck.id}`} value={deck.id}>
-                {deck.name}
-              </option>
-            ))}
-          </Select>
-        </FieldLabel>
+        <DeckSelectDialogField label="相手デッキ" name="opponentDeck" decks={decks} value={values.opponentDeckId}
+          allowAll disabled={pending} selectionRevision={selectionRevision} />
 
       </div>
 

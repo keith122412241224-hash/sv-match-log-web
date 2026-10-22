@@ -41,6 +41,7 @@ async function setup({ beforeMigration, afterMigration, seed = true } = {}) {
     constructor(table) { this.table = table; this.filters = []; this.cols = '*'; this.sort = []; }
     select(cols = '*') { this.cols = cols; return this; }
     eq(key, value) { this.filters.push([key, 'eq', value]); return this; }
+    gt(key, value) { this.filters.push([key, 'gt', value]); return this; }
     is(key, value) { if (value !== null) throw Error('fixture supports IS NULL only'); this.filters.push([key, 'is', value]); return this; }
     in(key, value) { this.filters.push([key, 'in', value]); return this; }
     order(key, options = {}) { this.sort.push(quote(key) + (options.ascending === false ? ' desc' : ' asc')); return this; }
@@ -53,13 +54,13 @@ async function setup({ beforeMigration, afterMigration, seed = true } = {}) {
     async execute() {
       try {
         const args = [], bind = v => { args.push(v); return '$' + args.length; };
-        const where = this.filters.map(([key, op, value]) => op === 'is' ? quote(key) + ' is null' : op === 'eq' ? quote(key) + '=' + bind(value) : value.length ? quote(key) + ' in (' + value.map(bind).join(',') + ')' : 'false');
+        const where = this.filters.map(([key, op, value]) => op === 'is' ? quote(key) + ' is null' : op === 'eq' ? quote(key) + '=' + bind(value) : op === 'gt' ? quote(key) + '>' + bind(value) : value.length ? quote(key) + ' in (' + value.map(bind).join(',') + ')' : 'false');
         const condition = where.length ? ' where ' + where.join(' and ') : '';
         const table = 'public.' + quote(this.table); let sql;
         if (this.rows) { const cols = Object.keys(this.rows[0]); sql = 'insert into ' + table + '(' + cols.map(quote).join(',') + ') values ' + this.rows.map(row => '(' + cols.map(col => bind(row[col])).join(',') + ')').join(',') + (this.conflict ? ' on conflict(' + this.conflict.split(',').map(quote).join(',') + ') do nothing' : '') + ' returning *'; }
         else if (this.values) sql = 'update ' + table + ' set ' + Object.entries(this.values).map(([key, value]) => quote(key) + '=' + bind(value)).join(',') + condition + ' returning *';
         else if (this.remove) sql = 'delete from ' + table + condition + ' returning *';
-        else sql = 'select ' + (this.cols === '*' ? '*' : this.cols.split(',').map(quote).join(',')) + ' from ' + table + condition + (this.sort.length ? ' order by ' + this.sort.join(',') : '') + (this.count ? ' limit ' + Number(this.count) : '');
+        else sql = 'select ' + (this.cols === '*' ? '*' : this.cols.split(',').map(col => col === 'title:document->>title' ? '"document"->>\'title\' as "title"' : quote(col)).join(',')) + ' from ' + table + condition + (this.sort.length ? ' order by ' + this.sort.join(',') : '') + (this.count ? ' limit ' + Number(this.count) : '');
         const result = await db.query(sql, args);
         return { data: this.single ? result.rows[0] ?? null : result.rows, error: null };
       } catch (error) { return { data: null, error: { message: error.message, code: error.code } }; }

@@ -90,6 +90,9 @@ test('deck management: exact UI revision only; all other product code, database 
   const git = (...args) => cp.execFileSync('git', args, { encoding: 'utf8' }).replaceAll('\r\n', '\n');
   const files = git('ls-tree', '-r', '--name-only', s.base).trim().split('\n').filter(f => /^(src|supabase)\//.test(f) || /^package(-lock)?\.json$/.test(f));
   for (const f of files) assert.equal(s.readBeforeDeckManagement(f), git('show', s.base + ':' + f), f);
-  assert.equal(git('ls-files', '--others', '--exclude-standard', '--', 'src', 'supabase').trim(), '');
+  const selection = require('./deck-select-dialog-scope.cjs');
+  const productFiles = git('ls-files', '--cached', '--others', '--exclude-standard', '--', 'src', 'supabase').trim().split('\n').filter(Boolean);
+  assert.deepEqual(productFiles.sort(), [...files.filter(f => /^(src|supabase)\//.test(f)), ...selection.added].sort());
+  for (const file of selection.added) { selection.assertReviewed(file); assert.equal(git('ls-tree', '--name-only', s.base, '--', file).trim(), ''); }
   assert.doesNotMatch(fs.readFileSync('src/app/decks/page.tsx', 'utf8'), /use client|useState|onToggle|fetch\(/);
 });

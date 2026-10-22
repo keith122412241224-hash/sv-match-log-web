@@ -16,7 +16,7 @@ import { isEnvironmentInputEnabled } from "@/lib/environment-input";
 import type { MatchEditData, MatchMutationResult } from "@/lib/match-edit";
 import { Button } from "@/components/Button";
 import { notifyNavigationStart } from "@/components/GlobalPendingIndicator";
-import { ClassIcon, DeckWithClassIcon } from "@/components/ClassIcon";
+import { DeckSelectDialog } from "@/components/DeckSelectDialog";
 import { FieldLabel, Select } from "@/components/Field";
 import { RESULT_LABELS, SHADOWVERSE_CLASSES, TURN_ORDER_LABELS } from "@/lib/constants";
 import { cn, getMostRecentlyCreatedId } from "@/lib/utils";
@@ -88,7 +88,11 @@ export function QuickMatchForm({
       return choices;
     }
 
-    return decks.map((deck) => ({ id: deck.id, name: deck.name, class_name: deck.class_name, source: "deck" }));
+    const choices: DeckChoice[] = decks.map((deck) => ({ id: deck.id, name: deck.name, class_name: deck.class_name, source: deck.id === initialMatch?.my_archetype_id ? "archetype" : "deck" }));
+    if (initialMatch && !choices.some(choice => choice.id === (initialMatch.my_archetype_id ?? initialMatch.my_deck_id))) {
+      choices.push({ id: initialMatch.my_archetype_id ?? initialMatch.my_deck_id, name: "元の使用デッキ（現在選択肢なし）", class_name: "", source: initialMatch.my_archetype_id ? "archetype" : "deck" });
+    }
+    return choices;
   }, [archetypes, decks, initialMatch]);
 
   const [myChoiceId, setMyChoiceId] = useState(initialMatch ? initialMatch.my_archetype_id ?? initialMatch.my_deck_id : myChoices[0]?.id ?? "");
@@ -149,7 +153,7 @@ export function QuickMatchForm({
     () => archetypes.filter((archetype) => archetype.class_name === opponentClass),
     [archetypes, opponentClass]
   );
-  const usesArchetypes = archetypes.length > 0;
+  const usesArchetypes = archetypes.length > 0 || Boolean(initialMatch?.opponent_archetype_id);
   const selectedOpponentDeckId = usesArchetypes
     ? opponentArchetypeId || (initialMatch && !initialMatch.opponent_archetype_id ? opponentDeckId : "")
     : opponentDeckId;
@@ -164,6 +168,20 @@ export function QuickMatchForm({
       setOpponentArchetypeId(classArchetypes[0]?.id ?? "");
     }
   }, [archetypes, classArchetypes, opponentArchetypeId, usesArchetypes, initialMatch]);
+
+  const opponentChoices: DeckChoice[] = useMemo(() => {
+    const choices: DeckChoice[] = usesArchetypes
+      ? archetypes.map(row => ({ ...row, source: "archetype" }))
+      : decks.map(row => ({ ...row, source: "deck" }));
+    if (initialMatch) {
+      const originalId = initialMatch.opponent_archetype_id ?? initialMatch.opponent_deck_id;
+      if (!choices.some(row => row.id === originalId)) {
+        const legacy = !initialMatch.opponent_archetype_id ? decks.find(row => row.id === originalId) : undefined;
+        choices.push({ id: originalId, name: legacy?.name ?? "元の相手デッキ（現在選択肢なし）", class_name: legacy?.class_name ?? "", source: initialMatch.opponent_archetype_id ? "archetype" : "deck" });
+      }
+    }
+    return choices;
+  }, [archetypes, decks, initialMatch, usesArchetypes]);
 
   const restoredUser = useRef<string | null>(null);
   useEffect(() => {
@@ -344,95 +362,24 @@ export function QuickMatchForm({
         </Select>
       </FieldLabel>
 
-      <FieldLabel>
-        使用デッキ
-        <Select required value={myChoiceId} onChange={(event) => setMyChoiceId(event.target.value)}>
-          {myChoices.map((choice) => (
-            <option key={`${choice.source}-${choice.id}`} value={choice.id}>
-              {choice.name}
-            </option>
-          ))}
-        </Select>
-      </FieldLabel>
+      <DeckSelectDialog label="使用デッキ" decks={myChoices} value={myChoiceId} onChange={setMyChoiceId} />
+      {!initialMatch && <p className="text-xs text-muted">前回選択はこの端末に記憶されます。</p>}
 
-      {selectedMyChoice ? (
-        <p className="flex items-center gap-2 text-xs text-muted">
-          {initialMatch ? "現在の使用デッキ" : "前回選択はこの端末に記憶されます。"}
-          <DeckWithClassIcon className={selectedMyChoice.class_name} compact name={selectedMyChoice.name} />
-        </p>
-      ) : null}
-
-      <section className="grid gap-2">
-        <div className="text-sm font-semibold text-ink">相手デッキ</div>
-        {usesArchetypes ? (
-          <>
-            <input name="opponent_archetype_id" type="hidden" value={opponentArchetypeId} />
-            {initialMatch?.opponent_archetype_id && !archetypes.some(row => row.id === initialMatch.opponent_archetype_id) ? (
-              <button type="button" className={cn("min-h-11 rounded-md border px-3 text-left text-sm", opponentArchetypeId === initialMatch.opponent_archetype_id && "bg-ink text-white")}
-                onClick={() => setOpponentArchetypeId(initialMatch.opponent_archetype_id!)}>元の相手デッキ（現在選択肢なし）</button>
-            ) : null}
-            {initialMatch && !initialMatch.opponent_archetype_id ? <>
-              {!opponentArchetypeId ? <input name="opponent_deck_id" type="hidden" value={opponentDeckId} /> : null}
-              <button type="button" className={cn("min-h-11 rounded-md border px-3 text-left text-sm", !opponentArchetypeId && "bg-ink text-white")}
-                onClick={() => setOpponentArchetypeId("")}>{decks.find(deck => deck.id === initialMatch.opponent_deck_id)?.name ?? "元の相手デッキ"}</button>
-            </> : null}
-            <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
-              {SHADOWVERSE_CLASSES.map((className) => (
-                <button
-                  className={cn("grid min-h-12 place-items-center rounded-md border", opponentClass === className ? "border-ink ring-2 ring-slate-300" : "border-slate-300")}
-                  key={className}
-                  onClick={() => {
-                    setOpponentClass(className);
-                    const next = archetypes.find((archetype) => archetype.class_name === className);
-                    setOpponentArchetypeId(next?.id ?? "");
-                  }}
-                  title={className}
-                  type="button"
-                >
-                  <ClassIcon className={className} size={30} />
-                </button>
-              ))}
-            </div>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-              {classArchetypes.map((archetype) => (
-                <button
-                  className={cn(
-                    "min-h-14 rounded-md border px-3 py-2 text-left text-sm font-semibold",
-                    opponentArchetypeId === archetype.id ? "border-ink bg-ink text-white" : "border-slate-300 bg-white text-ink"
-                  )}
-                  key={archetype.id}
-                  onClick={() => setOpponentArchetypeId(archetype.id)}
-                  type="button"
-                >
-                  {archetype.name}
-                </button>
-              ))}
-            </div>
-          </>
-        ) : (
-          <>
-            <input name="opponent_deck_id" type="hidden" value={opponentDeckId} />
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-              {decks.map((deck) => (
-                <button
-                  className={cn(
-                    "min-h-16 rounded-md border px-3 py-2 text-left text-sm font-semibold",
-                    opponentDeckId === deck.id ? "border-ink bg-ink text-white" : "border-slate-300 bg-white text-ink"
-                  )}
-                  key={deck.id}
-                  onClick={() => setOpponentDeckId(deck.id)}
-                  type="button"
-                >
-                  <span className="block">{deck.name}</span>
-                  <span className={cn("mt-1 inline-flex", opponentDeckId === deck.id ? "opacity-90" : "opacity-80")}>
-                    <ClassIcon className={deck.class_name} size={24} />
-                  </span>
-                </button>
-              ))}
-            </div>
-          </>
-        )}
-      </section>
+      {usesArchetypes ? <>
+        <input name="opponent_archetype_id" type="hidden" value={opponentArchetypeId} />
+        {initialMatch && !initialMatch.opponent_archetype_id && !opponentArchetypeId ? <input name="opponent_deck_id" type="hidden" value={opponentDeckId} /> : null}
+      </> : <input name="opponent_deck_id" type="hidden" value={opponentDeckId} />}
+      <DeckSelectDialog label="相手デッキ" decks={opponentChoices} value={selectedOpponentDeckId} onChange={id => {
+        const choice = opponentChoices.find(row => row.id === id);
+        if (!choice) return;
+        if (choice.source === "archetype") {
+          setOpponentClass(choice.class_name);
+          setOpponentArchetypeId(id);
+        } else {
+          setOpponentDeckId(id);
+          setOpponentArchetypeId("");
+        }
+      }} />
 
       <section className="grid gap-2">
         <div className="text-sm font-semibold text-ink">先攻/後攻</div>
