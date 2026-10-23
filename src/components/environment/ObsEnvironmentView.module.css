@@ -1,4 +1,5 @@
 .canvas { min-height: 100vh; background: #0b1220; color: #f4f7fc; padding: 16px; }
+.embedded { min-height: 0; background: transparent; }
 .panel { max-width: 1200px; margin: 0 auto; display: grid; gap: 8px; }
 .header { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 24px; padding-bottom: 10px; border-bottom: 1px solid #334155; }
 .brand { color: #8fdcff; font-size: 15px; font-weight: 800; letter-spacing: .18em; }

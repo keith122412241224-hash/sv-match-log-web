@@ -1,0 +1,33 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
+const {test}=require('node:test'),assert=require('node:assert/strict');
+const {createDb,identity,ADMIN,MEMBER,uuid}=require('./creator-db.cjs'),{applyUnified,migration}=require('./obs-unified-db.cjs');
+const environment=require('./obs-environment-fixture.cjs').environments[0].id;
+const tier={version:1,title:'旧作品',showTitle:true,rows:[{id:uuid(80),name:'S',color:'#ff0000',imageIds:[]}]};
+const graph={version:1,title:'相関図',showTitle:true,showNames:true,nodes:[],edges:[]};
+async function seed(db){await db.query('insert into creator_tier_works(id,document) values($1,$2)',[uuid(10),tier]);await db.query('insert into creator_correlations(id,tier_work_id,document) values($1,$2,$3)',[uuid(11),uuid(10),graph]);await db.query('insert into creator_obs_sets(id,name,tier_work_id,correlation_id) values($1,$2,$3,$4)',[uuid(12),'旧セット',uuid(10),uuid(11)]);await db.query("update creator_obs_sets set name='revision保持' where id=$1",[uuid(12)]);}
+const defs=async db=>({policies:(await db.query("select * from pg_policies where tablename like 'creator_%' order by tablename,policyname")).rows,grants:(await db.query("select grantee,privilege_type from information_schema.role_table_grants where table_name='creator_obs_sets' order by grantee,privilege_type")).rows,functions:(await db.query("select proname,proacl::text,pg_get_functiondef(oid) from pg_proc where pronamespace='public'::regnamespace and proname like 'creator_%' order by proname")).rows});
+test('unified migration keeps old sets, revisions, timestamps, works, policies, grants/functions and supports old writers on new DB',async()=>{const db=await createDb({unified:false});try{
+ await seed(db);const before=(await db.query('select * from creator_obs_sets')).rows[0];await db.exec('reset role');const security=await defs(db);await applyUnified(db);assert.deepEqual(await defs(db),security);
+ await db.exec('create schema supabase_migrations; create table supabase_migrations.schema_migrations(version text primary key);');await db.query('insert into supabase_migrations.schema_migrations values($1)',[migration.split('_')[0]]);assert.deepEqual((await db.query('select version from supabase_migrations.schema_migrations')).rows,[{version:migration.split('_')[0]}]);
+ await identity(db);const after=(await db.query('select * from creator_obs_sets')).rows[0];for(const key of Object.keys(before))assert.deepEqual(after[key],before[key],key);assert.equal(after.environment_id,null);assert.equal(after.display_mode,'continuous');assert.deepEqual(after.content_order.filter(k=>k!=='environment'),['tier','correlation']);
+ assert.deepEqual((await db.query('select document from creator_tier_works')).rows[0].document,tier);assert.deepEqual((await db.query('select document from creator_correlations')).rows[0].document,graph);
+ const update=await db.query('update creator_obs_sets set name=$1,tier_work_id=null where id=$2 and revision=$3 returning *',['旧Web更新',before.id,before.revision]);assert.equal(update.rows[0].revision,before.revision+1);assert.equal(update.rows[0].correlation_id,uuid(11));
+ assert.equal((await db.query('update creator_obs_sets set name=$1 where id=$2 and revision=$3 returning *',['競合',before.id,before.revision])).rows.length,0);
+ await db.query('insert into creator_obs_sets(name,tier_work_id) values($1,$2)',['旧Web新規',uuid(10)]);
+ }finally{await db.close();}});
+test('all seven selections, six permutations, strict empty/order/period/rank/FK rejection and restrictive deletion',async()=>{const db=await createDb();try{await seed(db);
+ for(let mask=1;mask<8;mask++){const row=(await db.query('insert into creator_obs_sets(name,environment_id,tier_work_id,correlation_id) values($1,$2,$3,$4) returning *',['組合せ'+mask,mask&1?environment:null,mask&2?uuid(10):null,mask&4?uuid(11):null])).rows[0];assert.equal(row.revision,1);}
+ for(const order of [['environment','tier','correlation'],['environment','correlation','tier'],['tier','environment','correlation'],['tier','correlation','environment'],['correlation','environment','tier'],['correlation','tier','environment']]){await db.query('update creator_obs_sets set content_order=$1 where id=$2',[order,uuid(12)]);assert.deepEqual((await db.query('select content_order from creator_obs_sets where id=$1',[uuid(12)])).rows[0].content_order,order);}
+ for(const order of [[],['tier'],['tier','tier','correlation'],['environment','tier','x'],['environment','tier',null],null,[['environment','tier','correlation']]])await assert.rejects(db.query('update creator_obs_sets set content_order=$1 where id=$2',[order,uuid(12)]));
+ for(const ranks of [[],['bad'],[null],null])await assert.rejects(db.query('update creator_obs_sets set environment_ranks=$1 where id=$2',[ranks,uuid(12)]));
+ for(const period of ['bad','',null])await assert.rejects(db.query('update creator_obs_sets set environment_period=$1 where id=$2',[period,uuid(12)]));
+ await assert.rejects(db.query("insert into creator_obs_sets(name) values('empty')"));await assert.rejects(db.query('insert into creator_obs_sets(name,environment_id) values($1,$2)',['invalid',uuid(999)]),/foreign key/);
+ await db.exec('reset role');
+ for(const [table,id]of [['environments',environment],['creator_tier_works',uuid(10)],['creator_correlations',uuid(11)]])await assert.rejects(db.query(`delete from ${table} where id=$1`,[id]),/foreign key/);
+ await db.query('delete from creator_obs_sets');assert.equal((await db.query('select * from creator_tier_works')).rows.length,1);assert.equal((await db.query('select * from creator_correlations')).rows.length,1);
+ }finally{await db.close();}});
+test('new environment sets remain admin-only under RLS for every CRUD operation; no new grants or definers',async()=>{const db=await createDb();try{
+ await db.query('insert into creator_obs_sets(name,environment_id) values($1,$2)',['秘密',environment]);
+ for(const [u,role,guest]of [[MEMBER,'authenticated',false],[ADMIN,'authenticated',true],[null,'authenticated',false],[null,'anon',false]]){await identity(db,u,role,guest);if(role==='anon')await assert.rejects(db.query('select * from creator_obs_sets'),/permission/);else{assert.equal((await db.query('select * from creator_obs_sets')).rows.length,0);assert.equal((await db.query("update creator_obs_sets set name='x' returning *")).rows.length,0);assert.equal((await db.query('delete from creator_obs_sets returning *')).rows.length,0);}await assert.rejects(db.query('insert into creator_obs_sets(name,environment_id) values($1,$2)',['侵入',environment]));}
+ await identity(db);assert.equal((await db.query('select * from creator_obs_sets')).rows.length,1);
+ }finally{await db.close();}});

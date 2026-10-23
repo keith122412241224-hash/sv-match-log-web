@@ -24,12 +24,13 @@ function Ranking({ title, rows, metric, total }: { title: string; rows: Row[]; m
   </section>;
 }
 
-export function ObsEnvironmentView({ data, environmentName, matchups }: { data: EnvironmentDashboardV4; environmentName: string; matchups?: ObsMatchups | null }) {
+export function ObsEnvironmentView({ data, environmentName, matchups, embedded = false }: { data: EnvironmentDashboardV4; environmentName: string; matchups?: ObsMatchups | null; embedded?: boolean }) {
   const view = buildEnvironmentViewV4(data);
   const rankLabel = getRankSelectionLabel(data.rankFilters);
   const ranks = rankLabel.startsWith("カスタム")
     ? ATOMIC_RANK_GROUPS.flatMap(g => g.options).filter(o => data.rankFilters.includes(o.value)).map(o => o.fullLabel).join(" / ") : rankLabel;
-  return <main className={styles.canvas}>
+  const Container = embedded ? "div" : "main";
+  return <Container className={`${styles.canvas}${embedded ? ` ${styles.embedded}` : ""}`}>
     <div className={styles.panel}>
       <header className={styles.header}>
         <div><p className={styles.brand}>SV MATCH LOG</p><h1>環境データ</h1></div>
@@ -55,5 +56,5 @@ export function ObsEnvironmentView({ data, environmentName, matchups }: { data: 
       </footer>
     </div>
     {matchups !== undefined && <ObsMatchupMatrix rows={matchups} />}
-  </main>;
+  </Container>;
 }

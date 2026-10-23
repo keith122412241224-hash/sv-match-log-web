@@ -17,6 +17,7 @@ const environments = [...structuredClone(fixture.environments), { ...fixture.env
 const decks = structuredClone(fixture.decks);
 const user = { id: fixture.id(90), aud: 'authenticated', role: 'authenticated', is_anonymous: false, email: 'fixture@example.test', app_metadata: {}, user_metadata: {} };
 const suggestions = [{ id: fixture.id(91), user_id: user.id, class_name: 'エルフ', suggested_name: '候補デッキ', status: 'pending', memo: null }];
+const sets=[];
 let admin = true;
 const api = http.createServer(async (req, res) => {
   try {
@@ -41,25 +42,27 @@ const api = http.createServer(async (req, res) => {
       else throw Error('Unexpected RPC: ' + table);
     } else if (!['GET', 'HEAD'].includes(req.method)) {
       assert.ok(admin);
-      const rows = { environments, deck_archetypes: decks, deck_suggestions: suggestions }[table];
+      const rows = { environments, deck_archetypes: decks, deck_suggestions: suggestions, creator_obs_sets: sets }[table];
       assert.ok(rows, 'Unexpected mutation: ' + table);
       report.mutations.push({ method: req.method, table, args });
-      if (req.method === 'POST') rows.push({ id: fixture.id(100 + report.mutations.length), created_at: new Date().toISOString(), aliases: [], ...args });
+      if (req.method === 'POST') rows.push({ id: fixture.id(100 + report.mutations.length), created_at: new Date().toISOString(), aliases: [], revision:1, updated_at:new Date().toISOString(), ...args });
       else if (req.method === 'PATCH') {
         const row = rows.find(r => r.id === url.searchParams.get('id')?.slice(3)); assert.ok(row);
         for (const [key, value] of url.searchParams) {
           if (value.startsWith('eq.')) assert.equal(String(row[key]), value.slice(3), 'fixture compare-and-set ' + key);
           if (value === 'is.null') assert.equal(row[key] ?? null, null);
         }
-        Object.assign(row, args);
+        Object.assign(row, args); if(table==='creator_obs_sets'){row.revision++;row.updated_at=new Date().toISOString();}
       }
       else throw Error('Unexpected method: ' + req.method);
       data = req.method === 'PATCH' && url.searchParams.get('select') === 'id' ? [{ id: url.searchParams.get('id').slice(3) }] : null;
+      if(table==='creator_obs_sets')data=req.method==='POST'?rows.at(-1):rows.find(r=>r.id===url.searchParams.get('id')?.slice(3));
     } else if (url.pathname === '/auth/v1/user') data = user;
     else if (table === 'admin_users') data = admin ? { id: fixture.id(92), user_id: user.id } : null;
     else if (table === 'environments') data = environments;
     else if (table === 'deck_archetypes' || table === 'decks') data = decks.filter(d => !url.searchParams.has('id') || !url.searchParams.get('id').startsWith('gt.') || d.id > url.searchParams.get('id').slice(3));
     else if (table === 'deck_suggestions') data = suggestions;
+    else if(table==='creator_obs_sets')data=url.searchParams.has('id')?sets.find(r=>r.id===url.searchParams.get('id').slice(3)):sets;
     else if (['my_decks', 'matches', 'creator_images', 'creator_tier_works', 'creator_correlations', 'creator_obs_sets'].includes(table)) data = [];
     else throw Error('Unexpected read: ' + url.pathname);
     if (Array.isArray(data) && ['environments', 'deck_archetypes', 'decks'].includes(table)) {
@@ -103,7 +106,7 @@ async function main() {
         p.on('pageerror', e => report.events.push({ browser: name, type: 'pageerror', message: e.message }));
         p.on('console', m => { if (['warning', 'error'].includes(m.type())) report.events.push({ browser: name, type: m.type(), message: m.text() }); });
       });
-      const page = await context.newPage();
+      const page = await context.newPage();page.on('dialog',d=>d.accept());
       const go = async url => { const response = await page.goto(origin + url, { waitUntil: 'networkidle' }); assert.equal(response.status(), 200, url); };
       const section = title => page.locator('section').filter({ has: page.getByRole('heading', { name: title, exact: true }) });
       const checkFits = async () => {
@@ -116,13 +119,13 @@ async function main() {
         await page.setViewportSize({ width, height: 1080 });
         await go('/admin?section=tools');
         assert.deepEqual(await page.getByRole('navigation', { name: '管理機能', exact: true }).getByRole('link').allTextContents(), ['環境管理', '標準デッキ管理', '運用ツール']);
-        assert.deepEqual(await page.locator('main section > h2, main section > div > h2').allTextContents(), ['Tier表メーカー', '相関図メーカー', 'OBS表示セット', '期間レポート', '環境データOBS表示']);
+        assert.deepEqual(await page.locator('main section > h2, main section > div > h2').allTextContents(), ['Tier表メーカー', '相関図メーカー', 'OBS表示管理', '期間レポート']);
         assert.equal(await page.getByText('Tier表・相関図制作', { exact: true }).count(), 0);
         assert.equal(await page.getByRole('link', { name: '制作画面を開く', exact: true }).count(), 0);
         for (const [title, description, href] of [
           ['Tier表メーカー', 'Tier表を作成・編集し、PNG・OBSで利用できます。', '/admin/creator/tier'],
           ['相関図メーカー', 'Tier表を作らずに、相関図を単独で作成・編集できます。', '/admin/creator/correlation'],
-          ['OBS表示セット', '保存済みのTier表と相関図を自由に組み合わせて表示できます。', '/admin/creator/obs-sets']
+          ['OBS表示管理', '環境データ・Tier表・相関図を自由に組み合わせて表示できます。', '/admin/creator/obs-sets']
         ]) {
           assert.equal(await section(title).getByText(description, { exact: true }).count(), 1);
           const link = section(title).getByRole('link', { name: title + 'を開く', exact: true });
@@ -139,23 +142,27 @@ async function main() {
           assert.ok(cards[0].right < cards[1].x && cards[1].right < cards[2].x);
           const buttons = await page.locator('main section').evaluateAll(nodes => nodes.slice(0, 3).map(n => n.querySelector('a').getBoundingClientRect().y));
           assert.equal(buttons[0], buttons[1]); assert.equal(buttons[1], buttons[2]);
-          assert.equal(cards[3].y, cards[4].y); assert.ok(cards[3].right < cards[4].x);
+          assert.ok(cards[3].y > cards[0].bottom);
         } else { for (let i = 0; i < cards.length - 1; i++) assert.ok(cards[i].bottom < cards[i+1].y); }
+        await page.screenshot({ path: path.join(screenshots, name+'-cards-'+width+'.png'), fullPage:true });
+        await page.getByRole('link',{name:'OBS表示管理を開く',exact:true}).click();
+        await page.getByRole('checkbox',{name:'環境データ',exact:true}).check();
         const details = page.locator('details');
         assert.equal(await details.getAttribute('open'), null);
         await page.screenshot({ path: path.join(screenshots, `${name}-tools-${width}.png`), fullPage: true });
         const summary = page.locator('summary'); await summary.focus(); await page.keyboard.press('Enter');
         assert.notEqual(await details.getAttribute('open'), null);
-        for (const text of ['1152 × 高さ1080', 'ログイン状態を共有しません', '管理者ログインが必要', '再読み込み', 'GrandMaster']) assert.ok((await details.innerText()).includes(text));
+        for (const text of ['1920 × 高さ1080', '管理者ログインが必要', '再読み込み', 'スクロール']) assert.ok((await details.innerText()).includes(text));
         await checkFits();
         await page.screenshot({ path: path.join(screenshots, `${name}-help-${width}.png`), fullPage: true });
         await summary.click(); assert.equal(await details.getAttribute('open'), null);
-        await section('環境データOBS表示').getByRole('button', { name: /ランク・レート帯/ }).click();
+        await page.getByRole('button', { name: /ランク・レート帯/ }).click();
         const dialog = page.getByRole('dialog'); await dialog.waitFor();
         assert.ok(await dialog.evaluate(n => { const r = n.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight; }));
         await page.screenshot({ path: path.join(screenshots, `${name}-ranks-${width}.png`), fullPage: true });
         await page.getByRole('button', { name: 'キャンセル', exact: true }).click();
         for (const [tab, title] of [['環境管理', '環境管理'], ['標準デッキ管理', '標準デッキ一覧']]) {
+          if(tab==='環境管理'){await page.getByRole('link',{name:'運用ツールへ戻る',exact:true}).click();}
           await page.getByRole('link', { name: tab, exact: true }).click(); await page.getByRole('heading', { name: title, exact: true }).waitFor(); await checkFits();
         }
         for (const [tab, title] of [['新規追加', '標準デッキの追加'], ['候補承認', '標準デッキ候補']]) {
@@ -174,7 +181,7 @@ async function main() {
       await page.getByRole('heading', { name: 'Tier表メーカー', exact: true, level: 1 }).waitFor();
       assert.equal(new URL(page.url()).pathname, '/admin/creator/tier'); assert.ok(!visits.includes('/admin/creator'));
       await page.getByRole('link', { name: '運用ツールへ戻る', exact: true }).click(); await page.waitForURL(origin + '/admin?section=tools');
-      for (const [title, url] of [['相関図メーカー', '/admin/creator/correlation'], ['OBS表示セット', '/admin/creator/obs-sets']]) {
+      for (const [title, url] of [['相関図メーカー', '/admin/creator/correlation'], ['OBS表示管理', '/admin/creator/obs-sets']]) {
         const count = report.mutations.length;
         await page.getByRole('link', { name: title + 'を開く', exact: true }).click();
         await page.waitForURL(origin + url);
@@ -192,30 +199,35 @@ async function main() {
       await go('/admin/weekly-report?start=2026-10-01&end=2026-10-07&rank=master'); await page.getByRole('heading', { name: '期間環境レポート', exact: true }).waitFor();
       report.checks.push(`${name}: all three direct tool entries/returns, existing Creator URLs, report entry and bookmarked URL`);
       await go('/admin?section=tools');
-      const settings = section('環境データOBS表示');
+      await page.getByRole('link',{name:'OBS表示管理を開く',exact:true}).click();
+      await page.getByRole('checkbox',{name:'Tier表',exact:true}).uncheck();await page.getByRole('checkbox',{name:'相関図',exact:true}).uncheck();await page.getByRole('checkbox',{name:'環境データ',exact:true}).check();
+      const settings = page.getByRole('region',{name:'セット編集',exact:true});
+      const save=async()=>{await page.getByRole('button',{name:'セットを保存',exact:true}).click();await page.getByRole('status').filter({hasText:'OBSセットを保存しました'}).waitFor();};
       await settings.getByRole('combobox', { name: /^環境/ }).selectOption(fixture.id(2));
       for (const period of ['24h', '3d', '7d', '30d', 'all']) {
         await settings.getByRole('combobox', { name: /^期間/ }).selectOption(period);
-        const href = new URL(await settings.getByRole('link').getAttribute('href'), origin);
-        assert.equal(href.searchParams.get('environment'), fixture.id(2)); assert.equal(href.searchParams.get('period'), period);
+        await save();const saved=sets.find(s=>s.id===new URL(page.url()).searchParams.get('set'));assert.equal(saved.environment_id,fixture.id(2));assert.equal(saved.environment_period,period);
       }
       await settings.getByRole('button', { name: /ランク・レート帯/ }).click();
       await page.getByRole('button', { name: 'Master', exact: true }).click();
       await page.getByRole('checkbox', { name: 'GrandMaster / EPIC', exact: true }).check();
       await page.getByRole('button', { name: '適用', exact: true }).click();
-      const link = settings.getByRole('link'), href = new URL(await link.getAttribute('href'), origin);
+      await save();
+      const link = settings.getByRole('link',{name:'OBS表示を開く',exact:true}), href = new URL(await link.getAttribute('href'), origin);
       assert.equal(await link.getAttribute('target'), '_blank');
-      assert.ok(href.searchParams.get('ranks').includes('master:') && href.searchParams.get('ranks').includes('grandmaster:epic'));
+      const saved=sets.find(s=>s.id===new URL(page.url()).searchParams.get('set'));assert.ok(saved.environment_ranks.some(r=>r.startsWith('master:'))&&saved.environment_ranks.includes('grandmaster:epic'));
       const popupReady = context.waitForEvent('page'); await link.click(); const popup = await popupReady;
       await popup.waitForLoadState('networkidle'); assert.equal(popup.url(), href.href);
       assert.match(await popup.locator('main').innerText(), /環境全期間/);
       const rpc = report.rpc.filter(r => r.name === 'get_environment_dashboard_aggregates_v4').at(-1);
       assert.equal(rpc.args.p_environment_id, fixture.id(2)); assert.equal(rpc.args.p_period, 'all');
-      assert.deepEqual(rpc.args.p_rank_filters, href.searchParams.get('ranks').split(','));
+      assert.deepEqual(rpc.args.p_rank_filters, saved.environment_ranks);
       await popup.reload({ waitUntil: 'networkidle' }); assert.equal(popup.url(), href.href); await popup.close();
       await settings.getByRole('combobox', { name: /^期間/ }).selectOption('3d');
+      await save();
       const fixedReady = context.waitForEvent('page'); await link.click(); const fixed = await fixedReady;
       await fixed.waitForLoadState('networkidle'); assert.match(await fixed.locator('main').innerText(), /直近3日/); await fixed.close();
+      await page.getByRole('link',{name:'運用ツールへ戻る',exact:true}).click();
       await page.getByRole('link', { name: '通常画面へ', exact: true }).click(); await page.waitForURL(origin + '/');
       report.checks.push(`${name}: all periods, environment, multiple ranks, all-time/fixed OBS new tabs, query persistence/RPC args, normal screen`);
       if (config === browsers.at(-1)) {

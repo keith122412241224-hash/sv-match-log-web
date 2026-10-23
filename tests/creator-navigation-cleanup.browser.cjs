@@ -7,7 +7,7 @@ module.exports = async ({ page, context, db, origin, report, out, files, setMode
   const tools = async () => {
     await page.waitForURL(origin + '/admin?section=tools');
     assert.equal(await page.getByRole('link', { name: '運用ツール', exact: true }).getAttribute('aria-current'), 'page');
-    for (const name of ['Tier表メーカー', '相関図メーカー', 'OBS表示セット', '期間レポート', '環境データOBS表示']) assert.equal(await page.getByRole('heading', { name, exact: true }).count(), 1);
+    for (const name of ['Tier表メーカー', '相関図メーカー', 'OBS表示管理', '期間レポート']) assert.equal(await page.getByRole('heading', { name, exact: true }).count(), 1);
   };
   const redirect = await context.request.get(origin + '/admin/creator', { maxRedirects: 0 });
   assert.equal(redirect.status(), 307); assert.equal(redirect.headers().location, '/admin?section=tools');

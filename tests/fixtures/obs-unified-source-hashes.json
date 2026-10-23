@@ -1,0 +1,14 @@
+{
+  "src/app/admin/creator/obs-sets/page.tsx": "143747c644bb6aa2411295ec167da5d6403d79e7aae28f8b8a71c647d0be7bb6",
+  "src/app/admin/obs/composition/[id]/page.tsx": "6f6908fd02664e276e768c7897822e3c77ef0886e6b0b9b1b78912e3758a212e",
+  "src/app/admin/page.tsx": "3096ac7b151f5a9019bfd1b57d218c260a56d37954856cc379251b3056ef84db",
+  "src/components/creator/CompositionObs.tsx": "cae054691b39dca5c9881dd74c6750e5c475dc8d3aa3af5282cae37607925702",
+  "src/components/creator/ObsEnvironmentSection.tsx": "4c35ff010b6fc1fe127aa9cf519a598b686130b4d5e646e0507a1b680398ec97",
+  "src/components/creator/ObsSetEditor.tsx": "79d2b18b8c45c58484089bc6b8d2ba381126e1746a4ecb92acc40b67a224089b",
+  "src/components/creator/ScaledObsEnvironment.tsx": "fb41620d3c22311f39cdbf188c5f031fce664ba2cce08f46ef11887503c11ac3",
+  "src/components/environment/ObsEnvironmentView.module.css": "ab234d3778e4c7ffaf3586654a6b651298873916787f29cb60a28ab3bbd5f4b2",
+  "src/components/environment/ObsEnvironmentView.tsx": "da244ffd90ce334be9e8b810a7409de0483c940c586648235d6eb70f5962679f",
+  "src/lib/creator/independent-server.ts": "a0f21cb8a61625d0265e8e9c255048ec9ed8e62005950c560c72e993ab713433",
+  "src/lib/creator/obs-set.ts": "d3088d48e09d892be46c8db49319e926745682fec5dc4d528de8be76acae2786",
+  "supabase/migrations/20261023104351_obs_unified_composition.sql": "f0ece164ce3a30c0e3dd29041aa461b262e994fca2e408b101f8d8a2e95e2088"
+}

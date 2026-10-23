@@ -5,10 +5,8 @@ import { AdminArchetypeTable } from "@/components/admin/AdminArchetypeTable";
 import { CreateEnvironmentForm } from "@/components/admin/CreateEnvironmentForm";
 import { CreateArchetypeForm } from "@/components/admin/CreateArchetypeForm";
 import { SuggestionsPanel } from "@/components/admin/SuggestionsPanel";
-import { ObsEnvironmentSettings } from "@/components/admin/ObsEnvironmentSettings";
 import { getAdminNavigation } from "@/lib/admin-navigation";
 import { suggestionWritesEnabled } from "@/lib/suggestion-decision";
-import { selectInitialEnvironmentId } from "@/lib/environment-selection";
 import { ClassIcon } from "@/components/ClassIcon";
 import { SHADOWVERSE_CLASSES } from "@/lib/constants";
 import { getAdminArchetypes, getDeckSuggestionsForAdmin, getEnvironments, getIsAdmin } from "@/lib/data";
@@ -164,7 +162,7 @@ export default async function AdminPage({
             {[
               { title: "Tier表メーカー", description: "Tier表を作成・編集し、PNG・OBSで利用できます。", href: "/admin/creator/tier" },
               { title: "相関図メーカー", description: "Tier表を作らずに、相関図を単独で作成・編集できます。", href: "/admin/creator/correlation" },
-              { title: "OBS表示セット", description: "保存済みのTier表と相関図を自由に組み合わせて表示できます。", href: "/admin/creator/obs-sets" }
+              { title: "OBS表示管理", description: "環境データ・Tier表・相関図を自由に組み合わせて表示できます。", href: "/admin/creator/obs-sets" }
             ].map(({ title, description, href }) => (
               <section key={href} className="flex min-w-0 flex-col gap-3 rounded-md border border-slate-200 bg-white p-4">
                 <div>
@@ -180,7 +178,6 @@ export default async function AdminPage({
             <p className="mt-1 text-sm text-muted">指定期間の戦績を集計・分析します。</p>
             <Link className="mt-3 inline-flex min-h-11 items-center justify-center rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold" href="/admin/weekly-report" prefetch={false}>レポートを開く</Link>
           </section>
-          <ObsEnvironmentSettings environments={environments.map(({ id, name }) => ({ id, name }))} initialEnvironment={selectInitialEnvironmentId(environments)} />
         </div>}
 
       </div>

@@ -9,7 +9,7 @@ const { createDb, identity, ADMIN, MEMBER } = require('./creator-db.cjs');
 const out = path.resolve(process.env.CREATOR_EVIDENCE_DIR || 'build/creator-evidence'), origin = 'http://localhost:3296';
 fs.mkdirSync(out, { recursive: true });
 const report = { checks: [], events: [], unexpected: [] };
-let mode = 'admin', failUpload = false, failDelete = false;
+let mode = 'admin', failUpload = false, failDelete = false, dashboardVariant = 'full';
 const objects = new Map();
 let chain = Promise.resolve();
 const user = () => ({ id: mode === 'member' ? MEMBER : ADMIN, aud: 'authenticated', role: 'authenticated', is_anonymous: mode === 'guest', email: 'creator@example.test', app_metadata: {}, user_metadata: {} });
@@ -32,11 +32,14 @@ async function main() {
         const bytes = Buffer.concat(buffers);
         if (url.pathname === '/auth/v1/user') return json(res, 200, user());
         await identity(db, mode === 'member' ? MEMBER : ADMIN, 'authenticated', mode === 'guest');
-        if(url.pathname==='/rest/v1/environments')return json(res,200,[...fixture.environments,{...fixture.environments[0],id:fixture.id(2),name:'以前の環境',created_at:'2026-09-01T00:00:00Z'}]);
+        if(url.pathname==='/rest/v1/environments'){
+          const names=(await db.query('select id,name from environments')).rows;
+          return json(res,200,[...fixture.environments,{...fixture.environments[0],id:fixture.id(2),name:'以前の環境',created_at:'2026-09-01T00:00:00Z'}].map(e=>({...e,name:names.find(n=>n.id===e.id)?.name??e.name})));
+        }
         if(url.pathname.startsWith('/rest/v1/rpc/')){
           const args=JSON.parse(bytes);report.rpcCalls??=[];report.rpcCalls.push({name:url.pathname.split('/').at(-1),args});
           if(url.pathname.endsWith('/get_environment_dashboard_aggregates_v3'))return json(res,200,fixture.dashboard(args));
-          if(url.pathname.endsWith('/get_environment_dashboard_aggregates_v4'))return json(res,200,require('./environment-dashboard-v4-fixture.cjs').dashboard(args));
+          if(url.pathname.endsWith('/get_environment_dashboard_aggregates_v4'))return json(res,200,require('./environment-dashboard-v4-fixture.cjs').dashboard(args,dashboardVariant));
           if(url.pathname.endsWith('/get_analysis_aggregates_v3_exclusive'))return json(res,200,args.p_environment_id===fixture.id(2)||Date.parse(args.p_played_to)-Date.parse(args.p_played_from)<2*86400000?{version:1,registeredMatches:0,perspectives:0,totalWins:0,groups:[],recent:[]}:require('./obs-matchups-fixture.cjs').aggregates());
           throw Error('Unexpected RPC');
         }
@@ -127,6 +130,14 @@ async function main() {
     const transparent = await sharp({ create: { width: 128, height: 128, channels: 4, background: { r: 255, g: 0, b: 0, alpha: 0.5 } } }).png().toBuffer();
     const jpeg = await sharp(png).jpeg().toBuffer(), webp = await sharp(png).webp().toBuffer();
     const files = [{ name: 'デッキ.png', mimeType: 'image/png', buffer: png }, { name: '透明.png', mimeType: 'image/png', buffer: transparent }, { name: 'デッキ.jpg', mimeType: 'image/jpeg', buffer: jpeg }, { name: 'デッキ.webp', mimeType: 'image/webp', buffer: webp }];
+    if(process.env.CREATOR_OLD_WEB==='1'){
+      await require('./obs-unified-old-web.browser.cjs')({page,context,db,origin,report});
+      assert.deepEqual(report.events,[]);assert.deepEqual(report.unexpected,[]);return;
+    }
+    if(process.env.CREATOR_UNIFIED==='1'){
+      await require('./obs-unified.browser.cjs')({page,context,db,origin,report,out,observe,files,setMode:v=>{mode=v;},setDashboardVariant:v=>{dashboardVariant=v;}});
+      assert.deepEqual(report.events,[]);assert.deepEqual(report.unexpected,[]);return;
+    }
     if(process.env.CREATOR_INDEPENDENT==='1'){
       await require('./creator-independent.browser.cjs')({page,context,db,origin,report,out,observe,files,objects,setMode:v=>{mode=v;}});
       await require('./creator-navigation-cleanup.browser.cjs')({page,context,db,origin,report,out,files,setMode:v=>{mode=v;}});

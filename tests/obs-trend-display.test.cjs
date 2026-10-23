@@ -70,7 +70,7 @@ test('OBS display changes only two pinned presentation files; aggregation, TOP5,
   for (const file of files) assert.equal(scope.readBeforeObsTrendDisplay(file), git(['show', scope.base + ':' + file]), file);
   assert.deepEqual(git(['ls-files', '--cached', '--others', '--exclude-standard', '--', 'src', 'supabase']).trim().split('\n').sort(), [...files.filter(f => /^(src|supabase)\//.test(f)), ...require('./member-matrix-scope.cjs').added].sort());
   const file = 'src/components/environment/ObsEnvironmentView.tsx';
-  const before = scope.readBeforeObsTrendDisplay(file), after = require('node:fs').readFileSync(file, 'utf8').replaceAll('\r\n', '\n');
+  const before = scope.readBeforeObsTrendDisplay(file), after = require('./obs-unified-scope.cjs').readBeforeUnified(file);
   assert.equal(before.split('          <h2>{title}<span>')[0], after.split('          <h2>{title}<span>')[0]);
   assert.equal(before.slice(before.indexOf('            : <p className={styles.empty}>')), after.slice(after.indexOf('            : <p className={styles.empty}>')));
 });
