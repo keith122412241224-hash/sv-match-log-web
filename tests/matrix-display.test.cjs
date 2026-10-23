@@ -33,7 +33,9 @@ test('matrix display change leaves every other product file, SQL, migration and 
  const independent=require('./creator-independent-scope.cjs');
  const navigation=require('./admin-tools-navigation-scope.cjs');
  const unified=require('./obs-unified-scope.cjs');
- const changed=cp.execFileSync('git',['diff',base,'--name-only','--','src','supabase','package.json','package-lock.json'],{encoding:'utf8'}).trim().split('\n').filter(Boolean);
+ const presentation=require('./admin-tools-cleanup-scope.cjs');
+ const changed=cp.execFileSync('git',['diff',base,'--name-only','--','src','supabase','package.json','package-lock.json'],{encoding:'utf8'}).trim().split('\n').filter(Boolean)
+  .filter(f=>!presentation.files.includes(f)||presentation.readBeforeCleanup(f)!==cp.execFileSync('git',['show',base+':'+f],{encoding:'utf8'}).replaceAll('\r\n','\n'));
  for(const f of changed.filter(f=>f!==file)){
   if(Object.hasOwn(unified.hashes,f)&&!Object.hasOwn(independent.hashes,f)&&f!==navigation.file){unified.assertReviewed(f);if(!unified.added.has(f))assert.equal(ux.readBeforeAnalysisUx(f),cp.execFileSync('git',['show',base+':'+f],{encoding:'utf8'}).replaceAll('\r\n','\n'));else assert.equal(cp.execFileSync('git',['ls-tree','--name-only',base,'--',f],{encoding:'utf8'}).trim(),'');continue;}
   if(f===navigation.file){navigation.assertReviewed();assert.equal(navigation.readBeforeNavigation(f),cp.execFileSync('git',['show',base+':'+f],{encoding:'utf8'}).replaceAll('\r\n','\n'));continue;}

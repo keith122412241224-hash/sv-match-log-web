@@ -120,7 +120,11 @@ async function main() {
         await page.setViewportSize({ width, height: 1080 });
         await go('/admin?section=tools');
         assert.deepEqual(await page.getByRole('navigation', { name: '管理機能', exact: true }).getByRole('link').allTextContents(), ['環境管理', '標準デッキ管理', '運用ツール']);
-        assert.deepEqual(await page.locator('main section > h2, main section > div > h2').allTextContents(), ['Tier表メーカー', '相関図メーカー', 'OBS表示管理', '期間レポート', '環境データOBS表示']);
+        assert.deepEqual(await page.locator('main section > h2, main section > div > h2').allTextContents(), ['Tier表メーカー', '相関図メーカー', 'OBS表示管理', '環境データ']);
+        assert.equal(await page.getByText('期間レポート', { exact: true }).count(), 0);
+        assert.equal(await page.locator('a[href^="/admin/weekly-report"]').count(), 0);
+        assert.equal(await page.getByText('環境データOBS表示', { exact: true }).count(), 0);
+        assert.equal(await page.getByText('OBSの設定・使い方', { exact: true }).count(), 0);
         assert.equal(await page.getByText('Tier表・相関図制作', { exact: true }).count(), 0);
         assert.equal(await page.getByRole('link', { name: '制作画面を開く', exact: true }).count(), 0);
         for (const [title, description, href] of [
@@ -144,20 +148,17 @@ async function main() {
           const buttons = await page.locator('main section').evaluateAll(nodes => nodes.slice(0, 3).map(n => n.querySelector('a').getBoundingClientRect().y));
           assert.equal(buttons[0], buttons[1]); assert.equal(buttons[1], buttons[2]);
           assert.ok(cards[3].y > cards[0].bottom);
-          assert.equal(cards[3].y, cards[4].y); assert.ok(cards[3].right < cards[4].x);
+          const creatorRow = await section('Tier表メーカー').locator('..').boundingBox();
+          assert.equal(cards[3].x, creatorRow.x); assert.equal(cards[3].right, creatorRow.x + creatorRow.width);
         } else { for (let i = 0; i < cards.length - 1; i++) assert.ok(cards[i].bottom < cards[i+1].y); }
         await page.screenshot({ path: path.join(screenshots, name+'-cards-'+width+'.png'), fullPage:true });
-        const direct = section('環境データOBS表示');
+        const direct = section('環境データ');
         const directLink = direct.getByRole('link', { name: 'OBSビューを開く（別タブ）', exact: true });
         assert.ok((await directLink.boundingBox()).height >= 44);
         assert.equal(await directLink.getAttribute('target'), '_blank');
         assert.equal(await directLink.getAttribute('rel'), 'noopener noreferrer');
-        const directHelp = direct.locator('summary'); await directHelp.focus(); await page.keyboard.press('Enter');
-        assert.notEqual(await direct.locator('details').getAttribute('open'), null);
-        assert.ok((await direct.locator('details').innerText()).includes('幅1152 × 高さ1080'));
-        await checkFits();
-        await page.screenshot({ path: path.join(screenshots, `${name}-direct-help-${width}.png`), fullPage: true });
-        await directHelp.click();
+        assert.equal(await direct.locator('details, summary').count(), 0, 'removed admin help leaves no disclosure control');
+        await directLink.focus(); assert.ok(await directLink.evaluate(e => e === document.activeElement));
         await direct.getByRole('button', { name: /ランク・レート帯/ }).click();
         const directDialog = page.getByRole('dialog'); await directDialog.waitFor();
         assert.ok(await directDialog.evaluate(n => { const r = n.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight; }));
@@ -212,12 +213,13 @@ async function main() {
       await page.getByRole('link', { name: 'Tier表メーカーを開く', exact: true }).click(); await page.getByRole('heading', { name: 'Tier表メーカー', exact: true, level: 1 }).waitFor();
       await go('/admin/creator/tier'); await page.getByRole('heading', { name: 'Tier表メーカー', exact: true }).waitFor();
       await page.getByRole('link', { name: '運用ツールへ戻る', exact: true }).click();
-      await page.getByRole('link', { name: 'レポートを開く', exact: true }).click(); await page.getByRole('heading', { name: '期間環境レポート', exact: true }).waitFor();
+      assert.equal(await page.getByRole('link', { name: 'レポートを開く', exact: true }).count(), 0);
+      await go('/admin/weekly-report'); await page.getByRole('heading', { name: '期間環境レポート', exact: true }).waitFor();
       assert.equal(new URL(page.url()).pathname, '/admin/weekly-report');
       await go('/admin/weekly-report?start=2026-10-01&end=2026-10-07&rank=master'); await page.getByRole('heading', { name: '期間環境レポート', exact: true }).waitFor();
-      report.checks.push(`${name}: all three direct tool entries/returns, existing Creator URLs, report entry and bookmarked URL`);
+      report.checks.push(`${name}: all three direct tool entries/returns, existing Creator URLs, report entry hidden while direct/bookmarked report URLs still work`);
       await go('/admin?section=tools');
-      const directSettings = section('環境データOBS表示'), directMutationCount = report.mutations.length, directSets = structuredClone(sets);
+      const directSettings = section('環境データ'), directMutationCount = report.mutations.length, directSets = structuredClone(sets);
       await directSettings.getByRole('combobox', { name: /^環境/ }).selectOption(fixture.id(2));
       await directSettings.getByRole('button', { name: /ランク・レート帯/ }).click();
       await page.getByRole('button', { name: 'Master', exact: true }).click();

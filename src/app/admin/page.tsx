@@ -159,8 +159,8 @@ export default async function AdminPage({
         </>}
         </>}
 
-        {section === "tools" && <div className="grid items-start gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-          <div className="grid min-w-0 gap-3 lg:col-span-2 lg:grid-cols-3">
+        {section === "tools" && <div className="grid items-start gap-3">
+          <div className="grid min-w-0 gap-3 lg:grid-cols-3">
             {[
               { title: "Tier表メーカー", description: "Tier表を作成・編集し、PNG・OBSで利用できます。", href: "/admin/creator/tier" },
               { title: "相関図メーカー", description: "Tier表を作らずに、相関図を単独で作成・編集できます。", href: "/admin/creator/correlation" },
@@ -175,11 +175,6 @@ export default async function AdminPage({
               </section>
             ))}
           </div>
-          <section className="rounded-md border border-slate-200 bg-white p-4">
-            <h2 className="text-lg font-bold">期間レポート</h2>
-            <p className="mt-1 text-sm text-muted">指定期間の戦績を集計・分析します。</p>
-            <Link className="mt-3 inline-flex min-h-11 items-center justify-center rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold" href="/admin/weekly-report" prefetch={false}>レポートを開く</Link>
-          </section>
           <ObsEnvironmentSettings environments={environments} initialEnvironment={selectInitialEnvironmentId(environments)} />
         </div>}
 

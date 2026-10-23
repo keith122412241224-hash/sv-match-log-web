@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const fs = require('node:fs'), cp = require('node:child_process'), assert = require('node:assert/strict');
+const cp = require('node:child_process'), assert = require('node:assert/strict');
 const base = 'ef5faae4ffc6433030067170b5c1604c3cdd2df5', file = 'src/app/admin/page.tsx';
-const read = f => fs.readFileSync(f, 'utf8').replaceAll('\r\n', '\n');
+const read = require('./admin-tools-cleanup-scope.cjs').readBeforeCleanup;
 const before = () => cp.execFileSync('git', ['show', base + ':' + file], { encoding: 'utf8' }).replaceAll('\r\n', '\n');
 function expected() {
   return before()

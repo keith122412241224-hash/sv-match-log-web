@@ -10,7 +10,9 @@ test('admin navigation changes only the reviewed Creator entrance; auth, tabs, r
   assert.equal(after.slice(after.indexOf(end, after.indexOf(start))), before.slice(before.indexOf(end, before.indexOf(start))));
   const cleanup = require('./creator-navigation-cleanup-scope.cjs');
   const unified=require('./obs-unified-scope.cjs'); Object.keys(unified.hashes).forEach(unified.assertReviewed);
-  const changes = git('diff', scope.base, '--name-only', '--', 'src', 'supabase', 'package.json', 'package-lock.json').trim().split('\n');
+  const presentation = require('./admin-tools-cleanup-scope.cjs');
+  const changes = git('diff', scope.base, '--name-only', '--', 'src', 'supabase', 'package.json', 'package-lock.json').trim().split('\n')
+    .filter(f => !presentation.files.includes(f) || presentation.readBeforeCleanup(f) !== git('show', scope.base + ':' + f));
   assert.deepEqual(changes.filter(file => {
     if(Object.hasOwn(unified.hashes,file)&&file!==scope.file&&!Object.hasOwn(cleanup.hashes,file)){if(!unified.added.has(file))assert.equal(unified.readBeforeUnified(file),git('show',scope.base+':'+file));return false;}
     if (!Object.hasOwn(cleanup.hashes, file)) return true;

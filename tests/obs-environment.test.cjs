@@ -72,12 +72,14 @@ test('OBS renders exact encounter counts and combined evaluations, not rounded-r
   assert.doesNotMatch(firstWin, /対象戦績 250戦/);
 });
 
-test('OBS empty state, custom rate labels and settings provide honest session/update instructions', () => {
+test('OBS empty state and custom rate labels remain; admin settings keep direct access without the removed help', () => {
   const data = dashboard({ p_environment_id: environments[0].id, p_period: '7d', p_rank_filters: ['grandmaster:epic'] }, 'empty');
   const html = render(React.createElement(ObsEnvironmentView, { data, environmentName: '環境' }));
   assert.match(html, /GrandMaster \/ EPIC/); assert.match(html, /データなし/); assert.match(html, /前の期間のデータがありません/); assert.doesNotMatch(html, /0\.0%/);
   const settings = render(React.createElement(ObsEnvironmentSettings, { environments, initialEnvironment: environments[0].id }));
-  assert.match(settings, /\/admin\/obs\/environment\?/); assert.match(settings, /ログイン状態を共有しません/); assert.match(settings, /再読み込み/);
+  assert.match(settings, /\/admin\/obs\/environment\?/);
+  assert.match(settings, />環境データ<\/h2>/); assert.doesNotMatch(settings, /環境データOBS表示|OBSの設定・使い方|<details|<summary/);
+  assert.match(settings, /target="_blank" rel="noopener noreferrer"/);
 });
 
 test('OBS page denies unsigned/member access before aggregation and handles invalid filters/errors', async () => {
