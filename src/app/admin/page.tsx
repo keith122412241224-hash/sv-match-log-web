@@ -5,8 +5,10 @@ import { AdminArchetypeTable } from "@/components/admin/AdminArchetypeTable";
 import { CreateEnvironmentForm } from "@/components/admin/CreateEnvironmentForm";
 import { CreateArchetypeForm } from "@/components/admin/CreateArchetypeForm";
 import { SuggestionsPanel } from "@/components/admin/SuggestionsPanel";
+import { ObsEnvironmentSettings } from "@/components/admin/ObsEnvironmentSettings";
 import { getAdminNavigation } from "@/lib/admin-navigation";
 import { suggestionWritesEnabled } from "@/lib/suggestion-decision";
+import { selectInitialEnvironmentId } from "@/lib/environment-selection";
 import { ClassIcon } from "@/components/ClassIcon";
 import { SHADOWVERSE_CLASSES } from "@/lib/constants";
 import { getAdminArchetypes, getDeckSuggestionsForAdmin, getEnvironments, getIsAdmin } from "@/lib/data";
@@ -178,6 +180,7 @@ export default async function AdminPage({
             <p className="mt-1 text-sm text-muted">指定期間の戦績を集計・分析します。</p>
             <Link className="mt-3 inline-flex min-h-11 items-center justify-center rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold" href="/admin/weekly-report" prefetch={false}>レポートを開く</Link>
           </section>
+          <ObsEnvironmentSettings environments={environments} initialEnvironment={selectInitialEnvironmentId(environments)} />
         </div>}
 
       </div>

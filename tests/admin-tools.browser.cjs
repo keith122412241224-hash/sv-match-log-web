@@ -19,6 +19,7 @@ const user = { id: fixture.id(90), aud: 'authenticated', role: 'authenticated', 
 const suggestions = [{ id: fixture.id(91), user_id: user.id, class_name: 'エルフ', suggested_name: '候補デッキ', status: 'pending', memo: null }];
 const sets=[];
 let admin = true;
+let dashboardMode;
 const api = http.createServer(async (req, res) => {
   try {
     res.setHeader('Content-Type', 'application/json');
@@ -28,7 +29,7 @@ const api = http.createServer(async (req, res) => {
     let data;
     if (url.pathname.includes('/rpc/')) {
       report.rpc.push({ name: table, args });
-      if (table === 'get_environment_dashboard_aggregates_v4') data = fixture.dashboard(args);
+      if (table === 'get_environment_dashboard_aggregates_v4') data = fixture.dashboard(args, dashboardMode);
       else if (table === 'get_analysis_aggregates_v3_exclusive') data = aggregates();
       else if (/get_period_report_aggregates_v[123]/.test(table)) data = periodFixture([], args);
       else if (table === 'get_home_dashboard') data = { summary: { total: 0, wins: 0, winRate: null, firstWinRate: null, secondWinRate: null }, recent: [] };
@@ -119,7 +120,7 @@ async function main() {
         await page.setViewportSize({ width, height: 1080 });
         await go('/admin?section=tools');
         assert.deepEqual(await page.getByRole('navigation', { name: '管理機能', exact: true }).getByRole('link').allTextContents(), ['環境管理', '標準デッキ管理', '運用ツール']);
-        assert.deepEqual(await page.locator('main section > h2, main section > div > h2').allTextContents(), ['Tier表メーカー', '相関図メーカー', 'OBS表示管理', '期間レポート']);
+        assert.deepEqual(await page.locator('main section > h2, main section > div > h2').allTextContents(), ['Tier表メーカー', '相関図メーカー', 'OBS表示管理', '期間レポート', '環境データOBS表示']);
         assert.equal(await page.getByText('Tier表・相関図制作', { exact: true }).count(), 0);
         assert.equal(await page.getByRole('link', { name: '制作画面を開く', exact: true }).count(), 0);
         for (const [title, description, href] of [
@@ -143,8 +144,25 @@ async function main() {
           const buttons = await page.locator('main section').evaluateAll(nodes => nodes.slice(0, 3).map(n => n.querySelector('a').getBoundingClientRect().y));
           assert.equal(buttons[0], buttons[1]); assert.equal(buttons[1], buttons[2]);
           assert.ok(cards[3].y > cards[0].bottom);
+          assert.equal(cards[3].y, cards[4].y); assert.ok(cards[3].right < cards[4].x);
         } else { for (let i = 0; i < cards.length - 1; i++) assert.ok(cards[i].bottom < cards[i+1].y); }
         await page.screenshot({ path: path.join(screenshots, name+'-cards-'+width+'.png'), fullPage:true });
+        const direct = section('環境データOBS表示');
+        const directLink = direct.getByRole('link', { name: 'OBSビューを開く（別タブ）', exact: true });
+        assert.ok((await directLink.boundingBox()).height >= 44);
+        assert.equal(await directLink.getAttribute('target'), '_blank');
+        assert.equal(await directLink.getAttribute('rel'), 'noopener noreferrer');
+        const directHelp = direct.locator('summary'); await directHelp.focus(); await page.keyboard.press('Enter');
+        assert.notEqual(await direct.locator('details').getAttribute('open'), null);
+        assert.ok((await direct.locator('details').innerText()).includes('幅1152 × 高さ1080'));
+        await checkFits();
+        await page.screenshot({ path: path.join(screenshots, `${name}-direct-help-${width}.png`), fullPage: true });
+        await directHelp.click();
+        await direct.getByRole('button', { name: /ランク・レート帯/ }).click();
+        const directDialog = page.getByRole('dialog'); await directDialog.waitFor();
+        assert.ok(await directDialog.evaluate(n => { const r = n.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight; }));
+        await page.screenshot({ path: path.join(screenshots, `${name}-direct-ranks-${width}.png`), fullPage: true });
+        await page.getByRole('button', { name: 'キャンセル', exact: true }).click();
         await page.getByRole('link',{name:'OBS表示管理を開く',exact:true}).click();
         await page.getByRole('checkbox',{name:'環境データ',exact:true}).check();
         const details = page.locator('details');
@@ -199,6 +217,42 @@ async function main() {
       await go('/admin/weekly-report?start=2026-10-01&end=2026-10-07&rank=master'); await page.getByRole('heading', { name: '期間環境レポート', exact: true }).waitFor();
       report.checks.push(`${name}: all three direct tool entries/returns, existing Creator URLs, report entry and bookmarked URL`);
       await go('/admin?section=tools');
+      const directSettings = section('環境データOBS表示'), directMutationCount = report.mutations.length, directSets = structuredClone(sets);
+      await directSettings.getByRole('combobox', { name: /^環境/ }).selectOption(fixture.id(2));
+      await directSettings.getByRole('button', { name: /ランク・レート帯/ }).click();
+      await page.getByRole('button', { name: 'Master', exact: true }).click();
+      await page.getByRole('checkbox', { name: 'GrandMaster / EPIC', exact: true }).check();
+      await page.getByRole('button', { name: '適用', exact: true }).click();
+      const directLink = directSettings.getByRole('link', { name: 'OBSビューを開く（別タブ）', exact: true });
+      for (const period of ['24h', '3d', '7d', '30d', 'all']) {
+        await directSettings.getByRole('combobox', { name: /^期間/ }).selectOption(period);
+        const url = new URL(await directLink.getAttribute('href'), origin);
+        assert.equal(url.pathname, '/admin/obs/environment'); assert.equal(url.searchParams.get('environment'), fixture.id(2));
+        assert.equal(url.searchParams.get('period'), period);
+        const ranks = url.searchParams.get('ranks').split(',');
+        assert.ok(ranks.some(r => r.startsWith('master:')) && ranks.includes('grandmaster:epic'));
+        const pending = context.waitForEvent('page'); await directLink.click(); const obs = await pending;
+        await obs.setViewportSize({ width: 1152, height: 1080 });
+        await obs.waitForLoadState('networkidle'); assert.equal(obs.url(), url.href);
+        const text = await obs.locator('main').innerText(); assert.match(text, /以前の環境/);
+        assert.match(text, /Master/); assert.match(text, /GrandMaster \/ EPIC/);
+        assert.match(text, period === 'all' ? /環境全期間/ : new RegExp({ '24h': '直近24時間', '3d': '直近3日', '7d': '直近7日', '30d': '直近30日' }[period]));
+        const rpc = report.rpc.filter(r => r.name === 'get_environment_dashboard_aggregates_v4').at(-1);
+        assert.equal(rpc.args.p_environment_id, fixture.id(2)); assert.equal(rpc.args.p_period, period); assert.deepEqual(rpc.args.p_rank_filters, ranks);
+        assert.equal(Math.round((await obs.locator('main').boundingBox()).width), 1152, 'standalone reference width remains 1152');
+        await obs.screenshot({ path: path.join(screenshots, `${name}-direct-obs-${period}.png`), fullPage: true });
+        await obs.reload({ waitUntil: 'networkidle' }); assert.equal(obs.url(), url.href); await obs.close();
+      }
+      await page.screenshot({ path: path.join(screenshots, `${name}-direct-conditions.png`), fullPage: true });
+      await directSettings.getByRole('combobox', { name: /^環境/ }).selectOption(fixture.environments[0].id);
+      assert.equal(new URL(await directLink.getAttribute('href'), origin).searchParams.get('environment'), fixture.environments[0].id);
+      dashboardMode = 'empty';
+      const emptyPending = context.waitForEvent('page'); await directLink.click(); const emptyObs = await emptyPending;
+      await emptyObs.waitForLoadState('networkidle'); assert.match(await emptyObs.locator('main').innerText(), /データなし/);
+      await emptyObs.screenshot({ path: path.join(screenshots, `${name}-direct-obs-empty.png`), fullPage: true }); await emptyObs.close(); dashboardMode = undefined;
+      assert.equal(report.mutations.length, directMutationCount, 'direct OBS performs zero writes');
+      assert.deepEqual(sets, directSets, 'direct OBS never creates or changes a saved set');
+      report.checks.push(`${name}: direct environment OBS: environment/all five periods/multiple ranks -> unchanged standalone URL -> exact RPC conditions; new tab, reload, 1152px, empty state, zero writes or saved sets`);
       await page.getByRole('link',{name:'OBS表示管理を開く',exact:true}).click();
       await page.getByRole('checkbox',{name:'Tier表',exact:true}).uncheck();await page.getByRole('checkbox',{name:'相関図',exact:true}).uncheck();await page.getByRole('checkbox',{name:'環境データ',exact:true}).check();
       const settings = page.getByRole('region',{name:'セット編集',exact:true});
@@ -262,7 +316,7 @@ async function main() {
         report.checks.push(`${name}: environment create/update; deck create/update/approval through unchanged actions (in-memory writes only)`);
       }
       admin = false;
-      const protectedRoutes = ['/admin', '/admin?section=decks', '/admin?section=tools', '/admin/creator', '/admin/creator/tier', '/admin/creator/correlation', '/admin/creator/obs-sets'];
+      const protectedRoutes = ['/admin', '/admin?section=decks', '/admin?section=tools', '/admin/creator', '/admin/creator/tier', '/admin/creator/correlation', '/admin/creator/obs-sets', '/admin/obs/environment', '/admin/weekly-report'];
       for (const role of ['member', 'guest']) {
         user.is_anonymous = role === 'guest';
         for (const route of protectedRoutes) {

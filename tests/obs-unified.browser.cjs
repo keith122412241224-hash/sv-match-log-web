@@ -39,7 +39,7 @@ module.exports=async({page,context,db,origin,report,out,observe,files,setMode,se
    await obs.evaluate(()=>scrollTo(0,0));report.layouts.push({name,...m});await shot(name,obs);return m;
  }
  for(const width of [320,390,768,1152,1920]){
-   await page.setViewportSize({width,height:1080});await go('/admin?section=tools');assert.equal(await page.getByRole('heading',{name:'環境データOBS表示',exact:true}).count(),0);await shot('admin-'+width);
+   await page.setViewportSize({width,height:1080});await go('/admin?section=tools');assert.equal(await page.getByRole('heading',{name:'環境データOBS表示',exact:true}).count(),1);await shot('admin-'+width);
    await page.getByRole('link',{name:'OBS表示管理を開く',exact:true}).click();await page.getByRole('checkbox',{name:'環境データ',exact:true}).check();await page.getByRole('button',{name:/ランク・レート帯/}).click();const dialog=page.getByRole('dialog');assert(await dialog.evaluate(e=>{const b=e.getBoundingClientRect();return b.x>=0&&b.right<=innerWidth;}));await page.getByRole('button',{name:'キャンセル',exact:true}).click();assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await shot('editor-'+width);
  }
  await page.setViewportSize({width:1152,height:1080});await go('/admin/creator/obs-sets');
