@@ -4,8 +4,10 @@ const fields = ["environment_id", "my_deck_id", "my_archetype_id", "opponent_dec
 export const MATCH_SUBMISSION_EVENT = "svml:match-submission";
 export type PendingMatchSubmission = { id: string; fields: Record<string, string>; nextAction: "home" | "continue" };
 const key = (userId: string) => `svml:pending-match:${userId}`;
-const busy = new Set<string>();
+type SubmissionPhase = "saving" | "checking";
+const busy = new Map<string, SubmissionPhase>();
 export const isMatchSubmitting = (userId: string) => busy.has(userId);
+export const matchSubmissionPhase = (userId: string) => busy.get(userId) ?? "idle";
 const announce = () => window.dispatchEvent(new Event(MATCH_SUBMISSION_EVENT));
 
 // sessionStorage survives reload/history in this tab and is separated by user.
@@ -31,9 +33,12 @@ export function submissionForm(pending: PendingMatchSubmission) {
 
 export async function submitMatchSubmission<T extends { ok: boolean }>(userId: string | undefined, form: FormData, save: (form: FormData) => Promise<T>): Promise<T> {
   if (!userId) throw Error("ログインし直してください。");
-  if (busy.has(userId)) throw Error("保存状態を確認中です。しばらくお待ちください。");
+  if (busy.has(userId)) throw Error("保存処理中です。しばらくお待ちください。");
   const values = Object.fromEntries(fields.map(field => [field, String(form.get(field) ?? "")]));
   let pending = readMatchSubmission(userId);
+  // Only live requests have a phase. After reload, any stored request is
+  // unresolved and must remain recoverable with its original ID and payload.
+  const phase: SubmissionPhase = pending ? "checking" : "saving";
   if (pending && fields.some(field => pending?.fields[field] !== values[field])) {
     throw Error("未確認の保存があります。先に「保存状態を確認して再試行」を押してください。元の入力内容は保持しています。");
   }
@@ -45,14 +50,14 @@ export async function submitMatchSubmission<T extends { ok: boolean }>(userId: s
       if (sessionStorage.getItem(key(userId)) !== raw) throw Error();
     } catch { throw Error("再試行用の入力情報を端末に保存できません。ブラウザのストレージ設定を確認してください。戦績は送信していません。"); }
   }
-  busy.add(userId);
+  busy.set(userId, phase);
   announce();
   try {
     const request = submissionForm(pending);
     request.set("next_action", String(form.get("next_action") ?? pending.nextAction));
     let response: T;
     try { response = await save(request); }
-    catch { throw Error("保存状態を確認できませんでした。入力内容を保持しています。同じ登録を再試行してください。"); }
+    catch { throw Error("保存結果を確認できませんでした。入力内容を保持しています。「保存状態を確認して再試行」を押してください。"); }
     if (response.ok) {
       // Clear only after a confirmed success. Failure/response loss keeps the
       // immutable payload and UUID together, including across reloads.

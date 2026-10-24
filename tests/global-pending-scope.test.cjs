@@ -12,7 +12,7 @@ test('save UX prevents concurrent submissions, announces pending transitions and
   let resolve,reject,calls=0;
   const pending=submitMatchSubmission('owner',form,()=>{calls++;return new Promise((a,b)=>{resolve=a;reject=b;});});
   assert.equal(isMatchSubmitting('owner'),true);const identity=readMatchSubmission('owner');
-  await assert.rejects(()=>submitMatchSubmission('owner',form,()=>{calls++;}),/確認中/);
+  await assert.rejects(()=>submitMatchSubmission('owner',form,()=>{calls++;}),/保存処理中/);
   assert.equal(calls,1);
   if(outcome==='rejected'){reject(Error('offline'));await assert.rejects(pending,/入力内容を保持/);}
   else {resolve({ok:outcome==='success'});assert.deepEqual(await pending,{ok:outcome==='success'});}

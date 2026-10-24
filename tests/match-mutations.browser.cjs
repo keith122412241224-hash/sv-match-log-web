@@ -127,6 +127,13 @@ async function until(fn) { for (let i = 0; i < 100; i++) { if (await fn()) retur
     const page = await context.newPage();
     page.on('console', msg => { if (msg.type() === 'error') errors.push(msg.text()); if (msg.type() === 'warning') warnings.push(msg.text()); });
     page.on('pageerror', error => pageerrors.push(error.message));
+    if (process.env.MATCH_SAVE_STATUS_ONLY === '1') {
+      await require('./match-save-status.browser.cjs').verifySaveStatus({ page, context, origin, output, db, claim, ids, until, checks, errors, idle: () => chain });
+      assert.deepEqual(pageerrors, []); assert.deepEqual(errors, []); assert.deepEqual(warnings, []);
+      fs.writeFileSync(path.join(output, 'browser.json'), JSON.stringify({ passed: true, checks, errors, warnings, pageerrors, boundary: 'loopback HTTP adapter with real PGlite migrations/RLS/RPCs; synthetic Auth' }, null, 2));
+      console.log('Save status browser verification passed');
+      return;
+    }
     await require('./match-input-clock.browser.cjs').verifyClockIndependence({ page, context, origin, output, db, ids, until, calls, normalFault, environmentFault, idle: () => chain, checks });
     await require('./match-input-environment.browser.cjs').verifyFixedEnvironment({ page, context, origin, output, db, ids, until, calls, normalFault, environmentFault, idle: () => chain, checks });
     await require('./deck-select-dialog.browser.cjs').verifyMatchSelection({ page, origin, output, db, claim, ids, until, calls, idle: () => chain, checks, normalFault });
@@ -229,6 +236,7 @@ async function until(fn) { for (let i = 0; i < 100; i++) { if (await fn()) retur
     checks.push('Guest new/edit/delete/cancels/reload/storage failures; only edited remaining row imported');
     await require('./guest-import.browser.cjs').verifyGuestReplay({ page, context, origin, output, row: editedGuest, db, claim, ids, until, guestFault, checks, idle: () => chain, errors, warnings, pageerrors });
     await require('./normal-match-request.browser.cjs').verifyNormalReplay({ page, context, origin, output, db, claim, ids, until, normalFault, checks, errors, idle: () => chain });
+    await require('./match-save-status.browser.cjs').verifySaveStatus({ page, context, origin, output, db, claim, ids, until, checks, errors, idle: () => chain });
     for (const route of ['/analysis', '/matrix', '/environment', '/admin/weekly-report', '/admin/obs/environment', '/admin', '/admin/creator', '/admin/creator/tier']) {
       await page.goto(origin + route, { waitUntil: 'networkidle' });
       assert.doesNotMatch(await page.locator('body').innerText(), /Application error|取得できませんでした/); checks.push(route + ' loads');

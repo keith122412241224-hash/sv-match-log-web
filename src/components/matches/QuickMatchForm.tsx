@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useFormStatus } from "react-dom";
 import type { FormEvent } from "react";
 import { createMatch, createMatchInline } from "@/app/actions";
-import { readMatchSubmission, submitMatchSubmission } from "@/lib/match-submission";
+import { MATCH_SUBMISSION_EVENT, isMatchSubmitting, readMatchSubmission, submitMatchSubmission } from "@/lib/match-submission";
 import { RankFields } from "@/components/matches/RankFields";
 import { SaveToast, type SaveNotification } from "@/components/SaveToast";
 import { lastRankKey, readLastRank, rememberLastRank } from "@/lib/match-rank-preference";
@@ -113,6 +113,19 @@ export function QuickMatchForm({
   const notificationId = useRef(0);
   const [notification, setNotification] = useState<SaveNotification | null>(null);
   const dismissNotification = useCallback(() => setNotification(null), []);
+  // Recovery can submit outside this form. Clear the old error when it starts
+  // so a confirmed retry does not leave a contradictory failure notification.
+  useEffect(() => {
+    if (guest || initialMatch || !userId) return;
+    const update = () => {
+      if (!isMatchSubmitting(userId)) return;
+      setSaveState("idle");
+      setSaveMessage("");
+      dismissNotification();
+    };
+    window.addEventListener(MATCH_SUBMISSION_EVENT, update);
+    return () => window.removeEventListener(MATCH_SUBMISSION_EVENT, update);
+  }, [guest, initialMatch, userId, dismissNotification]);
   const rankKey = lastRankKey(userId, guest);
   useEffect(() => { if (!initialMatch) setRank(readLastRank(rankKey)); }, [rankKey, initialMatch]);
   function notify(kind: SaveNotification["kind"]) {
@@ -266,7 +279,8 @@ export function QuickMatchForm({
       } catch (error) {
         setSaveState("error");
         setSaveMessage(error instanceof Error ? error.message : "保存状態を確認できませんでした。同じ入力で再試行してください。");
-        notify("error");
+        // A lost response may already be committed. Keep the inline detail and
+        // recovery guidance without the Toast's definitive "save failed" claim.
       } finally {
         setIsSaving(false);
         saving.current = false;

@@ -45,7 +45,7 @@ exports.verifyNormalReplay=async({page,context,origin,output,db,claim,ids,until,
    dropped=true;const response=await route.fetch();assert.equal(response.status(),200);await response.body();await route.abort('failed');
   }else await route.fallback();
  };
- await context.route('**/matches',drop);await save();await page.locator('p[role=alert]').filter({hasText:'保存状態を確認できません'}).waitFor();await context.unroute('**/matches',drop);
+ await context.route('**/matches',drop);await save();await page.locator('p[role=alert]').filter({hasText:'保存結果を確認できません'}).waitFor();await context.unroute('**/matches',drop);
  assert.equal(dropped,true);assert.equal(await count(),beforeNetwork+1);const networkPending=await pending();assert.ok(networkPending);const networkRows=await rows();
  await page.reload({waitUntil:'networkidle'});assert.deepEqual(await pending(),networkPending);await recover();assert.deepEqual(await rows(),networkRows);
  const injectedErrors=errors.splice(errorStart);assert.ok(injectedErrors.every(e=>/Failed to load resource: net::ERR_FAILED/.test(e)),JSON.stringify(injectedErrors));

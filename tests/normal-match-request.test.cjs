@@ -1,12 +1,54 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 const { test, beforeEach } = require('node:test'), assert = require('node:assert/strict');
-const { submitMatchSubmission, readMatchSubmission, submissionForm } = require('../src/lib/match-submission.ts');
+const { submitMatchSubmission, readMatchSubmission, submissionForm, matchSubmissionPhase, isMatchSubmitting } = require('../src/lib/match-submission.ts');
 let items;
 beforeEach(() => {
   items = new Map(); global.window = { dispatchEvent() {} };
   global.sessionStorage = { getItem: k => items.get(k) ?? null, setItem: (k,v) => items.set(k,v), removeItem: k => items.delete(k) };
 });
 const form = () => { const f = new FormData(); f.set('result','lose'); f.set('next_action','continue'); return f; };
+
+test('initial save and retry announce distinct phases without changing the stored recovery payload', async () => {
+  const events = [];
+  window.dispatchEvent = () => events.push({ phase: matchSubmissionPhase('a'), pending: readMatchSubmission('a') });
+  let finish;
+  const first = submitMatchSubmission('a', form(), () => new Promise(resolve => { finish = resolve; }));
+  const stored = structuredClone(readMatchSubmission('a'));
+  assert.equal(matchSubmissionPhase('a'), 'saving');
+  assert.equal(isMatchSubmitting('a'), true);
+  await assert.rejects(submitMatchSubmission('a', form(), async () => assert.fail('duplicate send')), /保存処理中/);
+  finish({ ok: false }); await first;
+  assert.equal(matchSubmissionPhase('a'), 'idle');
+  assert.deepEqual(readMatchSubmission('a'), stored);
+  const retry = submitMatchSubmission('a', submissionForm(stored), () => new Promise(resolve => { finish = resolve; }));
+  assert.equal(matchSubmissionPhase('a'), 'checking');
+  assert.deepEqual(readMatchSubmission('a'), stored);
+  await assert.rejects(submitMatchSubmission('a', form(), async () => assert.fail('duplicate retry')));
+  finish({ ok: true }); await retry;
+  assert.equal(isMatchSubmitting('a'), false);
+  assert.equal(readMatchSubmission('a'), null);
+  assert.deepEqual(events.map(e => e.phase), ['saving', 'idle', 'checking', 'idle']);
+  assert.deepEqual(events.slice(0, 3).map(e => e.pending), [stored, stored, stored]);
+  assert.equal(events[3].pending, null);
+});
+
+test('reload during an initial save restores an unresolved request, never a live saving phase', async () => {
+  let fail;
+  const first = submitMatchSubmission('a', form(), () => new Promise((_, reject) => { fail = reject; }));
+  const original = structuredClone(readMatchSubmission('a'));
+  delete require.cache[require.resolve('../src/lib/match-submission.ts')];
+  const reloaded = require('../src/lib/match-submission.ts');
+  assert.equal(reloaded.matchSubmissionPhase('a'), 'idle');
+  assert.deepEqual(reloaded.readMatchSubmission('a'), original);
+  fail(Error('connection lost'));
+  await assert.rejects(first, /保存結果を確認できませんでした/);
+  assert.equal(matchSubmissionPhase('a'), 'idle');
+  await reloaded.submitMatchSubmission('a', form(), async f => {
+    assert.equal(reloaded.matchSubmissionPhase('a'), 'checking');
+    assert.equal(f.get('request_id'), original.id);
+    return { ok: true };
+  });
+});
 test('lost success retains the exact ID/payload across reload; acknowledgement rotates the next operation', async () => {
   const seen = [], send = async f => { seen.push(Object.fromEntries(f)); throw Error('response lost'); };
   await assert.rejects(submitMatchSubmission('a', form(), send));
