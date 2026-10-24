@@ -43,9 +43,8 @@ export function RankFields({ value, onChange, disabled = false }: {
   }
   return <fieldset className="grid min-w-0 gap-3 rounded-md border border-slate-200 p-3">
     <legend id={id + "-label"} className="px-1 text-sm font-semibold">対戦時点の自分のランク（任意）</legend>
-    <p id={id + "-help"} className="text-xs text-muted">未入力でも保存できます。相手プレイヤーのランクではありません。</p>
     <button ref={trigger} type="button" aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? id + "-dialog" : undefined}
-      aria-labelledby={id + "-label " + id + "-value"} aria-describedby={id + "-help"} aria-disabled={disabled || undefined}
+      aria-labelledby={id + "-label " + id + "-value"} aria-disabled={disabled || undefined}
       onClick={() => { if (!disabled) setOpen(true); }}
       className="flex min-h-11 w-full items-center justify-between gap-2 rounded-md border border-slate-300 bg-white px-3 text-left text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 aria-disabled:opacity-60">
       <span id={id + "-value"}><RankOptionLabel option={options.find(option => option.value === selected)!} /></span>

@@ -14,7 +14,7 @@ exports.verifyMatchSelection=async({page,origin,output,db,claim,ids,until,calls,
  const read=async(sql,args=[])=>{await idle();await db.exec('reset role');return(await db.query(sql,args)).rows;};
  const classes=['エルフ','ロイヤル','ウィッチ','ドラゴン','ナイトメア','ビショップ','ネメシス'];
  const extra=[];for(let i=0;i<28;i++){const id='00000000-0000-4000-8000-'+String(200+i).padStart(12,'0'),name=i===2?'長いデッキ名'.repeat(16):'追加デッキ'+i;extra.push({id,name,class:classes[i%7]});await read('insert into public.deck_archetypes(id,name,class_name) values($1,$2,$3)',[id,name,classes[i%7]]);}
- await page.goto(origin+'/matches',{waitUntil:'networkidle'});await page.locator('[name=environment_id]').selectOption(ids.env);
+ await page.goto(origin+'/matches',{waitUntil:'networkidle'});assert.equal(await page.locator('[name=environment_id]').inputValue(), ids.env);
  await choose(page,'使用デッキ','デッキA','エルフ');await choose(page,'相手デッキ','デッキA','エルフ');
  const fields=()=>page.locator('form').filter({has:page.locator('[name=environment_id]')}).evaluate(f=>Object.fromEntries(new FormData(f)));
  let before=calls.length;const initial=await fields();
@@ -27,7 +27,7 @@ exports.verifyMatchSelection=async({page,origin,output,db,claim,ids,until,calls,
  assert.equal(await dialog.locator('[aria-pressed]').count(),30);
  assert.equal(await dialog.locator('[aria-pressed=true]').count(),1);
  assert.equal(await page.evaluate(()=>document.body.style.overflow),'hidden');
- await page.locator('[name=environment_id]').evaluate(e=>e.focus());assert.ok(await page.evaluate(()=>Boolean(document.activeElement.closest('dialog'))));
+ await page.getByRole('button',{name:/^対戦時点の自分のランク/}).evaluate(e=>e.focus());assert.ok(await page.evaluate(()=>Boolean(document.activeElement.closest('dialog'))));
  for(let i=0;i<18;i++){await page.keyboard.press('Tab');assert.ok(await page.evaluate(()=>Boolean(document.activeElement.closest('dialog'))));}
  for(let i=0;i<18;i++){await page.keyboard.press('Shift+Tab');assert.ok(await page.evaluate(()=>Boolean(document.activeElement.closest('dialog'))));}
  for(const cls of classes){const group=dialog.getByRole('button',{name:new RegExp('^'+cls+'（')});assert.match(await group.innerText(),new RegExp(cls+'（'+(cls==='エルフ'||cls==='ロイヤル'?5:4)+'デッキ）'));}

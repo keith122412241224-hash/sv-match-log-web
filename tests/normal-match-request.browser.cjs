@@ -5,7 +5,7 @@ exports.verifyNormalReplay=async({page,context,origin,output,db,claim,ids,until,
  const pending=async(p=page)=>p.evaluate(k=>JSON.parse(sessionStorage.getItem(k)),storageKey);
  const rows=async()=>{await idle();await claim();return(await db.query('select * from public.matches where user_id=$1 and request_id is not null order by created_at,id',[ids.a])).rows;};
  const count=async()=> (await rows()).length;
- const go=async()=>{await page.goto(origin+'/matches',{waitUntil:'networkidle'});await page.locator('[name=environment_id]').selectOption(ids.env);};
+ const go=async()=>{await page.goto(origin+'/matches',{waitUntil:'networkidle'});assert.equal(await page.locator('[name=environment_id]').inputValue(), ids.env);};
  const save=()=>page.getByRole('button',{name:'保存して続ける',exact:true}).click();
  const recover=async(p=page)=>{await p.getByRole('button',{name:'保存状態を確認して再試行',exact:true}).click();await until(async()=>!(await pending(p)));};
  const noOverflow=async()=>assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'normal form overflow');
@@ -25,7 +25,7 @@ exports.verifyNormalReplay=async({page,context,origin,output,db,claim,ids,until,
  await go();const beforeStorage=await count();await page.evaluate(()=>{window.normalSetItem=Storage.prototype.setItem;Storage.prototype.setItem=function(k,v){if(k.startsWith('svml:pending-match:'))throw Error('denied');return window.normalSetItem.call(this,k,v);};});
  await save();await page.getByRole('alert').filter({hasText:'戦績は送信していません'}).waitFor();assert.equal(await count(),beforeStorage);await page.evaluate(()=>{Storage.prototype.setItem=window.normalSetItem;});
  // Independent tab -> different operation, copied pending tab -> same operation.
- const other=await context.newPage();await other.goto(origin+'/matches',{waitUntil:'networkidle'});await other.locator('[name=environment_id]').selectOption(ids.env);
+ const other=await context.newPage();await other.goto(origin+'/matches',{waitUntil:'networkidle'});assert.equal(await other.locator('[name=environment_id]').inputValue(), ids.env);
  await Promise.all([save(),other.getByRole('button',{name:'保存して続ける',exact:true}).click()]);await until(async()=>await count()===beforeStorage+2);await until(async()=>!(await pending())&&!(await pending(other)));
  normalFault.loseReply=true;await save();await page.locator('p[role=alert]').waitFor();const copied=await pending(),beforeCopied=await rows();await other.evaluate(({k,v})=>sessionStorage.setItem(k,JSON.stringify(v)),{k:storageKey,v:copied});await other.reload({waitUntil:'networkidle'});
  await Promise.all([recover(),recover(other)]);assert.deepEqual(await rows(),beforeCopied);await other.close();checks.push('storage denied sends nothing; independent tabs save separately; copied pending tab replays same ID without overwrite');

@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { EmptyState } from "@/components/EmptyState";
 import { QuickMatchForm } from "@/components/matches/QuickMatchForm";
 import { PendingMatchRecovery } from "@/components/matches/PendingMatchRecovery";
@@ -15,6 +17,12 @@ export function ScheduledMatchForm({ environments, serverNow, ...props }: {
   saved?: boolean;
   userId?: string;
 }) {
+  const router = useRouter();
+  useEffect(() => {
+    const refresh = () => { if (document.visibilityState === "visible") router.refresh(); };
+    window.addEventListener("focus", refresh);
+    return () => window.removeEventListener("focus", refresh);
+  }, [router]);
   const enabled = useScheduledEnvironments(environments, serverNow);
   return <>
     <PendingMatchRecovery {...props} environments={environments} />

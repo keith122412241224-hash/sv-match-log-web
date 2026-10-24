@@ -2,7 +2,6 @@
 
 import { appendGuestMatch, loadIdentifiedGuestMatches, mutateGuestMatch } from "@/lib/guest-records";
 import { MatchActions, MatchActionsProvider } from "@/components/matches/MatchActions";
-import { isEnvironmentInputEnabled } from "@/lib/environment-input";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { DeckAnalysisCards } from "@/components/analysis/DeckAnalysisCards";
@@ -82,7 +81,8 @@ export function GuestApp({
 
   function changeGuestMatch(id: string, draft?: GuestMatchDraft) {
     try {
-      if (draft && !environments.some(row => row.id === draft.environment_id && isEnvironmentInputEnabled(row))) {
+      // ScheduledGuestApp has already filtered these with server-derived time.
+      if (draft && !environments.some(row => row.id === draft.environment_id)) {
         return { ok: false, message: "この環境は現在戦績を入力できません。" };
       }
       const next = mutateGuestMatch(window.localStorage, id, draft);

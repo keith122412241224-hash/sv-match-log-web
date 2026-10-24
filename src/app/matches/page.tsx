@@ -25,7 +25,6 @@ export default async function MatchesPage({
       <div className="grid gap-6">
         <section>
           <h1 className="text-2xl font-bold text-ink">戦績入力</h1>
-          <p className="mt-1 text-sm text-muted">管理者が作成した環境を選んで戦績を保存します。</p>
         </section>
 
         {!hasDecks ? (

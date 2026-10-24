@@ -12,18 +12,15 @@ import { SaveToast, type SaveNotification } from "@/components/SaveToast";
 import { lastRankKey, readLastRank, rememberLastRank } from "@/lib/match-rank-preference";
 import { safeGetItem, safeSetItem } from "@/lib/browser-preferences";
 import { EMPTY_RANK, validateMatchRank, type MatchRank } from "@/lib/match-rank";
-import { isEnvironmentInputEnabled } from "@/lib/environment-input";
 import type { MatchEditData, MatchMutationResult } from "@/lib/match-edit";
 import { Button } from "@/components/Button";
 import { notifyNavigationStart } from "@/components/GlobalPendingIndicator";
 import { DeckSelectDialog } from "@/components/DeckSelectDialog";
-import { FieldLabel, Select } from "@/components/Field";
 import { RESULT_LABELS, SHADOWVERSE_CLASSES, TURN_ORDER_LABELS } from "@/lib/constants";
 import { cn, getMostRecentlyCreatedId } from "@/lib/utils";
 import type { Deck, DeckArchetype, Environment, MatchResult, TurnOrder } from "@/types/database";
 
 const LAST_MY_CHOICE_KEY = "svml:last-my-choice-id";
-const LAST_ENVIRONMENT_KEY = "svml:last-environment-id";
 
 type DeckChoice = {
   id: string;
@@ -101,7 +98,13 @@ export function QuickMatchForm({
   const [opponentClass, setOpponentClass] = useState((initialMatch ? archetypes.find(row => row.id === initialMatch.opponent_archetype_id)?.class_name : archetypes[0]?.class_name) ?? SHADOWVERSE_CLASSES[0]);
   const [turnOrder, setTurnOrder] = useState<TurnOrder>(initialMatch?.turn_order ?? "first");
   const [result, setResult] = useState<MatchResult>(initialMatch?.result ?? "win");
-  const [environmentId, setEnvironmentId] = useState(initialMatch?.environment_id ?? getMostRecentlyCreatedId(environments));
+  // New entries follow the server's input-enabled environments, never a device preference.
+  // Edits retain the recorded environment even when a newer environment is available.
+  const environmentId = initialMatch?.environment_id ?? getMostRecentlyCreatedId(environments);
+  const environment = environments.find(row => row.id === environmentId);
+  // Input candidates already use server time. Do not recheck their window with
+  // the device clock: authenticated saves/edits are validated by the server,
+  // and Guest edits are checked against the scheduled parent's candidates.
   const [rank, setRank] = useState<MatchRank>(initialMatch ? { rank_tier: initialMatch.rank_tier ?? null, master_group: initialMatch.master_group ?? null, grandmaster_rating: initialMatch.grandmaster_rating ?? null } : { ...EMPTY_RANK });
   const [saveState, setSaveState] = useState<"idle" | "saved" | "error">("idle");
   const [saveMessage, setSaveMessage] = useState("");
@@ -131,22 +134,6 @@ export function QuickMatchForm({
       safeSetItem(LAST_MY_CHOICE_KEY, myChoiceId);
     }
   }, [myChoiceId, initialMatch]);
-
-  useEffect(() => {
-    if (initialMatch) return;
-    const stored = safeGetItem(LAST_ENVIRONMENT_KEY);
-    if (stored && environments.some((environment) => environment.id === stored)) {
-      setEnvironmentId(stored);
-    } else {
-      setEnvironmentId(getMostRecentlyCreatedId(environments));
-    }
-  }, [environments, initialMatch]);
-
-  useEffect(() => {
-    if (environmentId && !initialMatch) {
-      safeSetItem(LAST_ENVIRONMENT_KEY, environmentId);
-    }
-  }, [environmentId, initialMatch]);
 
   const selectedMyChoice = useMemo(() => myChoices.find((choice) => choice.id === myChoiceId), [myChoices, myChoiceId]);
   const classArchetypes = useMemo(
@@ -196,7 +183,7 @@ export function QuickMatchForm({
       setOpponentArchetypeId(f.opponent_archetype_id);
       const opponent = archetypes.find(row => row.id === f.opponent_archetype_id);
       if (opponent) setOpponentClass(opponent.class_name);
-      setEnvironmentId(f.environment_id);
+      // PendingMatchRecovery retries the original immutable payload separately.
       setTurnOrder(f.turn_order as TurnOrder);
       setResult(f.result as MatchResult);
       const parsed = validateMatchRank(f);
@@ -209,8 +196,7 @@ export function QuickMatchForm({
       event.preventDefault();
       if (saving.current) return;
       const parsedRank = validateMatchRank(rank);
-      const environment = environments.find(row => row.id === environmentId);
-      if (!selectedMyChoice || !selectedOpponentDeckId || !parsedRank.ok || !environment || !isEnvironmentInputEnabled(environment)) {
+      if (!selectedMyChoice || !selectedOpponentDeckId || !parsedRank.ok || !environment) {
         setSaveState("error");
         setSaveMessage(!parsedRank.ok ? parsedRank.message : "入力内容と環境の入力可能期間を確認してください。");
         return;
@@ -255,10 +241,12 @@ export function QuickMatchForm({
 
       try {
         const formData = new FormData(event.currentTarget);
+        formData.set("environment_id", environmentId);
         formData.set("next_action", nextAction);
         const submittedRank = validateMatchRank({ rank_tier: formData.get("rank_tier"), master_group: formData.get("master_group"), grandmaster_rating: formData.get("grandmaster_rating") });
         if (!submittedRank.ok) throw Error(submittedRank.message);
-        if (!selectedMyChoice || !selectedOpponentDeckId || !environmentId) throw Error("環境とデッキを選択してください。");
+        if (!environment) throw Error("環境を取得できません。画面を更新してください。");
+        if (!selectedMyChoice || !selectedOpponentDeckId) throw Error("デッキを選択してください。");
         const response = await submitMatchSubmission(userId, formData, createMatchInline);
 
         if (response.ok) {
@@ -288,6 +276,11 @@ export function QuickMatchForm({
     }
 
     event.preventDefault();
+    if (!environment) {
+      setSaveState("error");
+      setSaveMessage("環境を取得できません。画面を更新してください。");
+      return;
+    }
     if (!selectedMyChoice || !environmentId || !selectedOpponentDeckId) {
       return;
     }
@@ -331,8 +324,8 @@ export function QuickMatchForm({
     >
       <SaveToast notification={notification} onDismiss={dismissNotification} />
       <fieldset disabled={Boolean(initialMatch) && isSaving} className="grid min-w-0 gap-4">
-      {initialMatch && !environments.some(row => row.id === environmentId && isEnvironmentInputEnabled(row)) ? (
-        <p className="rounded bg-amber-50 p-3 text-sm text-amber-950">この環境は現在入力停止中です。保存には入力可能な環境を選んでください。</p>
+      {initialMatch && !environment?.allow_match_input ? (
+        <p className="rounded bg-amber-50 p-3 text-sm text-amber-950">この戦績の環境は現在入力停止中です。環境を変更せずに保存するには、管理者による入力再開が必要です。</p>
       ) : null}
       {(saved || guest) && !initialMatch ? (
         <p className="rounded-md bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">
@@ -351,19 +344,13 @@ export function QuickMatchForm({
         <input name="my_archetype_id" type="hidden" value={selectedMyChoice?.id ?? ""} />
       )}
 
-      <FieldLabel>
-        環境
-        <Select required name="environment_id" value={environmentId} onChange={(event) => setEnvironmentId(event.target.value)}>
-          {environments.map((environment) => (
-            <option key={environment.id} value={environment.id} disabled={Boolean(initialMatch) && !isEnvironmentInputEnabled(environment)}>
-              {environment.name}
-            </option>
-          ))}
-        </Select>
-      </FieldLabel>
+      <div className="grid min-w-0 gap-1 text-sm">
+        <span className="font-semibold text-ink">環境</span>
+        <p className="break-words text-ink" role="status" aria-label="環境">{environment?.name ?? "環境を取得できません。画面を更新してください。"}</p>
+        <input name="environment_id" type="hidden" value={environmentId} />
+      </div>
 
       <DeckSelectDialog label="使用デッキ" decks={myChoices} value={myChoiceId} onChange={setMyChoiceId} />
-      {!initialMatch && <p className="text-xs text-muted">前回選択はこの端末に記憶されます。</p>}
 
       {usesArchetypes ? <>
         <input name="opponent_archetype_id" type="hidden" value={opponentArchetypeId} />
@@ -424,27 +411,28 @@ export function QuickMatchForm({
 
       <div className="grid gap-2 sm:grid-cols-2">
         {initialMatch ? <>
-          <Button type="submit" disabled={isSaving}>{isSaving ? "保存中..." : "変更を保存"}</Button>
+          <Button type="submit" disabled={isSaving || !environment}>{isSaving ? "保存中..." : "変更を保存"}</Button>
           <Button type="button" variant="secondary" disabled={isSaving} onClick={onCancel}>編集をキャンセル</Button>
           <p role="status" className="text-sm text-muted sm:col-span-2">{isSaving ? "戦績を保存しています。" : ""}</p>
-        </> : <MatchSubmitButtons guest={guest} pendingOverride={isSaving || isNavigating} />}
+        </> : <MatchSubmitButtons guest={guest} unavailable={!environment} pendingOverride={isSaving || isNavigating} />}
       </div>
       </fieldset>
     </form>
   );
 }
 
-function MatchSubmitButtons({ guest, pendingOverride = false }: { guest: boolean; pendingOverride?: boolean }) {
+function MatchSubmitButtons({ guest, unavailable = false, pendingOverride = false }: { guest: boolean; unavailable?: boolean; pendingOverride?: boolean }) {
   const { pending } = useFormStatus();
   const isPending = pending || pendingOverride;
 
   return (
     <>
-      <Button aria-disabled={isPending} onClick={event => { if (isPending) event.preventDefault(); }} name="next_action" type="submit" value="continue">
+      <Button disabled={unavailable} aria-disabled={isPending} onClick={event => { if (isPending) event.preventDefault(); }} name="next_action" type="submit" value="continue">
         {isPending ? <Loader2 className="animate-spin" size={17} aria-hidden="true" /> : <Save size={17} aria-hidden="true" />}
         {isPending ? "保存中..." : guest ? "入力を試す" : "保存して続ける"}
       </Button>
       <Button
+        disabled={unavailable}
         aria-disabled={isPending}
         className={guest ? "hidden" : undefined}
         onClick={event => { if (isPending) event.preventDefault(); }}

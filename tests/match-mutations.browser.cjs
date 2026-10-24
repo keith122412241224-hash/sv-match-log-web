@@ -11,11 +11,14 @@ const user = { id: ids.a, aud: 'authenticated', role: 'authenticated', is_anonym
 const errors = [], warnings = [], pageerrors = [], calls = [], checks = [];
 let failWrite = false, delayWrite = 0, chain = Promise.resolve();
 const guestFault = { failWrite: false, loseReply: false };
-const normalFault = { failWrite: false, loseReply: false };
+const normalFault = { failWrite: false, loseReply: false, expireAtWrite: false };
+const environmentFault = { read: false };
 async function until(fn) { for (let i = 0; i < 100; i++) { if (await fn()) return; await new Promise(r => setTimeout(r, 100)); } throw Error('Timed out'); }
 (async () => {
   fs.mkdirSync(output, { recursive: true });
   const { db, claim, Query } = await setup();
+  // Fixed entry selects the latest created input-enabled environment.
+  await db.query("update public.environments set created_at=case when id=$1 then '2026-10-02'::timestamptz else '2026-10-01'::timestamptz end", [ids.env]);
   // Serialize role-setting and queries on this single embedded DB connection.
   const api = http.createServer((req, res) => {
     chain = chain.then(async () => {
@@ -27,6 +30,7 @@ async function until(fn) { for (let i = 0; i < 100; i++) { if (await fn()) retur
       let text = ''; for await (const part of req) text += part; const body = text ? JSON.parse(text) : {};
       await claim(subject);
       calls.push({ method: req.method, path: url.pathname });
+      if (url.pathname === '/rest/v1/environments' && environmentFault.read) { res.statusCode = 503; res.end(JSON.stringify({ message: 'injected environment read failure' })); return; }
       if (url.pathname.startsWith('/rest/v1/rpc/')) {
         const entries = Object.entries(body);
         const result = await db.query('select public.' + quote(url.pathname.split('/').at(-1)) + '(' + entries.map(([key], i) => quote(key) + ':=$' + (i + 1)).join(',') + ') payload', entries.map(([, value]) => value));
@@ -69,6 +73,12 @@ async function until(fn) { for (let i = 0; i < 100; i++) { if (await fn()) retur
         else q.insert(body);
       }
       if (req.headers.accept?.includes('vnd.pgrst.object')) q.maybeSingle();
+      if (req.method === 'POST' && table === 'matches' && normalFault.expireAtWrite) {
+        normalFault.expireAtWrite = false;
+        await db.exec('reset role');
+        await db.query('update public.environments set match_input_end_at=clock_timestamp() where id=$1', [body.environment_id]);
+        await claim(subject);
+      }
       const result = await q;
       if (result.error) { res.statusCode = 400; res.end(JSON.stringify(result.error)); return; }
       if (req.method === 'POST' && table === 'matches' && url.searchParams.get('on_conflict') === 'user_id,request_id' && normalFault.loseReply) { normalFault.loseReply = false; res.destroy(); return; }
@@ -117,6 +127,8 @@ async function until(fn) { for (let i = 0; i < 100; i++) { if (await fn()) retur
     const page = await context.newPage();
     page.on('console', msg => { if (msg.type() === 'error') errors.push(msg.text()); if (msg.type() === 'warning') warnings.push(msg.text()); });
     page.on('pageerror', error => pageerrors.push(error.message));
+    await require('./match-input-clock.browser.cjs').verifyClockIndependence({ page, context, origin, output, db, ids, until, calls, normalFault, environmentFault, idle: () => chain, checks });
+    await require('./match-input-environment.browser.cjs').verifyFixedEnvironment({ page, context, origin, output, db, ids, until, calls, normalFault, environmentFault, idle: () => chain, checks });
     await require('./deck-select-dialog.browser.cjs').verifyMatchSelection({ page, origin, output, db, claim, ids, until, calls, idle: () => chain, checks, normalFault });
     const menu = async () => { await page.getByRole('button', { name: '戦績の操作', exact: true }).first().click(); await page.getByRole('heading', { name: '戦績の操作' }).waitFor(); };
     const edit = async () => { await menu(); await page.getByRole('button', { name: '編集', exact: true }).click(); await page.getByRole('heading', { name: '戦績を編集' }).waitFor(); };
@@ -163,7 +175,7 @@ async function until(fn) { for (let i = 0; i < 100; i++) { if (await fn()) retur
     await until(async () => (await own()).result === 'lose');
     assert.equal(calls.filter(c => c.method === 'PATCH').length - writesBefore, 1);
     const updated = await own(); assert.equal(updated.my_archetype_id, ids.arch2); assert.equal(updated.turn_order, 'second'); assert.equal(updated.master_group, 'ruby');
-    for (const key of ['id', 'user_id', 'created_at', 'played_at']) assert.deepEqual(updated[key], original[key]);
+    for (const key of ['id', 'user_id', 'environment_id', 'created_at', 'played_at']) assert.deepEqual(updated[key], original[key]);
     await page.reload({ waitUntil: 'networkidle' }); await edit(); assert.equal(await page.locator('[name=result]').inputValue(), 'lose');
     await page.getByRole('button', { name: '編集をキャンセル' }).click();
     await remove(); failWrite = true; await page.getByRole('button', { name: '削除する' }).click();
@@ -176,13 +188,13 @@ async function until(fn) { for (let i = 0; i < 100; i++) { if (await fn()) retur
     await page.reload({ waitUntil: 'networkidle' }); assert.equal(await page.getByRole('button', { name: '戦績の操作' }).count(), 0);
     checks.push('authenticated update/delete persistence; failures preserve rows/draft; duplicate sends blocked');
     // Existing new registration still works with the shared form/action.
-    await page.goto(origin + '/matches', { waitUntil: 'networkidle' }); await page.locator('[name=environment_id]').selectOption(ids.env);
+    await page.goto(origin + '/matches', { waitUntil: 'networkidle' }); assert.equal(await page.locator('[name=environment_id]').inputValue(), ids.env);
     await page.getByRole('button', { name: '保存してホームへ' }).click(); await page.waitForURL(origin + '/');
     checks.push('authenticated new registration');
     // Guest edits/cancels/deletes and real import action, with no Guest DB mutations.
     await page.goto(origin + '/guest', { waitUntil: 'networkidle' });
     await page.getByRole('button', { name: '戦績入力', exact: true }).click();
-    await page.locator('[name=environment_id]').selectOption(ids.env);
+    assert.equal(await page.locator('[name=environment_id]').inputValue(), ids.env);
     await page.getByRole('button', { name: '入力を試す' }).click(); await page.getByRole('status').filter({ hasText: '戦績を保存しました' }).waitFor();
     await page.getByRole('button', { name: '入力を試す' }).click();
     await page.getByRole('button', { name: 'ホーム', exact: true }).click();
