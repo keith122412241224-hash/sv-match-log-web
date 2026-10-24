@@ -14,15 +14,15 @@ type Row = ReturnType<typeof buildEnvironmentViewV4>["rows"][number];
 const unsetClass = "クラス未設定";
 const classNames: readonly string[] = [...SHADOWVERSE_CLASSES, unsetClass];
 const deckClass = (row: Row) => classNames.includes(row.className ?? "") ? row.className! : unsetClass;
-type DeckOptions = { className: string; trend: "all" | "increase" | "decrease" | "flat"; sort: "encounter" | "win" | "delta" | "count"; grouped: boolean };
-const defaultOptions: DeckOptions = { className: "all", trend: "all", sort: "encounter", grouped: false };
+type DeckOptions = { selectedClasses: string[]; trend: "all" | "increase" | "decrease" | "flat"; sort: "encounter" | "win" | "delta" | "count"; grouped: boolean };
+const defaultOptions: DeckOptions = { selectedClasses: [], trend: "all", sort: "encounter", grouped: false };
 const sortOptions = [ ["encounter", "遭遇率が高い順"], ["win", "勝率が高い順"], ["delta", "増減幅が大きい順"], ["count", "対象戦績数が多い順"] ] as const;
 const trendOptions = [ ["all", "すべて"], ["increase", "増加"], ["decrease", "減少"], ["flat", "横ばい"] ] as const;
 export function filterEnvironmentDeckRows(rows: Row[], options: DeckOptions): Row[] {
   const value = (row: Row) => options.sort === "win" ? row.winRate : options.sort === "count" ? row.current.winrate.evaluationCount
     : options.sort === "delta" ? row.trend?.delta == null ? null : Math.abs(row.trend.delta) : row.encounterRate;
   const descending = (a: number | null, b: number | null) => a === null ? b === null ? 0 : 1 : b === null ? -1 : b - a;
-  return rows.filter(row => (options.className === "all" || deckClass(row) === options.className)
+  return rows.filter(row => (options.selectedClasses.length === 0 || options.selectedClasses.includes(deckClass(row)))
     && (options.trend === "all" || row.trend?.state === options.trend))
     .sort((a, b) => descending(value(a), value(b)) || descending(a.encounterRate, b.encounterRate) || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
 }
@@ -91,13 +91,20 @@ export function EnvironmentData({ data, activeDeckIds }: { data: EnvironmentDash
   return <>
     <section aria-label="集計条件" className="rounded-md border border-slate-200 bg-white p-4 text-sm">
       <p className="mb-2 text-muted">{dashboardPeriodLabel(data.period)} / {getRankSelectionLabel(data.rankFilters)}</p>
-      <p className="font-semibold">登録戦績：{total.status === "available" ? `${integer(total.totalMatches)}件` : "データなし"}</p>
-      <p className="mt-2">集計対象：{formatJstDateTime(data.dataThrough)}まで（JST）</p>
-      {data.current.start !== null && <p className="mt-1 text-xs text-muted">今期：{formatJstDateTime(data.current.start)} ～ {formatJstDateTime(data.current.end)}（終了時刻は含みません）</p>}
-      {data.previous && <p className="mt-1 text-xs text-muted">前期間：{formatJstDateTime(data.previous.start)} ～ {formatJstDateTime(data.previous.end)}（JST）</p>}
-      {data.endSource === "configured" && <p className="mt-1 text-xs text-muted">集計基準：設定した集計終了時点（{formatJstDateTime(data.dataThrough)} JST）</p>}
-      {data.period === "all" && <p className="mt-1 text-xs text-muted">全期間では前期間比較を行いません。終了時刻は含みません。</p>}
-      <p className="mt-2 text-xs text-muted">{data.endSource !== "configured" && "30分単位の集計対象時刻です。"}ランクは登録者の対戦時点の条件で、「すべて」は未登録も含みます。</p>
+      <dl className="mb-3"><dt className="font-semibold">登録戦績</dt>
+        <dd className="mt-1 break-words text-4xl font-bold leading-tight tabular-nums text-sky-800 sm:text-5xl">{total.status === "available" ? `${integer(total.totalMatches)}件` : "データなし"}</dd>
+      </dl>
+      <details>
+        <summary className="min-h-11 w-fit cursor-pointer rounded py-3 font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-700">集計の詳細</summary>
+        <div>
+          <p className="mt-2">集計対象：{formatJstDateTime(data.dataThrough)}まで（JST）</p>
+          {data.current.start !== null && <p className="mt-1 text-xs text-muted">今期：{formatJstDateTime(data.current.start)} ～ {formatJstDateTime(data.current.end)}（終了時刻は含みません）</p>}
+          {data.previous && <p className="mt-1 text-xs text-muted">前期間：{formatJstDateTime(data.previous.start)} ～ {formatJstDateTime(data.previous.end)}（JST）</p>}
+          {data.endSource === "configured" && <p className="mt-1 text-xs text-muted">集計基準：設定した集計終了時点（{formatJstDateTime(data.dataThrough)} JST）</p>}
+          {data.period === "all" && <p className="mt-1 text-xs text-muted">全期間では前期間比較を行いません。終了時刻は含みません。</p>}
+          <p className="mt-2 text-xs text-muted">{data.endSource !== "configured" && "30分単位の集計対象時刻です。"}ランクは登録者の対戦時点の条件で、「すべて」は未登録も含みます。</p>
+        </div>
+      </details>
     </section>
     <div className="grid gap-4 lg:grid-cols-2">
       <Panel title="遭遇率TOP5">
@@ -121,11 +128,13 @@ export function EnvironmentData({ data, activeDeckIds }: { data: EnvironmentDash
     </div>
     <Panel title="デッキ別データ">
       <fieldset aria-label="クラスで絞り込み" className="mb-4 min-w-0">
-        <legend className="mb-2 text-sm font-semibold">クラス <span className="ml-2 font-normal text-muted">選択中：{options.className === "all" ? "すべて" : options.className}</span></legend>
+        <legend className="mb-2 text-sm font-semibold">クラス <span className="ml-2 font-normal text-muted">選択中：{options.selectedClasses.length === 0 ? "すべて" : classNames.filter(name => options.selectedClasses.includes(name)).join("、")}</span></legend>
         <div className="flex flex-wrap gap-2">
           {["all", ...classNames.filter(name => name !== unsetClass || visibleRows.some(row => deckClass(row) === unsetClass))].map(name => <button
             key={name} type="button" aria-label={name === "all" ? "すべて" : name} title={name === "all" ? "すべて" : name}
-            aria-pressed={options.className === name} onClick={() => setOptions({ ...options, className: name })}
+            aria-pressed={name === "all" ? options.selectedClasses.length === 0 : options.selectedClasses.includes(name)} onClick={() => setOptions(current => ({ ...current,
+              selectedClasses: name === "all" ? [] : current.selectedClasses.includes(name) ? current.selectedClasses.filter(selected => selected !== name) : [...current.selectedClasses, name]
+            }))}
             className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md border border-slate-300 px-3 text-sm font-semibold aria-pressed:border-ink aria-pressed:bg-ink aria-pressed:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-700">
             {name === "all" ? "すべて" : <EnvironmentClassIcon className={name} />}
           </button>)}

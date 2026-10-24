@@ -50,7 +50,7 @@ test('OBS uses the same URL rank encoding and v3 result for every period/preset'
         }
       }
     }
-    assert.match(obs, /800<small>戦/); assert.match(normal, /登録戦績：800件/);
+    assert.match(obs, /800<small>戦/); assert.match(normal, /<dt[^>]*>登録戦績<\/dt><dd[^>]*>800件<\/dd>/);
     assert.doesNotMatch(obs, /<form|<button|<input|<nav|対象戦績数|登録800件/);
   }
 });

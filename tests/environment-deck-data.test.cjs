@@ -5,7 +5,7 @@ const {buildEnvironmentViewV4,parseEnvironmentDashboardV4}=require('../src/lib/e
 const {deckTrend}=require('../src/lib/environment-dashboard');
 const f=require('./environment-deck-data-fixture.cjs'),args={p_environment_id:f.environments[0].id,p_period:'7d',p_rank_filters:['unranked']};
 const data=()=>parseEnvironmentDashboardV4(f.dashboard(args),{environment:args.p_environment_id,period:'7d',ranks:['unranked']});
-const defaults={className:'all',trend:'all',sort:'encounter',grouped:false};
+const defaults={selectedClasses:[],trend:'all',sort:'encounter',grouped:false};
 test('environment deck UI preserves all other product code, aggregates, RPC, migrations and dependencies',()=>{
  const scope=require('./environment-deck-data-scope.cjs');scope.assertReviewed();
  const files=scope.git('ls-tree','-r','--name-only',scope.base).trim().split('\n').filter(f=>/^(src|supabase)\//.test(f)||/^package(-lock)?\.json$/.test(f));
@@ -14,15 +14,16 @@ test('environment deck UI preserves all other product code, aggregates, RPC, mig
 });
 test('deck display combines every class/trend/sort without mutating aggregates and keeps unknown comparisons separate',()=>{
  const d=data(),original=structuredClone(d),rows=buildEnvironmentViewV4(d).rows.filter(r=>r.key!==f.id(242)),before=structuredClone(rows);
- for(const className of ['all',...f.classes.map(c=>c??'クラス未設定')])for(const trend of ['all','increase','decrease','flat'])for(const sort of ['encounter','win','delta','count']){
-  const actual=filter(rows,{...defaults,className,trend,sort});
-  const selected=rows.filter(r=>(className==='all'||(r.className??'クラス未設定')===className)&&(trend==='all'||r.trend.state===trend));
+ const classes=f.classes.map(c=>c??'クラス未設定');
+ for(let mask=0;mask<2**classes.length;mask++)for(const trend of ['all','increase','decrease','flat'])for(const sort of ['encounter','win','delta','count']){
+  const selectedClasses=classes.filter((_,i)=>mask&(1<<i)),actual=filter(rows,{...defaults,selectedClasses,trend,sort});
+  const selected=rows.filter(r=>(selectedClasses.length===0||selectedClasses.includes(r.className??'クラス未設定'))&&(trend==='all'||r.trend.state===trend));
   assert.deepEqual(actual.map(r=>r.key).sort(),selected.map(r=>r.key).sort());
   const metric=r=>sort==='encounter'?r.encounterRate:sort==='win'?r.winRate:sort==='count'?r.current.winrate.evaluationCount:r.trend.delta===null?-Infinity:Math.abs(r.trend.delta);
   for(let i=1;i<actual.length;i++)assert(metric(actual[i-1])>=metric(actual[i]));
  }
  assert.deepEqual(rows,before);assert.deepEqual(d,original);
- assert.equal(filter([{...rows[0],className:'unknown-class'}],{...defaults,className:'クラス未設定'}).length,1);
+ assert.equal(filter([{...rows[0],className:'unknown-class'}],{...defaults,selectedClasses:['クラス未設定','ドラゴン']}).length,1);
  assert(filter(rows,{...defaults,sort:'delta'}).slice(-2).every(r=>r.trend.delta===null));
  assert(filter(rows,{...defaults,trend:'flat'}).every(r=>!['no_previous','no_current','no_comparison','insufficient'].includes(r.trend.state)));
  const tied=filter([rows[1],rows[4]],defaults);assert.deepEqual(filter([...tied].reverse(),defaults),tied);
@@ -36,7 +37,8 @@ test('compact display preserves exact +/-0.5pp thresholds, comparison rates, mis
  assert.equal(deckTrend(row,{status:'available',totalMatches:29},total).state,'insufficient');
  const html=render(React.createElement(EnvironmentData,{data:data(),activeDeckIds:f.decks.filter(x=>x.is_active).map(x=>x.id)}));
  for(const s of ['↑ 増加','↓ 減少','→ 横ばい','前期間の観測なし','今期の観測なし','サンプル不足','対象戦績数','クラス未設定'])assert(html.includes(s),s);
- for(const s of ['表示条件はこの一覧だけ','対象戦績数は勝率計算','集計について','1戦から2件','ポイント','相手としての観測：','environment-count-help','environment-deck-help','<details'])assert(!html.includes(s),s);
+ for(const s of ['表示条件はこの一覧だけ','対象戦績数は勝率計算','集計について','1戦から2件','ポイント','相手としての観測：','environment-count-help','environment-deck-help'])assert(!html.includes(s),s);
+ assert.equal((html.match(/<details/g)||[]).length,1);assert(!html.slice(html.indexOf('デッキ別データ</h2>')).includes('<details'));
  for(const [state,previous,current,color]of [['increase',16.55,19.1,'text-emerald-800'],['decrease',19.1,16.55,'text-blue-800'],['flat',19.1,19.1,'text-muted']]){
   const trendHtml=render(React.createElement(TrendText,{trend:{state,previous,current,delta:current-previous}}));
   assert(trendHtml.includes(`前期間 ${previous.toFixed(1)}% → 今期 ${current.toFixed(1)}%`));assert(trendHtml.includes(color));assert(!trendHtml.includes('ポイント'));
@@ -54,6 +56,22 @@ test('class buttons and deck icons reuse the seven original assets with accessib
  assert(html.includes('role="img" aria-label="クラス未設定" title="クラス未設定"'));
  const scope=require('./environment-deck-data-scope.cjs'),before=scope.git('show','295c0f8a65081e05fc07726b5f4b5c2aee3c2be2:'+scope.file),now=scope.read(scope.file);
  const filterSource=s=>s.slice(s.indexOf('export function filterEnvironmentDeckRows'),s.indexOf('function Panel'));
- assert.equal(filterSource(now),filterSource(before),'filter/sort implementation unchanged');
+ assert.equal(filterSource(now),filterSource(before).replace('options.className === "all" || deckClass(row) === options.className','options.selectedClasses.length === 0 || options.selectedClasses.includes(deckClass(row))'),'only class membership changes; all sorting and trend logic unchanged');
  assert.equal(scope.read('src/components/ClassIcon.tsx'),scope.git('show','295c0f8a65081e05fc07726b5f4b5c2aee3c2be2:src/components/ClassIcon.tsx'));
+});
+
+test('summary highlights the exact total and retains every existing period/date/rank note inside closed details',()=>{
+ const path=require('node:path'),Module=require('node:module'),ts=require('typescript'),scope=require('./environment-deck-data-scope.cjs');
+ const file=path.resolve(scope.file),baseline=new Module(file,module);baseline.filename=file;baseline.paths=module.paths;
+ baseline._compile(ts.transpileModule(scope.git('show','2e50abb5fce4eb281e621bac00aa9282c4398657:'+scope.file),{fileName:file,compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX,esModuleInterop:true}}).outputText,file);
+ for(const period of ['24h','3d','7d','30d','all'])for(const endSource of ['now','configured'])for(const mode of ['full','empty']){
+  const d=f.dashboard({...args,p_period:period},mode);d.endSource=endSource;const props={data:d,activeDeckIds:f.decks.map(x=>x.id)},original=structuredClone(d);
+  const summary=Component=>render(React.createElement(Component,props)).match(/<section aria-label="集計条件"[^>]*>(.*?)<\/section>/s)[1];
+  const old=summary(baseline.exports.EnvironmentData),now=summary(EnvironmentData),paragraphs=s=>[...s.matchAll(/<p\b[^>]*>(.*?)<\/p>/gs)].map(m=>m[1]);
+  assert.deepEqual(paragraphs(now),paragraphs(old).filter(p=>!p.startsWith('登録戦績：')));
+  const details=now.match(/<details>(.*?)<\/details>/s)[1];assert(details.includes('集計の詳細'));assert.deepEqual(paragraphs(details),paragraphs(now).slice(1));
+  assert.doesNotMatch(now,/<details[^>]*\bopen/);assert.match(now,/<dt[^>]*>登録戦績<\/dt>/);
+  assert.equal(now.match(/<dd[^>]*>(.*?)<\/dd>/s)[1],mode==='empty'?'データなし':'1,000件');assert.match(now,/<dd[^>]*text-4xl[^>]*font-bold/);
+  assert.deepEqual(d,original);
+ }
 });

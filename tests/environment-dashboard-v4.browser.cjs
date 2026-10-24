@@ -93,12 +93,19 @@ async function main() {
       const matrix = buildAnalysisFromAggregates(parseAnalysisAggregates(aggregates, []), decks, decks).matrix;
       for (const route of ['/environment', '/admin/obs/environment']) {
         await go(route + query(h.OLD, period));
+        if (route === '/environment') {
+          const summary = page.getByRole('region', { name: '集計条件', exact: true });
+          assert.equal(await summary.locator('details').getAttribute('open'), null);
+          assert.equal(await summary.locator('dd').innerText(), data.current.total.totalMatches.toLocaleString('ja-JP') + '件');
+          await summary.locator('summary').click();
+          assert.notEqual(await summary.locator('details').getAttribute('open'), null);
+        }
         const text = await page.locator('main').innerText();
         assert.ok(text.includes('2026/09/29') && text.includes('17:00'));
         assert.equal(text.includes('増加TOP3'), period !== 'all'); assert.equal(text.includes('減少TOP3'), period !== 'all');
         if (period === 'all') assert.ok(text.includes('環境全期間'));
         const total = data.current.total.totalMatches;
-        assert.ok(route === '/environment' ? text.includes(`登録戦績：${total}件`) : text.includes(String(total)));
+        assert.ok(route === '/environment' ? text.includes(`${total.toLocaleString('ja-JP')}件`) : text.includes(String(total)));
         for (const [title, expected] of [['遭遇率TOP5', view.encounters], ['勝率TOP5', view.wins]]) {
           const shown = await section(title).locator('li').allTextContents();
           assert.equal(shown.length, expected.length);
