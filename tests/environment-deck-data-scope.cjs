@@ -6,5 +6,5 @@ const git=(...args)=>cp.execFileSync('git',args,{encoding:'utf8',maxBuffer:64e6}
 function assertReviewed(){assert.equal(createHash('sha256').update(read(file)).digest('hex'),hash,'unreviewed environment deck display change');}
 function readBeforeDeckData(f){if(f!==file)return read(f);assertReviewed();return git('show',base+':'+f);}
 // Project only this exact reviewed file for historical inventory comparisons.
-function historicalChanges(files,historicalBase){return files.filter(f=>(f!==file&&!Object.hasOwn(require('./match-input-environment-scope.cjs').hashes,f))||readBeforeDeckData(f)!==git('show',historicalBase+':'+f));}
+function historicalChanges(files,historicalBase){return files.filter(f=>(f!==file&&!Object.hasOwn(require('./match-input-environment-scope.cjs').hashes,f)&&!Object.hasOwn(require('./analysis-description-scope.cjs').removed,f))||readBeforeDeckData(f)!==git('show',historicalBase+':'+f));}
 module.exports={base,file,read,git,assertReviewed,readBeforeDeckData,historicalChanges};

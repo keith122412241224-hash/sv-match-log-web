@@ -49,7 +49,6 @@ export function DeckAnalysisCards({ summaries, combined = false, showTitle = tru
                     <span className="text-sm text-muted">勝率 <strong className="text-lg text-ink">{recent.winRate === null ? "—" : `${recent.winRate.toFixed(1)}%`}</strong></span>
                     {showStreak && !combined && recent.count > 0 ? <span className="text-sm font-semibold text-ink">{recent.streakLabel}</span> : null}
                   </div>
-                  <p className="mb-2 text-xs text-muted">現在の分析条件に一致する結果を最新順で表示します。{showStreak && !combined ? "連勝・連敗もこの対象範囲内の成績です。" : "連勝・連敗は自分のみ／使用者側のみで表示します。"}</p>
                 </> : null}
                 <div className="flex flex-wrap gap-1">
                   {summary.recentResults.map((result, index) => (

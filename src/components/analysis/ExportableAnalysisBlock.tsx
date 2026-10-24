@@ -85,7 +85,6 @@ export function ExportableAnalysisBlock({ title, filename, children, collapsible
         {saving ? `画像を作成しています ${progress}` : notice}
       </p>
       {collapsible ? <>
-        <p data-png-exclude className="px-4 py-3 text-sm text-muted">使用デッキと相手デッキの組み合わせ別に勝率を確認できます。閉じた状態でもPNGに全データを出力できます。</p>
         <div id={contentId} hidden={!open} data-png-expand>{children}</div>
       </> : children}
     </section>

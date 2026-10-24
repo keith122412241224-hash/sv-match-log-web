@@ -36,7 +36,7 @@ test('recent stats render in all four modes; streak only mine/direct; Guest defa
  const s={...summary('test',3,200/3),recentResults:['win','win','lose']};
  for(const scope of ['mine','all'])for(const combined of [false,true]){
   const html=renderToStaticMarkup(React.createElement(DeckAnalysisCards,{summaries:[s],combined,recentDetails:true,showStreak:scope==='mine'&&!combined}));
-  assert.match(html,/2勝1敗/);assert.match(html,/66\.7%/);assert.match(html,combined?/直近3件（反転込み）/:/直近3戦/);assert.equal(html.includes('現在2連勝'),scope==='mine'&&!combined);assert.match(html,/現在の分析条件/);assert.equal((html.match(/>W<|>L</g)||[]).length,3);
+  assert.match(html,/2勝1敗/);assert.match(html,/66\.7%/);assert.match(html,combined?/直近3件（反転込み）/:/直近3戦/);assert.equal(html.includes('現在2連勝'),scope==='mine'&&!combined);assert.doesNotMatch(html,/現在の分析条件|連勝・連敗もこの対象範囲|連勝・連敗は自分のみ/);assert.equal((html.match(/>W<|>L</g)||[]).length,3);
  }
  const html=renderToStaticMarkup(React.createElement(DeckAnalysisCards,{summaries:[s]}));assert.doesNotMatch(html,/現在2連勝|2勝1敗|現在の分析条件/);assert.match(html,/直近10戦/);
 });
@@ -48,6 +48,15 @@ test('analysis bars preserve row order/counts/rates, clamp width, and show missi
  assert.match(render(React.createElement(AnalysisWinRates,{rows,combined:true})),/8件（対象件数）/);
  const turns=render(React.createElement(AnalysisWinRates,{rows:[{label:'後攻',total:1,wins:0,winRate:0}],turns:true}));assert.ok(turns.indexOf('先攻')<turns.indexOf('後攻'));assert.match(turns,/データなし/);assert.match(turns,/>0%/);
  assert.match(render(React.createElement(AnalysisWinRates,{rows:[]})),/表示できるデータがありません/);
+});
+
+test('analysis description cleanup removes only two paragraphs and retains collapsed content/export controls',()=>{
+ const scope=require('./analysis-description-scope.cjs');
+ assert.equal(Object.keys(scope.removed).length,2);Object.keys(scope.removed).forEach(scope.readBeforeDescriptions);
+ const React=require('react'),{renderToStaticMarkup}=require('react-dom/server'),{ExportableAnalysisBlock}=require('../src/components/analysis/ExportableAnalysisBlock');
+ const html=renderToStaticMarkup(React.createElement(ExportableAnalysisBlock,{title:'対面別勝率',filename:'matchups',collapsible:true},React.createElement('table',null,React.createElement('tbody',null,React.createElement('tr',null,React.createElement('td',null,'66.7%'))))));
+ assert.doesNotMatch(html,/使用デッキと相手デッキの組み合わせ別|閉じた状態でもPNGに/);
+ assert.match(html,/aria-expanded="false"/);assert.match(html,/hidden="" data-png-expand/);assert.match(html,/対面別勝率をPNG保存/);assert.match(html,/66\.7%/);
 });
 
 test('Analysis UX scope pins only presentation and keeps all existing server/API/SQL/auth/aggregate/dependency files identical',()=>{
