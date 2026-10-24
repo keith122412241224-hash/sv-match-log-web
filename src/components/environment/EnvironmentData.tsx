@@ -3,6 +3,7 @@
 import { dashboardPeriodLabel } from "@/lib/environment-dashboard-period";
 import { useState, type ReactNode } from "react";
 import { SHADOWVERSE_CLASSES } from "@/lib/constants";
+import { ClassIcon, isShadowverseClass } from "@/components/ClassIcon";
 import { buildEnvironmentViewV4, type EnvironmentDashboardV4 } from "@/lib/environment-dashboard-v4";
 import { getRankSelectionLabel } from "@/lib/rank-selection";
 import { formatEnvironmentPercent as percent, sampleLabel, type Trend } from "@/lib/environment-dashboard";
@@ -28,12 +29,11 @@ export function filterEnvironmentDeckRows(rows: Row[], options: DeckOptions): Ro
 function Panel({ title, children }: { title: string; children: ReactNode }) {
   return <section className="min-w-0 rounded-md border border-slate-200 bg-white p-4"><h2 className="mb-4 text-lg font-bold">{title}</h2>{children}</section>;
 }
-export function TrendText({ trend, detailed = false }: { trend: Trend; detailed?: boolean }) {
+export function TrendText({ trend }: { trend: Trend }) {
   const labels = { increase: "↑ 増加", decrease: "↓ 減少", flat: "→ 横ばい", no_comparison: "比較データなし", insufficient: "比較できるデータがまだありません",
     privacy_suppressed: "比較データなし", no_previous: "前期間の観測なし", no_current: "今期の観測なし", unclassified: "比較対象外" };
   return <div className="text-sm"><span className={trend.state === "increase" ? "font-semibold text-emerald-800" : trend.state === "decrease" ? "font-semibold text-blue-800" : "text-muted"}>{labels[trend.state]}</span>
     {trend.current !== null && trend.previous !== null && <div className="mt-1 text-xs text-muted">前期間 {percent(trend.previous)} → 今期 {percent(trend.current)}</div>}
-    {detailed && trend.delta !== null && <div className="mt-1 text-xs font-semibold">{trend.delta > 0 ? "+" : trend.delta < 0 ? "−" : "±"}{Math.abs(trend.delta).toFixed(2)}ポイント</div>}
   </div>;
 }
 function EncounterText({ row, total }: { row: Row; total: number | null }) {
@@ -44,17 +44,28 @@ function WinText({ row, detailed = false }: { row: Row; detailed?: boolean }) {
   return row.winRate === null ? <span className="text-sm text-muted">観測なし</span>
     : <span className="text-sm"><strong>{percent(row.winRate)}</strong>{detailed && sampleLabel(row.current.winrate) && <span className="mt-1 block text-xs text-muted">{sampleLabel(row.current.winrate)}：登場した登録戦績{integer(row.current.winrate.targetRegistrations!)}件</span>}</span>;
 }
+function EnvironmentClassIcon({ className }: { className: string }) {
+  const [failed, setFailed] = useState(false);
+  return <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center" onErrorCapture={() => setFailed(true)} ref={node => {
+    // An image may have failed before React attached its error listener.
+    const image = node?.querySelector("img");
+    if (image?.complete && image.naturalWidth === 0) setFailed(true);
+  }}>
+    {failed || !isShadowverseClass(className)
+      ? <span role="img" aria-label={className} title={className} className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold text-slate-600">?</span>
+      : <ClassIcon className={className} size={24} />}
+  </span>;
+}
 function DeckRows({ rows, total, comparison, grouped }: { rows: Row[]; total: number | null; comparison: boolean; grouped: boolean }) {
   const Heading = grouped ? "h4" : "h3";
-  const name = (row: Row) => <><Heading className="break-words font-semibold">{row.name}</Heading><p className="mt-1 text-xs font-normal text-muted">{deckClass(row)}</p></>;
-  const trend = (row: Row) => row.trend && <><TrendText trend={row.trend} detailed />
-    <p className="mt-1 text-xs text-muted">相手としての観測：前期{integer(row.previous?.encounter.count ?? 0)}件 → 今期{integer(row.current.encounter.count ?? 0)}件</p></>;
+  const name = (row: Row) => <><Heading className="break-words font-semibold">{row.name}</Heading><div className="mt-1"><EnvironmentClassIcon className={deckClass(row)} /></div></>;
+  const trend = (row: Row) => row.trend && <TrendText trend={row.trend} />;
   return <>
-    <table aria-describedby="environment-count-help environment-deck-help" className="hidden w-full table-fixed text-left text-sm lg:table">
+    <table className="hidden w-full table-fixed text-left text-sm lg:table">
       <caption className="sr-only">{grouped ? deckClass(rows[0]) + "の" : ""}デッキ別データ</caption>
       <thead className="bg-slate-50"><tr>{["デッキ", "遭遇率", "勝率", "対象戦績数", ...(comparison ? ["前期間比較"] : [])].map(h => <th scope="col" key={h} className="p-3">{h}</th>)}</tr></thead>
       <tbody>{rows.map(row => <tr key={row.key} data-deck-id={row.key} className="border-t border-slate-100">
-        <th scope="row" className="break-words p-3"><span>{row.name}</span><span className="mt-1 block text-xs font-normal text-muted">{deckClass(row)}</span></th>
+        <th scope="row" className="break-words p-3"><span>{row.name}</span><div className="mt-1"><EnvironmentClassIcon className={deckClass(row)} /></div></th>
         <td className="p-3"><EncounterText row={row} total={total} /></td><td className="p-3"><WinText row={row} detailed /></td>
         <td className="p-3">{row.current.winrate.status === "available" ? `${integer(row.current.winrate.evaluationCount!)}件` : "—"}</td>
         {comparison && <td className="p-3">{trend(row)}</td>}
@@ -109,12 +120,18 @@ export function EnvironmentData({ data, activeDeckIds }: { data: EnvironmentDash
       </Panel>)}
     </div>
     <Panel title="デッキ別データ">
-      <div className="mb-4 grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <label className="grid min-w-0 gap-2 text-sm font-semibold">クラス
-          <select value={options.className} onChange={e => setOptions({ ...options, className: e.target.value })} className="min-h-11 w-full min-w-0 rounded-md border border-slate-300 bg-white px-2 text-base">
-            <option value="all">すべて</option>{classNames.filter(name => name !== unsetClass || visibleRows.some(row => deckClass(row) === unsetClass)).map(name => <option key={name}>{name}</option>)}
-          </select>
-        </label>
+      <fieldset aria-label="クラスで絞り込み" className="mb-4 min-w-0">
+        <legend className="mb-2 text-sm font-semibold">クラス <span className="ml-2 font-normal text-muted">選択中：{options.className === "all" ? "すべて" : options.className}</span></legend>
+        <div className="flex flex-wrap gap-2">
+          {["all", ...classNames.filter(name => name !== unsetClass || visibleRows.some(row => deckClass(row) === unsetClass))].map(name => <button
+            key={name} type="button" aria-label={name === "all" ? "すべて" : name} title={name === "all" ? "すべて" : name}
+            aria-pressed={options.className === name} onClick={() => setOptions({ ...options, className: name })}
+            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md border border-slate-300 px-3 text-sm font-semibold aria-pressed:border-ink aria-pressed:bg-ink aria-pressed:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-700">
+            {name === "all" ? "すべて" : <EnvironmentClassIcon className={name} />}
+          </button>)}
+        </div>
+      </fieldset>
+      <div className="mb-4 grid min-w-0 gap-3 sm:grid-cols-3">
         <label className="grid min-w-0 gap-2 text-sm font-semibold">前期間比較
           <select value={options.trend} disabled={!data.previous} onChange={e => setOptions({ ...options, trend: e.target.value as DeckOptions["trend"] })} className="min-h-11 w-full min-w-0 rounded-md border border-slate-300 bg-white px-2 text-base disabled:bg-slate-100">
             {trendOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
@@ -132,15 +149,6 @@ export function EnvironmentData({ data, activeDeckIds }: { data: EnvironmentDash
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><p role="status" className="text-sm">{filteredRows.length}件表示 / 全{visibleRows.length}件</p>
         <button type="button" onClick={() => setOptions(defaultOptions)} className="min-h-11 rounded-md border border-slate-300 px-3 text-sm font-semibold">表示条件をリセット</button>
       </div>
-      <p id="environment-deck-help" className="mb-3 text-xs leading-relaxed text-muted">表示条件はこの一覧だけに適用され、集計値やTOPランキングは変わりません。{data.previous ? "増減幅は遭遇率の差（パーセンテージポイント）の絶対値で並べます。比較できないデッキは末尾に表示し、横ばいには含めません。" : "全期間では前期間比較と増減幅の並び替えを利用できません。"}少数データの数値は変動しやすいため、件数もあわせて確認してください。</p>
-      <p id="environment-count-help" className="mb-4 text-xs leading-relaxed text-muted">対象戦績数は勝率計算に使った件数です。</p>
-      <details className="mb-4 text-xs leading-relaxed text-muted">
-        <summary className="w-fit cursor-pointer rounded py-2 font-semibold focus-visible:outline focus-visible:outline-2">集計について</summary>
-        <dl className="mt-2 space-y-2">
-          <div><dt className="font-semibold">対象戦績数</dt><dd>勝率計算に使った件数です。自分側と相手側を反転して集計するため、ミラーマッチは1戦から2件として集計されます。</dd></div>
-          {data.previous && <div><dt className="font-semibold">前期間との比較</dt><dd>両期間の登録戦績がそれぞれ30件以上あり、両期間で相手として観測されたデッキを比較します。遭遇率の変化が±0.5ポイント未満なら横ばいです。増減幅は小数第2位に丸めて表示し、判定には丸め前の値を使います。</dd></div>}
-        </dl>
-      </details>
       {filteredRows.length === 0 && <p className="mb-4 text-sm text-muted">{visibleRows.length === 0 ? "この期間に対象戦績のあるデッキがありません。" : "条件に一致するデッキがありません。表示条件を変更するか、リセットしてください。"}</p>}
       {groups.map(group => <div key={group.name} className="mb-5 last:mb-0">
         {options.grouped && <h3 className="mb-3 rounded-md bg-slate-100 px-3 py-2 font-bold">{group.name}（{group.rows.length}件）</h3>}

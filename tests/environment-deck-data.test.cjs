@@ -27,7 +27,7 @@ test('deck display combines every class/trend/sort without mutating aggregates a
  assert(filter(rows,{...defaults,trend:'flat'}).every(r=>!['no_previous','no_current','no_comparison','insufficient'].includes(r.trend.state)));
  const tied=filter([rows[1],rows[4]],defaults);assert.deepEqual(filter([...tied].reverse(),defaults),tied);
 });
-test('display preserves exact +/-0.5pp trend thresholds, signed deltas, missing data and sample explanations',()=>{
+test('compact display preserves exact +/-0.5pp thresholds, comparison rates, missing data and sample notes',()=>{
  const d=data(),row=d.decks[0],total={status:'available',totalMatches:1000};
  for(const [current,previous,state]of [[15,10,'increase'],[10,15,'decrease'],[14,10,'flat']]){
   row.current.encounter.count=current;row.previous.encounter.count=previous;
@@ -35,9 +35,25 @@ test('display preserves exact +/-0.5pp trend thresholds, signed deltas, missing 
  }
  assert.equal(deckTrend(row,{status:'available',totalMatches:29},total).state,'insufficient');
  const html=render(React.createElement(EnvironmentData,{data:data(),activeDeckIds:f.decks.filter(x=>x.is_active).map(x=>x.id)}));
- for(const s of ['+1.50ポイント','−1.50ポイント','−0.10ポイント','前期間の観測なし','今期の観測なし','サンプル不足','対象戦績数','1戦から2件','クラス未設定'])assert(html.includes(s),s);
+ for(const s of ['↑ 増加','↓ 減少','→ 横ばい','前期間の観測なし','今期の観測なし','サンプル不足','対象戦績数','クラス未設定'])assert(html.includes(s),s);
+ for(const s of ['表示条件はこの一覧だけ','対象戦績数は勝率計算','集計について','1戦から2件','ポイント','相手としての観測：','environment-count-help','environment-deck-help','<details'])assert(!html.includes(s),s);
+ for(const [state,previous,current,color]of [['increase',16.55,19.1,'text-emerald-800'],['decrease',19.1,16.55,'text-blue-800'],['flat',19.1,19.1,'text-muted']]){
+  const trendHtml=render(React.createElement(TrendText,{trend:{state,previous,current,delta:current-previous}}));
+  assert(trendHtml.includes(`前期間 ${previous.toFixed(1)}% → 今期 ${current.toFixed(1)}%`));assert(trendHtml.includes(color));assert(!trendHtml.includes('ポイント'));
+ }
  assert(!html.includes('無効なデッキ'));
- assert(!render(React.createElement(TrendText,{trend:{state:'no_comparison',current:null,previous:null,delta:null},detailed:true})).includes('ポイント'));
+ assert(!render(React.createElement(TrendText,{trend:{state:'no_comparison',current:null,previous:null,delta:null}})).includes('ポイント'));
  const all=f.dashboard({...args,p_period:'all'});assert(buildEnvironmentViewV4(all).rows.every(r=>r.trend===null));
  for(const mode of ['empty','no-previous']){const x=f.dashboard(args,mode),rows=buildEnvironmentViewV4(x).rows;assert.equal(filter(rows,{...defaults,trend:'flat'}).length,0);}
+});
+test('class buttons and deck icons reuse the seven original assets with accessible names and unknown-class fallback',()=>{
+ const fs=require('node:fs'),{SHADOWVERSE_CLASSES}=require('../src/lib/constants'),{classIconSrc}=require('../src/components/ClassIcon');
+ const html=render(React.createElement(EnvironmentData,{data:data(),activeDeckIds:f.decks.filter(x=>x.is_active).map(x=>x.id)}));
+ for(const c of SHADOWVERSE_CLASSES){assert(fs.existsSync('public'+decodeURIComponent(classIconSrc(c))));assert(html.includes(`alt="${c}"`));assert(html.includes(`aria-label="${c}" title="${c}" aria-pressed="false"`));}
+ assert(html.includes('aria-label="すべて" title="すべて" aria-pressed="true"'));assert(html.includes('選択中：すべて'));
+ assert(html.includes('role="img" aria-label="クラス未設定" title="クラス未設定"'));
+ const scope=require('./environment-deck-data-scope.cjs'),before=scope.git('show','295c0f8a65081e05fc07726b5f4b5c2aee3c2be2:'+scope.file),now=scope.read(scope.file);
+ const filterSource=s=>s.slice(s.indexOf('export function filterEnvironmentDeckRows'),s.indexOf('function Panel'));
+ assert.equal(filterSource(now),filterSource(before),'filter/sort implementation unchanged');
+ assert.equal(scope.read('src/components/ClassIcon.tsx'),scope.git('show','295c0f8a65081e05fc07726b5f4b5c2aee3c2be2:src/components/ClassIcon.tsx'));
 });

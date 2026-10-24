@@ -30,11 +30,11 @@ test('v3 uses the existing exact trend rule and comparison population',()=>{
   assert.deepEqual(view(p).rows[0].trend,deckTrend(p.decks[0],p.current.total,p.previous.total));assert.equal(view(p).rows[0].trend.state,n===29?'insufficient':'increase');}
  p.decks[0].previous=empty();assert.equal(view(p).rows[0].trend.state,'no_previous');
 });
-test('UI displays low-count numbers and count labels, with compact copy and collapsed accessible help',()=>{
+test('UI displays low-count numbers and count labels without the removed deck help',()=>{
  const p=payload();p.decks.push({key:id(9),name:'未観測共通',className:'エルフ',current:empty(),previous:empty()});
  const html=renderToStaticMarkup(React.createElement(EnvironmentData,{data:p,activeDeckIds:[id(2),id(9)]}));
- for(const s of ['50.0%','対象戦績数2件','対象戦績数','前の期間より遭遇率が増えたデッキを表示します。','前の期間より遭遇率が減ったデッキを表示します。','前の期間のデータがありません。','集計について'])assert.ok(html.includes(s),s);
+ for(const s of ['50.0%','対象戦績数2件','対象戦績数','前の期間より遭遇率が増えたデッキを表示します。','前の期間より遭遇率が減ったデッキを表示します。','前の期間のデータがありません。'])assert.ok(html.includes(s),s);
  assert.ok(html.includes('サンプル不足：登場した登録戦績1件'));
- assert.doesNotMatch(html,/勝率集計|対象戦績1件|参考|少人数|評価件数|対象登録件数|未観測共通|未分類|<details[^>]*open/);
+ assert.doesNotMatch(html,/勝率集計|対象戦績1件|参考|少人数|評価件数|対象登録件数|未観測共通|未分類|集計について|<details/);
  const hidden=renderToStaticMarkup(React.createElement(EnvironmentData,{data:p,activeDeckIds:[]}));assert.ok(!hidden.includes('<h3 class="break-words font-semibold">一戦ミラー'));
 });
