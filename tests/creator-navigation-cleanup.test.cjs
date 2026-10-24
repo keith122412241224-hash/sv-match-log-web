@@ -8,7 +8,7 @@ test('creator navigation changes only four reviewed files; all other product, da
   const presentation = require('./admin-tools-cleanup-scope.cjs');
   const changes = git('diff', scope.base, '--name-only', '--', 'src', 'supabase', 'package.json', 'package-lock.json').trim().split('\n')
     .filter(f => !presentation.files.includes(f) || presentation.readBeforeCleanup(f) !== git('show', scope.base + ':' + f));
-  assert.deepEqual(changes.filter(f=>!Object.hasOwn(unified.hashes,f)||Object.hasOwn(scope.hashes,f)).sort(), Object.keys(scope.hashes).sort());
+  assert.deepEqual(require('./environment-deck-data-scope.cjs').historicalChanges(changes, scope.base).filter(f=>!Object.hasOwn(unified.hashes,f)||Object.hasOwn(scope.hashes,f)).sort(), Object.keys(scope.hashes).sort());
   const inventory = git('ls-tree', '-r', '--name-only', scope.base).trim().split('\n').filter(f => /^(src|supabase)\//.test(f));
   assert.deepEqual(git('ls-files', '--cached', '--others', '--exclude-standard', '--', 'src', 'supabase').trim().split('\n').sort(), [...inventory,...unified.added].sort());
   for (const file of Object.keys(scope.hashes).filter(f => f.startsWith('src/components/'))) {

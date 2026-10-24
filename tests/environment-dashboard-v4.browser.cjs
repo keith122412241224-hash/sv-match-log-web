@@ -10,7 +10,7 @@ const { RANK_ATOMS } = require('../src/lib/rank-selection');
 const { buildEnvironmentViewV4, parseEnvironmentDashboardV4 } = require('../src/lib/environment-dashboard-v4');
 const { buildAnalysisFromAggregates, parseAnalysisAggregates } = require('../src/lib/analysis-aggregates');
 const { periodFixture } = require('./period-report-fixture.cjs');
-const origin = 'http://localhost:3298', out = path.resolve('build/dashboard-v4-browser');
+const origin = 'http://localhost:3298', out = path.resolve(process.env.ENVIRONMENT_DECK_EVIDENCE_DIR || 'build/dashboard-v4-browser');
 fs.mkdirSync(out, { recursive: true });
 const report = { checks: [], events: [], unexpected: [], requests: [], status: 'running' };
 let stage = 'setup';
@@ -56,7 +56,11 @@ async function main() {
         else if (!['GET', 'HEAD'].includes(req.method)) throw Error('Unexpected write ' + table);
         else if (table === 'admin_users') data = { id: h.ADMIN, user_id: h.ADMIN };
         else if (table === 'environments') data = environments;
-        else if (['deck_archetypes', 'decks'].includes(table)) data = h.decks.map(d => ({ ...d, aliases: [] }));
+        else if (['deck_archetypes', 'decks'].includes(table)) {
+          const cursor = url.searchParams.get('id');
+          data = h.decks.filter(d => !cursor?.startsWith('gt.') || d.id > cursor.slice(3))
+            .map(d => ({ ...d, aliases: [] }));
+        }
         else if (['matches', 'my_decks', 'deck_suggestions', 'creator_images', 'creator_tier_works', 'creator_correlations', 'creator_saved_sets'].includes(table)) data = [];
         else throw Error('Unexpected read ' + url.pathname);
         res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(data));

@@ -13,7 +13,7 @@ test('admin navigation changes only the reviewed Creator entrance; auth, tabs, r
   const presentation = require('./admin-tools-cleanup-scope.cjs');
   const changes = git('diff', scope.base, '--name-only', '--', 'src', 'supabase', 'package.json', 'package-lock.json').trim().split('\n')
     .filter(f => !presentation.files.includes(f) || presentation.readBeforeCleanup(f) !== git('show', scope.base + ':' + f));
-  assert.deepEqual(changes.filter(file => {
+  assert.deepEqual(require('./environment-deck-data-scope.cjs').historicalChanges(changes, scope.base).filter(file => {
     if(Object.hasOwn(unified.hashes,file)&&file!==scope.file&&!Object.hasOwn(cleanup.hashes,file)){if(!unified.added.has(file))assert.equal(unified.readBeforeUnified(file),git('show',scope.base+':'+file));return false;}
     if (!Object.hasOwn(cleanup.hashes, file)) return true;
     cleanup.assertReviewed(file);

@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const fs = require('node:fs'), cp = require('node:child_process'), assert = require('node:assert/strict');
+const cp = require('node:child_process'), assert = require('node:assert/strict');
 const base = '49730130ee4a0529ef3acee73e619097e5edd586';
 const files = ['src/app/admin/page.tsx', 'src/components/admin/ObsEnvironmentSettings.tsx'];
-const read = f => fs.readFileSync(f, 'utf8').replaceAll('\r\n', '\n');
+const read = require('./environment-deck-data-scope.cjs').readBeforeDeckData;
 const before = f => cp.execFileSync('git', ['show', base + ':' + f], { encoding: 'utf8' }).replaceAll('\r\n', '\n');
 function expected(f) {
   const source = before(f);
