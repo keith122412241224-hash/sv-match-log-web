@@ -33,10 +33,13 @@ function paginate(snapshot: HTMLElement) {
 
   // Cards in the same grid row stay together. Table rows are each one group.
   const groups: HTMLElement[][] = [];
+  const matchups = table?.hasAttribute("data-analysis-matchups");
   let previousTop = -Infinity;
   for (const item of items) {
     const top = item.getBoundingClientRect().top;
-    if (!table && Math.abs(top - previousTop) < 1) groups[groups.length - 1].push(item);
+    // Keep a deck heading with its first matchup, including an empty-filter row.
+    if (matchups && groups.at(-1)?.at(-1)?.hasAttribute("data-matchup-heading")) groups[groups.length - 1].push(item);
+    else if (!table && Math.abs(top - previousTop) < 1) groups[groups.length - 1].push(item);
     else groups.push([item]);
     previousTop = top;
   }
@@ -47,13 +50,21 @@ function paginate(snapshot: HTMLElement) {
   container.replaceChildren();
   const pages: HTMLElement[][] = [];
   let current: HTMLElement[] = [];
+  let deckHeading: HTMLElement | undefined;
   for (const group of groups) {
     container.append(...group);
     if (current.length && (snapshot.getBoundingClientRect().height > PAGE_HEIGHT || current.length + group.length > PAGE_ITEMS)) {
       pages.push(current);
       container.replaceChildren(...group);
       current = [];
+      // Repeat the owning deck on continuation pages without touching the live UI.
+      if (matchups && !group[0].hasAttribute("data-matchup-heading") && deckHeading) {
+        const repeated = deckHeading.cloneNode(true) as HTMLElement;
+        container.prepend(repeated);
+        current.push(repeated);
+      }
     }
+    if (matchups && group[0].hasAttribute("data-matchup-heading")) deckHeading = group[0];
     current.push(...group);
   }
   pages.push(current);

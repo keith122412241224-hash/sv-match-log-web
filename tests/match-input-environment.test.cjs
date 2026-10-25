@@ -48,7 +48,7 @@ test('match input scope pins five UI files; APIs, DB, RLS, aggregation, preferen
   Object.keys(s.hashes).forEach(s.assertReviewed);
   const files = s.git('ls-tree', '-r', '--name-only', s.base).trim().split('\n').filter(f => /^(src|supabase)\//.test(f) || /^package(-lock)?\.json$/.test(f));
   for (const f of files) assert.equal(s.readBeforeMatchInput(f), s.git('show', s.base + ':' + f), f);
-  assert.deepEqual(s.git('ls-files', '--cached', '--others', '--exclude-standard', '--', 'src', 'supabase').trim().split('\n').sort(), files.filter(f => /^(src|supabase)\//.test(f)).sort());
+  assert.deepEqual(s.git('ls-files', '--cached', '--others', '--exclude-standard', '--', 'src', 'supabase').trim().split('\n').sort(), [...files.filter(f => /^(src|supabase)\//.test(f)), ...require('./analysis-matchups-scope.cjs').added].sort());
   assert.doesNotMatch(s.read('src/components/matches/QuickMatchForm.tsx'), /last-environment-id|setEnvironmentId/);
   for (const file of ['src/components/matches/QuickMatchForm.tsx', 'src/components/guest/GuestApp.tsx']) {
     assert.doesNotMatch(s.read(file), /isEnvironmentInputEnabled|Date\.now\(/, 'save acceptance must not use device time');

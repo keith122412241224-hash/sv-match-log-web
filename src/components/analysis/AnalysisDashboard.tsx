@@ -4,11 +4,10 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { DeckAnalysisCards } from "@/components/analysis/DeckAnalysisCards";
 import { ExportableAnalysisBlock } from "@/components/analysis/ExportableAnalysisBlock";
 import { AnalysisFilters } from "@/components/analysis/AnalysisFilters";
-import { DeckWithClassIcon } from "@/components/ClassIcon";
+import { AnalysisMatchups } from "@/components/analysis/AnalysisMatchups";
 import { AnalysisWinRates } from "@/components/analysis/AnalysisWinRates";
 import { buildAnalysisFromAggregates, parseAnalysisAggregates } from "@/lib/analysis-aggregates";
 import { parseRankSelection, serializeRankSelection, type RankSelection } from "@/lib/rank-selection";
-import { formatPercent } from "@/lib/utils";
 import type { AnalysisPageData } from "@/lib/analysis-page-data";
 import { analysisDatesFromQuery, validateAnalysisDates } from "@/lib/analysis-date-query";
 import { AnalysisDateQueryError } from "@/components/analysis/AnalysisDateQueryError";
@@ -133,7 +132,7 @@ export function AnalysisDashboard({ initialData, initialQuery }: { initialData: 
     void load(query, true);
   }
   const { environments, isAdmin, selectedRanks, selectedScope, winRateMode, selectedEnvironmentId, decks, archetypes, selectedEnvironmentName, matrixDecks, selectedMyDeckId, selectedOpponentDeckId, selectedTurnOrder, selectedResult, selectedPlayedFrom, selectedPlayedTo, aggregates } = data;
-  const { registeredMatches, byMyDeck, byOpponentDeck, matrix, summaries } = useMemo(() => buildAnalysisFromAggregates(aggregates, decks, archetypes), [aggregates, decks, archetypes]);
+  const { registeredMatches, byMyDeck, matrix, summaries } = useMemo(() => buildAnalysisFromAggregates(aggregates, decks, archetypes), [aggregates, decks, archetypes]);
   const visibleSummaries = useMemo(() => selectAnalysisSummaries(summaries, summarySort, minimumCount), [summaries, summarySort, minimumCount]);
   if (invalidDateQuery !== null) return <AnalysisDateQueryError key={invalidDateQuery} query={invalidDateQuery} />;
   return (
@@ -202,45 +201,7 @@ export function AnalysisDashboard({ initialData, initialQuery }: { initialData: 
           <AnalysisWinRates combined={winRateMode === "combined"} rows={byMyDeck} />
         </ExportableAnalysisBlock>
 
-        <ExportableAnalysisBlock title="相手デッキ別の勝率" filename="opponent-winrate">
-          <AnalysisWinRates combined={winRateMode === "combined"} rows={byOpponentDeck} />
-        </ExportableAnalysisBlock>
-
-        <ExportableAnalysisBlock title="対面別勝率" filename="matchup-winrate" collapsible>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-left text-sm">
-              <thead className="bg-slate-50 text-muted">
-                <tr>
-                  <th className="px-4 py-3">使用デッキ</th>
-                  <th className="px-4 py-3">相手デッキ</th>
-                  <th className="px-4 py-3">{winRateMode === "combined" ? "対象件数" : "試合数"}</th>
-                  <th className="px-4 py-3">勝率</th>
-                </tr>
-              </thead>
-              <tbody>
-                {matrix.flatMap((row) =>
-                  row.cells
-                    .filter((cell) => cell.total > 0)
-                    .map((cell) => {
-                      const opponent = matrixDecks.find((deck) => deck.id === cell.opponentDeckId);
-                      return (
-                        <tr className="border-t border-slate-100" key={`${row.myDeck.id}-${cell.opponentDeckId}`}>
-                          <td className="px-4 py-3 font-semibold">
-                            <DeckWithClassIcon className={row.myDeck.class_name} name={row.myDeck.name} />
-                          </td>
-                          <td className="px-4 py-3">
-                            {opponent ? <DeckWithClassIcon className={opponent.class_name} name={opponent.name} /> : "-"}
-                          </td>
-                          <td className="px-4 py-3">{cell.total}</td>
-                          <td className="px-4 py-3">{formatPercent(cell.winRate)}</td>
-                        </tr>
-                      );
-                    })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </ExportableAnalysisBlock>
+        <AnalysisMatchups matrix={matrix} decks={matrixDecks} selectedDeckId={selectedMyDeckId} combined={winRateMode === "combined"} />
       </div>
   );
 }

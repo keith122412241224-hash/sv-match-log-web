@@ -10,7 +10,7 @@ test('environment deck UI preserves all other product code, aggregates, RPC, mig
  const scope=require('./environment-deck-data-scope.cjs');scope.assertReviewed();
  const files=scope.git('ls-tree','-r','--name-only',scope.base).trim().split('\n').filter(f=>/^(src|supabase)\//.test(f)||/^package(-lock)?\.json$/.test(f));
  for(const f of files)if(f!==scope.file)assert.equal(scope.read(f),scope.git('show',scope.base+':'+f),f);
- assert.deepEqual(scope.git('ls-files','--cached','--others','--exclude-standard','--','src','supabase').trim().split('\n').sort(),files.filter(f=>/^(src|supabase)\//.test(f)).sort());
+ assert.deepEqual(scope.git('ls-files','--cached','--others','--exclude-standard','--','src','supabase').trim().split('\n').sort(),[...files.filter(f=>/^(src|supabase)\//.test(f)), ...require('./analysis-matchups-scope.cjs').added].sort());
 });
 test('deck display combines every class/trend/sort without mutating aggregates and keeps unknown comparisons separate',()=>{
  const d=data(),original=structuredClone(d),rows=buildEnvironmentViewV4(d).rows.filter(r=>r.key!==f.id(242)),before=structuredClone(rows);

@@ -11,5 +11,5 @@ test('save status changes only the three client files; API, SQL/RLS, guest, edit
     .filter(f => /^(src|supabase)\//.test(f) || /^package(-lock)?\.json$/.test(f));
   for (const file of files) assert.equal(readBeforeSaveStatus(file), git('show', base + ':' + file), file);
   assert.deepEqual(git('ls-files', '--cached', '--others', '--exclude-standard', '--', 'src', 'supabase').trim().split('\n').sort(),
-    files.filter(f => /^(src|supabase)\//.test(f)).sort());
+    [...files.filter(f => /^(src|supabase)\//.test(f)), ...require('./analysis-matchups-scope.cjs').added].sort());
 });
