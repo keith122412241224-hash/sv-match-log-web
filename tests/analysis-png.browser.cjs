@@ -115,12 +115,12 @@ const api = http.createServer(async (req, res) => {
     });
     await page.goto(`${origin}/analysis`);
     await page.getByRole('button', { name: '使用デッキ別サマリーをPNG保存', exact: true }).waitFor();
-    assert.equal(await page.locator('button[data-png-exclude]').count(), 5);
+    assert.equal(await page.getByRole('button', { name: /をPNG保存$/ }).count(), 4);
     assert.equal(analysisCalls.length, 1, 'Initial analysis must use one RPC');
     assert.equal(rawMatchReads, 0, 'Analysis must not fetch raw matches');
     const blocks = [
       ['使用デッキ別サマリー', 'usage-summary'], ['使用デッキ別の勝率', 'deck-winrate'],
-      ['相手デッキ別の勝率', 'opponent-winrate'], ['先攻/後攻別の勝率', 'turn-order-winrate'],
+      ['相手デッキ別の勝率', 'opponent-winrate'],
       ['対面別勝率', 'matchup-winrate']
     ];
     const results = [];

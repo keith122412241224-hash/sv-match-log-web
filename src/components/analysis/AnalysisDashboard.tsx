@@ -133,7 +133,7 @@ export function AnalysisDashboard({ initialData, initialQuery }: { initialData: 
     void load(query, true);
   }
   const { environments, isAdmin, selectedRanks, selectedScope, winRateMode, selectedEnvironmentId, decks, archetypes, selectedEnvironmentName, matrixDecks, selectedMyDeckId, selectedOpponentDeckId, selectedTurnOrder, selectedResult, selectedPlayedFrom, selectedPlayedTo, aggregates } = data;
-  const { registeredMatches, byMyDeck, byOpponentDeck, byTurn, matrix, summaries } = useMemo(() => buildAnalysisFromAggregates(aggregates, decks, archetypes), [aggregates, decks, archetypes]);
+  const { registeredMatches, byMyDeck, byOpponentDeck, matrix, summaries } = useMemo(() => buildAnalysisFromAggregates(aggregates, decks, archetypes), [aggregates, decks, archetypes]);
   const visibleSummaries = useMemo(() => selectAnalysisSummaries(summaries, summarySort, minimumCount), [summaries, summarySort, minimumCount]);
   if (invalidDateQuery !== null) return <AnalysisDateQueryError key={invalidDateQuery} query={invalidDateQuery} />;
   return (
@@ -204,10 +204,6 @@ export function AnalysisDashboard({ initialData, initialQuery }: { initialData: 
 
         <ExportableAnalysisBlock title="相手デッキ別の勝率" filename="opponent-winrate">
           <AnalysisWinRates combined={winRateMode === "combined"} rows={byOpponentDeck} />
-        </ExportableAnalysisBlock>
-
-        <ExportableAnalysisBlock title="先攻/後攻別の勝率" filename="turn-order-winrate">
-          <AnalysisWinRates combined={winRateMode === "combined"} rows={byTurn} turns />
         </ExportableAnalysisBlock>
 
         <ExportableAnalysisBlock title="対面別勝率" filename="matchup-winrate" collapsible>

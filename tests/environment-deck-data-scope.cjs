@@ -7,6 +7,7 @@ function assertReviewed(){assert.equal(createHash('sha256').update(read(file)).d
 function readBeforeDeckData(f){if(f!==file)return read(f);assertReviewed();return git('show',base+':'+f);}
 // Project only this exact reviewed file for historical inventory comparisons.
 function historicalChanges(files,historicalBase){return files.filter(f=>{
+ if(f===require('./analysis-turn-section-scope.cjs').dashboard)return readBeforeDeckData(f)!==git('show',historicalBase+':'+f);
  const collapsedDeck=f===require('./match-save-status-scope.cjs').collapsedDeckFile;
  if(collapsedDeck&&!git('ls-tree','--name-only',historicalBase,'--',f).trim())return true;
  return (f!==file&&!collapsedDeck&&!Object.hasOwn(require('./match-input-environment-scope.cjs').hashes,f)&&!Object.hasOwn(require('./analysis-description-scope.cjs').removed,f)&&!Object.hasOwn(require('./match-save-status-scope.cjs').hashes,f))||readBeforeDeckData(f)!==git('show',historicalBase+':'+f);
