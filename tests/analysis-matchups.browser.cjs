@@ -65,6 +65,7 @@ async function verifyPixels(bytes, snapshot) {
   assert.equal(await page.getByRole('button',{name:/をPNG保存$/}).count(),3);
  }
  async function compare(){
+  assert.equal(await matchup().getByText('少数データ',{exact:true}).count(),0);
   const args=report.rpc.at(-1).args,model=buildAnalysisFromAggregates(expected(args),decks,decks);
   const sort=await matchup().getByLabel('並び替え',{exact:true}).inputValue(),min=Number(await matchup().getByLabel('件数フィルター',{exact:true}).inputValue());
   const selected=new URL(page.url()).searchParams.get('myDeck')||'';
@@ -100,6 +101,7 @@ async function verifyPixels(bytes, snapshot) {
   const snapshots=[...new Map(pages.map(p=>[p.page,p])).entries()].sort((a,b)=>a[0]-b[0]).map(([,p])=>p);
   assert.equal(snapshots.length,files.length);
   if(name==='デッキ別対面分析'){
+   for(const p of snapshots)assert.doesNotMatch(p.text,/少数データ/);
    const exported=snapshots.flatMap(p=>p.cells);assert.deepEqual(exported,state.cells.map(r=>({id:r.id,text:r.text})));
    for(const p of snapshots)if(p.cells.length)assert.equal(p.headings[0],p.cells[0].id.split('/')[0],'continuation retains deck heading');
   }

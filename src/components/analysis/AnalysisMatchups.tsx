@@ -72,7 +72,6 @@ export function AnalysisMatchups({ matrix, decks, selectedDeckId, combined }: {
               return <tr key={cell.opponentDeckId} id={rowIds[index]} hidden={!open} data-png-expand data-matchup-cell={`${group.myDeck.id}/${cell.opponentDeckId}`} className="border-t border-slate-100">
                 <th scope="row" className="px-3 py-3 [&_span[title]]:shrink-0 [&_.truncate]:whitespace-normal [&_.truncate]:break-words [&_.truncate]:[overflow-wrap:anywhere]">
                   {opponent ? <DeckWithClassIcon className={opponent.class_name} name={opponent.name} /> : "不明"}
-                  {cell.isLowSample ? <span className="block text-xs font-normal text-muted">少数データ</span> : null}
                 </th>
                 <td className="px-1 py-3 text-right font-semibold tabular-nums">{formatPercent(cell.winRate)}</td>
                 <td className="px-1 py-3 text-right tabular-nums">{cell.wins.toLocaleString("ja-JP")}</td>
