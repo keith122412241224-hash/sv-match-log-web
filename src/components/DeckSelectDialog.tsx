@@ -75,7 +75,7 @@ export function DeckSelectDialog({ decks, value, onChange, label, name, allowAll
     <label id={`${id}-label`} htmlFor={`${id}-trigger`}>{label}</label>
     <button ref={trigger} id={`${id}-trigger`} type="button" disabled={disabled} aria-haspopup="dialog" aria-expanded={open}
       aria-controls={open ? `${id}-dialog` : undefined} aria-labelledby={`${id}-label ${id}-value`}
-      onClick={() => { setExpanded(selected ? [selected.class_name] : []); setOpen(true); }}
+      onClick={() => { setExpanded([]); setOpen(true); }}
       className="flex min-h-11 w-full min-w-0 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-left font-normal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 disabled:opacity-60">
       {selected && <span aria-hidden="true" className="shrink-0"><ClassIcon className={selected.class_name} size={24} /></span>}
       <span id={`${id}-value`} className="min-w-0 flex-1 break-words [overflow-wrap:anywhere]">{selectedName}</span>

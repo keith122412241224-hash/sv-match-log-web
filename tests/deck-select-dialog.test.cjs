@@ -30,11 +30,20 @@ test('deck dialog state transitions: deduplicate IDs, canonical/unknown groups, 
   buttons().find(e=>e.props['aria-haspopup']==='dialog').props.onClick();
   const groups=buttons().filter(e=>e.props['aria-controls']&&!e.props['aria-haspopup']);
   assert.deepEqual(groups.map(e=>text(e.props.children)),['エルフ（1デッキ）','ロイヤル（1デッキ）','未来クラス（1デッキ）','クラス未設定（1デッキ）']);
-  assert.equal(groups[0].props['aria-expanded'],true);assert.equal(groups[1].props['aria-expanded'],false);
+  const currentGroups=()=>buttons().filter(e=>e.props['aria-controls']&&!e.props['aria-haspopup']);
+  const assertCollapsed=()=>assert.ok(currentGroups().every(e=>e.props['aria-expanded']===false));
+  assertCollapsed();assert.deepEqual(changes,[]);
+  groups[0].props.onClick();groups[1].props.onClick();
+  assert.deepEqual(currentGroups().map(e=>e.props['aria-expanded']),[true,true,false,false]);
+  currentGroups()[1].props.onClick();
+  assert.deepEqual(currentGroups().map(e=>e.props['aria-expanded']),[true,false,false,false]);
   groups[1].props.onClick();assert.deepEqual(changes,[]);assert.equal(buttons().find(e=>text(e.props.children)==='ロイヤル（1デッキ）').props['aria-expanded'],true);
   assert.equal(buttons().filter(e=>e.props['aria-pressed']===true).length,1);
-  buttons().find(e=>text(e.props.children)==='未知デッキ').props.onClick();assert.deepEqual(changes,['u']);assert.equal(all(renderTree()).some(e=>e.type==='dialog'),false);
-  buttons().find(e=>e.props['aria-haspopup']==='dialog').props.onClick();buttons().find(e=>text(e.props.children)==='キャンセル').props.onClick();assert.deepEqual(changes,['u']);
+  currentGroups()[2].props.onClick();buttons().find(e=>text(e.props.children)==='未知デッキ').props.onClick();assert.deepEqual(changes,['u']);assert.equal(all(renderTree()).some(e=>e.type==='dialog'),false);
+  props.value='u';
+  buttons().find(e=>e.props['aria-haspopup']==='dialog').props.onClick();assertCollapsed();assert.equal(buttons().find(e=>e.props['aria-pressed']===true).props.children.at(-1).props.children,'未知デッキ');
+  currentGroups()[2].props.onClick();buttons().find(e=>text(e.props.children)==='キャンセル').props.onClick();assert.deepEqual(changes,['u']);
+  buttons().find(e=>e.props['aria-haspopup']==='dialog').props.onClick();assertCollapsed();buttons().find(e=>text(e.props.children)==='キャンセル').props.onClick();assert.equal(props.value,'u');
   buttons().find(e=>e.props['aria-haspopup']==='dialog').props.onClick();buttons().find(e=>text(e.props.children)==='すべて').props.onClick();assert.deepEqual(changes,['u','']);
  }finally{require.cache[reactId].exports=savedReact;require.cache[domId].exports=savedDom;require.cache[componentId]=savedComponent;if(savedDocument===undefined)delete global.document;else global.document=savedDocument;}
 });

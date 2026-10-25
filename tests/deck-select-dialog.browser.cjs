@@ -1,8 +1,15 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const trigger=(page,label)=>page.getByRole('button',{name:new RegExp('^'+label+' ')});
+async function assertCollapsed(dialog){
+ const groups=dialog.locator('h3 button');
+ assert.ok(await groups.count()>0);
+ assert.deepEqual(await groups.evaluateAll(buttons=>buttons.map(button=>button.getAttribute('aria-expanded'))),Array(await groups.count()).fill('false'));
+ assert.equal(await dialog.locator('[aria-pressed]:visible').count(),0);
+}
 async function choose(page,label,name,cls){
  await trigger(page,label).click();const dialog=page.getByRole('dialog',{name:label+'を選択',exact:true});
+ await assertCollapsed(dialog);
  const group=dialog.getByRole('button',{name:new RegExp('^'+cls+'（')});
  if(await group.getAttribute('aria-expanded')==='false')await group.click();
  await dialog.getByRole('button',{name,exact:true}).click();
@@ -18,8 +25,16 @@ exports.verifyMatchSelection=async({page,origin,output,db,claim,ids,until,calls,
  await choose(page,'使用デッキ','デッキA','エルフ');await choose(page,'相手デッキ','デッキA','エルフ');
  const fields=()=>page.locator('form').filter({has:page.locator('[name=environment_id]')}).evaluate(f=>Object.fromEntries(new FormData(f)));
  let before=calls.length;const initial=await fields();
+ for(const label of ['使用デッキ','相手デッキ']){
+  await trigger(page,label).click();const picker=page.getByRole('dialog',{name:label+'を選択',exact:true});
+  await assertCollapsed(picker);await picker.locator('h3 button').first().click();
+  await picker.getByRole('button',{name:'閉じる',exact:true}).click();assert.deepEqual(await fields(),initial);
+  await trigger(page,label).click();await assertCollapsed(picker);
+  await picker.getByRole('button',{name:'キャンセル',exact:true}).click();assert.deepEqual(await fields(),initial);
+ }
  await trigger(page,'使用デッキ').focus();await page.keyboard.press('Enter');
  let dialog=page.getByRole('dialog',{name:'使用デッキを選択',exact:true});
+ await assertCollapsed(dialog);
  assert.equal(await dialog.locator('h3').count(),7);
  await page.waitForFunction(()=>[...document.querySelectorAll('dialog[open] img')].every(img=>img.complete&&img.naturalWidth>0));
  assert.equal(await dialog.locator('h3 img').count(),7);
@@ -31,9 +46,11 @@ exports.verifyMatchSelection=async({page,origin,output,db,claim,ids,until,calls,
  for(let i=0;i<18;i++){await page.keyboard.press('Tab');assert.ok(await page.evaluate(()=>Boolean(document.activeElement.closest('dialog'))));}
  for(let i=0;i<18;i++){await page.keyboard.press('Shift+Tab');assert.ok(await page.evaluate(()=>Boolean(document.activeElement.closest('dialog'))));}
  for(const cls of classes){const group=dialog.getByRole('button',{name:new RegExp('^'+cls+'（')});assert.match(await group.innerText(),new RegExp(cls+'（'+(cls==='エルフ'||cls==='ロイヤル'?5:4)+'デッキ）'));}
- await dialog.getByRole('button',{name:/^ロイヤル（/}).click();assert.deepEqual(await fields(),initial);
+ const elf=dialog.getByRole('button',{name:/^エルフ（/}),royal=dialog.getByRole('button',{name:/^ロイヤル（/});
+ await elf.click();await royal.click();assert.equal(await elf.getAttribute('aria-expanded'),'true');assert.equal(await royal.getAttribute('aria-expanded'),'true');
+ await royal.click();assert.equal(await royal.getAttribute('aria-expanded'),'false');assert.equal(await elf.getAttribute('aria-expanded'),'true');assert.deepEqual(await fields(),initial);
  await page.keyboard.press('Escape');assert.equal(await dialog.count(),0);assert.ok(await trigger(page,'使用デッキ').evaluate(e=>e===document.activeElement));assert.deepEqual(await fields(),initial);
- await page.keyboard.press('Space');await dialog.getByRole('button',{name:'キャンセル',exact:true}).click();assert.deepEqual(await fields(),initial);
+ await page.keyboard.press('Space');await assertCollapsed(dialog);await dialog.getByRole('button',{name:'キャンセル',exact:true}).click();assert.deepEqual(await fields(),initial);
  await trigger(page,'使用デッキ').click();await page.waitForLoadState('networkidle');await page.screenshot({path:path.join(shots,'match-my.png')});await dialog.getByRole('button',{name:/^ロイヤル（/}).focus();await page.keyboard.press('Enter');await dialog.getByRole('button',{name:'デッキB',exact:true}).focus();await page.keyboard.press('Space');
  assert.equal((await fields()).my_archetype_id,ids.arch2);
  await trigger(page,'相手デッキ').click();dialog=page.getByRole('dialog',{name:'相手デッキを選択',exact:true});await page.screenshot({path:path.join(shots,'match-opponent.png')});await dialog.getByRole('button',{name:/^ロイヤル（/}).click();await dialog.getByRole('button',{name:'デッキB',exact:true}).click();
@@ -42,6 +59,7 @@ exports.verifyMatchSelection=async({page,origin,output,db,claim,ids,until,calls,
  const timing=[];
  for(const width of [320,390,768,1152,1920]){
   await page.setViewportSize({width,height:844});const start=performance.now();await trigger(page,'使用デッキ').click();dialog=page.getByRole('dialog',{name:'使用デッキを選択',exact:true});timing.push({width,openMs:Math.round(performance.now()-start)});
+  await assertCollapsed(dialog);
   for(const group of await dialog.locator('h3 button').all())if(await group.getAttribute('aria-expanded')==='false')await group.click();
   const b=await dialog.boundingBox();assert.ok(b.x>=0&&b.x+b.width<=width+1&&b.y>=0&&b.y+b.height<=844);
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));assert.ok(await dialog.locator('[data-deck-options]').evaluate(e=>e.scrollHeight>e.clientHeight));
@@ -82,7 +100,7 @@ exports.verifyMatchSelection=async({page,origin,output,db,claim,ids,until,calls,
  // Unknown legacy selections remain available in Guest edits, without replacing IDs.
  const missing=await guest();missing[0].my_deck_id=missing[0].my_archetype_id='unknown-my';missing[0].opponent_deck_id=missing[0].opponent_archetype_id='unknown-opponent';
  await page.evaluate(rows=>localStorage.setItem('svml:guest-matches:v1',JSON.stringify(rows)),missing);await page.reload({waitUntil:'networkidle'});await page.getByRole('button',{name:'戦績の操作',exact:true}).first().click();await page.getByRole('button',{name:'編集',exact:true}).click();assert.match(await trigger(page,'使用デッキ').innerText(),/現在選択肢なし/);
- await trigger(page,'使用デッキ').click();const unknown=page.getByRole('dialog',{name:'使用デッキを選択',exact:true});assert.equal(await unknown.getByRole('button',{name:/クラス未設定/}).getAttribute('aria-expanded'),'true');assert.match(await unknown.locator('[aria-pressed=true]').innerText(),/現在選択肢なし/);await page.keyboard.press('Escape');
+ await trigger(page,'使用デッキ').click();const unknown=page.getByRole('dialog',{name:'使用デッキを選択',exact:true});await assertCollapsed(unknown);await unknown.getByRole('button',{name:/クラス未設定/}).click();assert.match(await unknown.locator('[aria-pressed=true]').innerText(),/現在選択肢なし/);await page.keyboard.press('Escape');
  await page.getByRole('button',{name:'変更を保存',exact:true}).click();await page.getByRole('status').filter({hasText:'戦績を更新しました'}).waitFor();assert.equal((await guest())[0].my_archetype_id,'unknown-my');assert.equal((await guest())[0].opponent_archetype_id,'unknown-opponent');
  await page.evaluate(()=>{localStorage.removeItem('svml:guest-matches:v1');localStorage.removeItem('svml:last-my-choice-id');});
  for(const row of extra)await read('delete from public.deck_archetypes where id=$1',[row.id]);await claim();
