@@ -27,7 +27,7 @@ function assertReviewed(file){
 }
 // Only historical byte guards receive this projection. Runtime tests use live source.
 function readBeforeMatchups(file){
- if(!Object.hasOwn(hashes,file))return fs.readFileSync(file,'utf8').replaceAll('\r\n','\n');
+ if(!Object.hasOwn(hashes,file))return require('./security-audit-scope.cjs').readBeforeSecurityAudit(file);
  assertReviewed(file);assert.ok(!added.has(file));
  return cp.execFileSync('git',['show',base+':'+file],{encoding:'utf8'}).replaceAll('\r\n','\n');
 }

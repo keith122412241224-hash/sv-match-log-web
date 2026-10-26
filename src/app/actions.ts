@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 import { MATCH_REQUEST_ID, matchesRequest } from "@/lib/match-request";
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isEnvironmentInputEnabled as isInputOpen } from "@/lib/environment-input";
@@ -665,20 +664,14 @@ function revalidateDeckPaths() {
 }
 
 async function getSiteUrl() {
-  const requestHeaders = await headers();
-  const host = firstHeaderValue(requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host"));
-  const forwardedProtocol = firstHeaderValue(requestHeaders.get("x-forwarded-proto"));
-  const protocol = forwardedProtocol ?? (host?.startsWith("localhost") ? "http" : "https");
-
-  if (host) {
-    return `${protocol}://${host}`;
+  // Email links must not trust Host / X-Forwarded-* from the request.
+  const url = new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://sv-match-log-web.vercel.app");
+  const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+  if ((url.protocol !== "https:" && !(url.protocol === "http:" && loopback))
+    || url.username || url.password || url.pathname !== "/" || url.search || url.hash) {
+    throw new Error("NEXT_PUBLIC_SITE_URL must be a trusted site origin");
   }
-
-  return (process.env.NEXT_PUBLIC_SITE_URL ?? "https://sv-match-log-web.vercel.app").replace(/\/$/, "");
-}
-
-function firstHeaderValue(value: string | null) {
-  return value?.split(",")[0]?.trim() || null;
+  return url.origin;
 }
 
 async function ensureCompatDecksForGuestImport(

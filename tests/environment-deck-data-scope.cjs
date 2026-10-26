@@ -6,7 +6,7 @@ const git=(...args)=>cp.execFileSync('git',args,{encoding:'utf8',maxBuffer:64e6}
 function assertReviewed(){assert.equal(createHash('sha256').update(read(file)).digest('hex'),hash,'unreviewed environment deck display change');}
 function readBeforeDeckData(f){if(f!==file)return read(f);assertReviewed();return git('show',base+':'+f);}
 // Project only this exact reviewed file for historical inventory comparisons.
-function historicalChanges(files,historicalBase){return files.filter(f=>{
+function historicalChanges(files,historicalBase){return require('./security-audit-scope.cjs').excludeReviewedSecurityChanges(files).filter(f=>{
  const matchups=require('./analysis-matchups-scope.cjs');
  if(Object.hasOwn(matchups.hashes,f)){
   matchups.assertReviewed(f);

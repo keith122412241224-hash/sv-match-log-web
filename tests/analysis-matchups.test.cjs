@@ -53,7 +53,7 @@ test('matchup change is limited to reviewed presentation/export files; aggregate
  const cp=require('node:child_process'),scope=require('./analysis-matchups-scope.cjs');
  Object.keys(scope.hashes).forEach(scope.assertReviewed);
  const changed=cp.execFileSync('git',['diff','--name-only',scope.base,'--','src','supabase','package.json','package-lock.json'],{encoding:'utf8'}).trim().split('\n').filter(Boolean);
- assert.deepEqual(changed.filter(f=>!scope.added.has(f)).sort(),Object.keys(scope.hashes).filter(f=>!scope.added.has(f)).sort());
+ assert.deepEqual(require('./security-audit-scope.cjs').excludeReviewedSecurityChanges(changed).filter(f=>!scope.added.has(f)).sort(),Object.keys(scope.hashes).filter(f=>!scope.added.has(f)).sort());
  const previous=new Set(cp.execFileSync('git',['ls-tree','-r','--name-only',scope.base,'--','src','supabase'],{encoding:'utf8'}).trim().split('\n'));
  const inventory=cp.execFileSync('git',['ls-files','--cached','--others','--exclude-standard','--','src','supabase'],{encoding:'utf8'}).trim().split('\n').filter(Boolean);
  assert.deepEqual(inventory.filter(f=>!previous.has(f)).sort(),[...scope.added].sort());
