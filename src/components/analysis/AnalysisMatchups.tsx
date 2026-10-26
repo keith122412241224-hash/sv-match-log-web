@@ -12,13 +12,17 @@ export function AnalysisMatchups({ matrix, decks, selectedDeckId, combined }: {
   matrix: AnalysisMatrix; decks: DeckLike[]; selectedDeckId: string; combined: boolean;
 }) {
   const [sort, setSort] = useState<MatchupSort>("count");
-  const [minimum, setMinimum] = useState(0);
+  const [specifyMinimum, setSpecifyMinimum] = useState(false);
+  const [minimumInput, setMinimumInput] = useState("5");
+  const [lastValidMinimum, setLastValidMinimum] = useState(5);
+  const validMinimum = /^\d+$/.test(minimumInput) && Number.isSafeInteger(Number(minimumInput)) && Number(minimumInput) >= 1;
+  const minimum = specifyMinimum ? lastValidMinimum : 0;
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const id = useId();
   const groups = useMemo(() => selectAnalysisMatchups(matrix, sort, minimum, selectedDeckId), [matrix, sort, minimum, selectedDeckId]);
   const opponents = useMemo(() => new Map(decks.map(deck => [deck.id, deck])), [decks]);
   const countLabel = combined ? "対象件数" : "対戦数";
-  const empty = minimum ? `${combined ? "対象件数が5件" : "5戦"}以上の対面はありません。` : "表示できるデータがありません。";
+  const empty = minimum ? `${combined ? `対象件数が${minimum}件` : `${minimum}戦`}以上の対面はありません。` : "表示できるデータがありません。";
   function toggle(deckId: string) {
     setExpanded(previous => {
       const next = new Set(previous);
@@ -35,9 +39,19 @@ export function AnalysisMatchups({ matrix, decks, selectedDeckId, combined }: {
         </select>
       </label>
       <label className="grid gap-1 font-semibold">件数フィルター
-        <select aria-label="件数フィルター" className="min-h-10 rounded border border-slate-300 bg-white px-3" value={minimum} onChange={event => setMinimum(Number(event.target.value))}>
-          <option value={0}>全件</option><option value={5}>{combined ? "5件" : "5戦"}以上のみ</option>
+        <select aria-label="件数フィルター" className="min-h-10 rounded border border-slate-300 bg-white px-3" value={specifyMinimum ? "custom" : "all"} onChange={event => setSpecifyMinimum(event.target.value === "custom")}>
+          <option value="all">全件表示</option><option value="custom">件数を指定する</option>
         </select>
+      </label>
+      <label className="grid gap-1 font-semibold">最低{countLabel}
+        <input type="number" inputMode="numeric" min={1} max={Number.MAX_SAFE_INTEGER} step={1}
+          disabled={!specifyMinimum} aria-invalid={specifyMinimum && !validMinimum}
+          className="min-h-10 w-24 rounded border border-slate-300 bg-white px-3 font-normal disabled:bg-slate-100 disabled:text-muted aria-[invalid=true]:border-red-500"
+          value={minimumInput} onChange={event => {
+            const value = event.target.value;
+            setMinimumInput(value);
+            if (/^\d+$/.test(value) && Number.isSafeInteger(Number(value)) && Number(value) >= 1) setLastValidMinimum(Number(value));
+          }} onBlur={() => { if (!validMinimum) setMinimumInput(String(lastValidMinimum)); }} />
       </label>
     </div>
     {groups.length === 0 ? <p className="p-4 text-sm text-muted">表示できるデータがありません。</p> :

@@ -30,6 +30,25 @@ test('per-matchup count filter, three orders, single selection, empty states and
  assert.equal(selectAnalysisMatchups(matrix,'count',5,'b')[0].cells.length,0,'4-match opponent is excluded even with other decks present');
  assert.deepEqual(selectAnalysisMatchups(matrix,'count',0,'empty'),[]);assert.deepEqual(selectAnalysisMatchups([],'count',0),[]);
 });
+test('arbitrary minimum includes exact boundaries per matchup without changing group totals or aggregates in either mode',()=>{
+ for(const minimum of [1,3,5,10,30])for(const combined of [false,true]){
+  const samples=[minimum-1,minimum,minimum+1].flatMap((count,index)=>Array.from({length:count},(_,i)=>({id:String(index)+'-'+String(i),my_deck_id:'a',opponent_deck_id:decks[index+1].id,my_archetype_id:'a',opponent_archetype_id:decks[index+1].id,result:i%2?'lose':'win',turn_order:'first',played_at:'2026-10-20T00:00:00Z'})));
+  const model=buildAnalysisFromAggregates(analysisFixture(samples,{p_include_reversed:combined,p_use_archetype:true}),decks,decks),before=structuredClone(model);
+  const all=selectAnalysisMatchups(model.matrix,'count',0);
+  for(const sort of ['count','win-desc','win-asc']){
+   const groups=selectAnalysisMatchups(model.matrix,sort,minimum);
+   for(const group of groups){
+    const original=all.find(g=>g.myDeck.id===group.myDeck.id);
+    assert.equal(group.total,original.total);
+    assert.deepEqual([...group.cells].map(c=>c.opponentDeckId).sort(),original.cells.filter(c=>c.total>=minimum).map(c=>c.opponentDeckId).sort());
+    group.cells.forEach(cell=>assert.strictEqual(cell,original.cells.find(c=>c.opponentDeckId===cell.opponentDeckId)));
+   }
+   assert.ok(groups.some(g=>g.cells.some(c=>c.total===minimum)),'exact boundary included');
+   assert.ok(groups.every(g=>g.cells.every(c=>c.total>=minimum)),'below threshold excluded');
+  }
+  assert.deepEqual(model,before);
+ }
+});
 test('matchup change is limited to reviewed presentation/export files; aggregates, APIs and all other product files are unchanged',()=>{
  const cp=require('node:child_process'),scope=require('./analysis-matchups-scope.cjs');
  Object.keys(scope.hashes).forEach(scope.assertReviewed);

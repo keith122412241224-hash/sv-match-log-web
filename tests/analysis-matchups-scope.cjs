@@ -15,7 +15,7 @@ function assertReviewed(file){
   source=before;
  }
  if(file==='src/components/analysis/AnalysisMatchups.tsx'){
-  assert.equal(createHash('sha256').update(source).digest('hex'),'25d0f74f3517dc635e26e080ccb5283b46d2ac8632c4d9e8ff1076fb09690725','unreviewed matchup layout classes');
+  assert.equal(createHash('sha256').update(source).digest('hex'),'8009a54c121f7ffc5757191863b91809ce2f61506d581dd82ab16c870b5398e9','unreviewed matchup presentation and minimum-count controls');
   source=cp.execFileSync('git',['show','4cbb5d73d756c7c17e7dacd4a145511ce7c7f031:'+file],{encoding:'utf8'}).replaceAll('\r\n','\n');
   const before=cp.execFileSync('git',['show','f6d97a7cba78c7387f6d4e31a50949f1113cda8f:'+file],{encoding:'utf8'}).replaceAll('\r\n','\n');
   const removed='                  {cell.isLowSample ? <span className="block text-xs font-normal text-muted">少数データ</span> : null}\n';

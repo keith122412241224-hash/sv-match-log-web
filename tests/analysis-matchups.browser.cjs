@@ -15,7 +15,7 @@ let admin=true,delay=0,fail=false,environmentName='検証環境';const report={c
 function check(message){report.checks.push(message);console.log('PASS '+message);}
 let decks,records;
 function fixtures(many=false){decks=Array.from({length:many?40:5},(_,i)=>({id:id(100+i),name:i===2?'長いデッキ名'.repeat(9):`検証${i+1}${SHADOWVERSE_CLASSES[i%7]}`,class_name:SHADOWVERSE_CLASSES[i%7],is_active:true,user_id:owner}));
- records=decks.flatMap((d,i)=>Array.from({length:many?12:[16,14,9,3,0][i]},(_,j)=>({id:id(1000+i*100+j),user_id:j%4===3?other:owner,environment_id:envId,my_deck_id:d.id,opponent_deck_id:decks[(i+j%2+1)%decks.length].id,my_archetype_id:d.id,opponent_archetype_id:decks[(i+j%2+1)%decks.length].id,result:j<3||j%2===0?'win':'lose',turn_order:j%2?'second':'first',played_at:new Date(Date.parse('2026-10-21T09:59:00Z')-j*86400000).toISOString(),rank_tier:j%2?'master':'grandmaster',master_group:j%2?'ruby':null,grandmaster_rating:j%2?null:'epic'})));
+ records=decks.flatMap((d,i)=>Array.from({length:many?12:[60,20,10,3,0][i]},(_,j)=>({id:id(1000+i*100+j),user_id:j%4===3?other:owner,environment_id:envId,my_deck_id:d.id,opponent_deck_id:decks[(i+j%2+1)%decks.length].id,my_archetype_id:d.id,opponent_archetype_id:decks[(i+j%2+1)%decks.length].id,result:j<3||j%2===0?'win':'lose',turn_order:j%2?'second':'first',played_at:new Date(Date.parse('2026-10-21T09:59:00Z')-j*86400000).toISOString(),rank_tier:j%2?'master':'grandmaster',master_group:j%2?'ruby':null,grandmaster_rating:j%2?null:'epic'})));
 }
 fixtures();
 const ranksOf=r=>r.rank_tier==='master'?'master:'+r.master_group:r.rank_tier==='grandmaster'?'grandmaster:'+r.grandmaster_rating:r.rank_tier||'unranked';
@@ -87,10 +87,15 @@ async function verifyPixels(bytes, snapshot) {
   assert.equal(await summary.evaluate(e=>e.nextElementSibling?.querySelector('h2')?.textContent),'デッキ別対面分析');
   assert.equal(Math.round(await summary.evaluate(e=>e.nextElementSibling.getBoundingClientRect().top-e.getBoundingClientRect().bottom)),24,'only the existing grid gap remains');
  }
+ const minimumField=()=>matchup().getByRole('spinbutton');
+ async function setMinimum(value){
+  await matchup().getByLabel('件数フィルター',{exact:true}).selectOption(value==='0'?'all':'custom');
+  if(value!=='0')await minimumField().fill(value);
+ }
  async function compare(){
   assert.equal(await matchup().getByText('少数データ',{exact:true}).count(),0);
   const args=report.rpc.at(-1).args,model=buildAnalysisFromAggregates(expected(args),decks,decks);
-  const sort=await matchup().getByLabel('並び替え',{exact:true}).inputValue(),min=Number(await matchup().getByLabel('件数フィルター',{exact:true}).inputValue());
+  const sort=await matchup().getByLabel('並び替え',{exact:true}).inputValue(),min=(await matchup().getByLabel('件数フィルター',{exact:true}).inputValue())==='all'?0:Number(await minimumField().inputValue());
   const selected=new URL(page.url()).searchParams.get('myDeck')||'';
   const groups=selectAnalysisMatchups(model.matrix,sort,min,selected);
   const actual=await matchup().locator('[data-matchup-cell]').evaluateAll(rows=>rows.map(r=>({id:r.dataset.matchupCell,rate:r.cells[1].textContent,wins:r.cells[2].textContent,total:r.cells[3].textContent})));
@@ -106,7 +111,7 @@ async function verifyPixels(bytes, snapshot) {
  }
  async function exportBlock(name,label,{zip=false,mobile=false}={}){
   const section=region(name),before=report.rpc.length;
-  const state=await section.evaluate(e=>({articles:[...e.querySelectorAll('article')].map(e=>e.textContent.replace(/\s+/g,' ').trim()),selects:[...e.querySelectorAll('select')].map(e=>e.value),pressed:[...e.querySelectorAll('[aria-pressed]')].map(e=>e.getAttribute('aria-pressed')),cells:[...e.querySelectorAll('[data-matchup-cell]')].map(r=>({id:r.dataset.matchupCell,hidden:r.hidden,text:r.textContent})),expanded:[...e.querySelectorAll('[aria-expanded]')].map(e=>e.getAttribute('aria-expanded'))}));
+  const state=await section.evaluate(e=>({articles:[...e.querySelectorAll('article')].map(e=>e.textContent.replace(/\s+/g,' ').trim()),selects:[...e.querySelectorAll('select')].map(e=>e.value),inputs:[...e.querySelectorAll('input')].map(e=>({value:e.value,disabled:e.disabled})),pressed:[...e.querySelectorAll('[aria-pressed]')].map(e=>e.getAttribute('aria-pressed')),cells:[...e.querySelectorAll('[data-matchup-cell]')].map(r=>({id:r.dataset.matchupCell,hidden:r.hidden,text:r.textContent})),expanded:[...e.querySelectorAll('[aria-expanded]')].map(e=>e.getAttribute('aria-expanded'))}));
   await page.evaluate(()=>{window.exportPages=[];});
   let download;
   if(mobile){
@@ -135,13 +140,26 @@ async function verifyPixels(bytes, snapshot) {
    const p=snapshots[i];assert.equal(p.buttons,0);assert.equal(p.images,true);assert.equal(p.overflow,false);await verifyPixels(bytes,p);
    if(zip)fs.writeFileSync(out+'/screenshots/'+label+'-'+i+'.png',bytes);
   }
-  assert.deepEqual(await section.evaluate(e=>({articles:[...e.querySelectorAll('article')].map(e=>e.textContent.replace(/\s+/g,' ').trim()),selects:[...e.querySelectorAll('select')].map(e=>e.value),pressed:[...e.querySelectorAll('[aria-pressed]')].map(e=>e.getAttribute('aria-pressed')),cells:[...e.querySelectorAll('[data-matchup-cell]')].map(r=>({id:r.dataset.matchupCell,hidden:r.hidden,text:r.textContent})),expanded:[...e.querySelectorAll('[aria-expanded]')].map(e=>e.getAttribute('aria-expanded'))})),state);
+  assert.deepEqual(await section.evaluate(e=>({articles:[...e.querySelectorAll('article')].map(e=>e.textContent.replace(/\s+/g,' ').trim()),selects:[...e.querySelectorAll('select')].map(e=>e.value),inputs:[...e.querySelectorAll('input')].map(e=>({value:e.value,disabled:e.disabled})),pressed:[...e.querySelectorAll('[aria-pressed]')].map(e=>e.getAttribute('aria-pressed')),cells:[...e.querySelectorAll('[data-matchup-cell]')].map(r=>({id:r.dataset.matchupCell,hidden:r.hidden,text:r.textContent})),expanded:[...e.querySelectorAll('[aria-expanded]')].map(e=>e.getAttribute('aria-expanded'))})),state);
   assert.equal(report.rpc.length,before);assert.equal(await page.locator('[data-report-png]').count(),0);
   report.exports.push({label,files:files.length,filename:download.suggestedFilename()});
  }
  // Observe exact rows and repeated headings at real PNG encoding time.
  await page.addInitScript(()=>{const original=HTMLCanvasElement.prototype.toBlob;HTMLCanvasElement.prototype.toBlob=function(...args){const result=original.apply(this,args),s=document.querySelector('[data-report-png] > section'),p=window.exportPages?.at(-1);if(s&&p){p.page=parseInt(s.querySelector('header > span')?.textContent||'1',10);p.cells=[...s.querySelectorAll('[data-matchup-cell]')].map(r=>({id:r.dataset.matchupCell,text:r.textContent}));p.headings=[...s.querySelectorAll('[data-matchup-heading]')].map(r=>r.dataset.matchupHeading);p.layout=window.matchupGeometry(s);}return result;};});
- await go();await compare();assert.ok(await matchup().locator('button[aria-expanded]').count()>1);
+ await go();await compare();
+ assert.equal(await matchup().getByLabel('件数フィルター',{exact:true}).inputValue(),'all');assert.equal(await minimumField().inputValue(),'5');assert.ok(await minimumField().isDisabled());
+ await matchup().getByLabel('件数フィルター',{exact:true}).focus();await page.keyboard.press('ArrowDown');await page.keyboard.press('Tab');
+ assert.equal(await matchup().getByLabel('件数フィルター',{exact:true}).inputValue(),'custom');assert.ok(await minimumField().isEnabled());assert.equal(await minimumField().inputValue(),'5');
+ await minimumField().focus();await page.keyboard.press('ArrowUp');assert.equal(await minimumField().inputValue(),'6');await compare();await page.keyboard.press('ArrowDown');await compare();
+ const validRows=await matchup().locator('[data-matchup-cell]').allTextContents(),rpcBeforeInvalid=report.rpc.length;
+ for(const value of ['', '0', '-1', '1.5', '1e2', '9007199254740992']){
+  await minimumField().fill(value);assert.equal(await minimumField().getAttribute('aria-invalid'),'true');assert.deepEqual(await matchup().locator('[data-matchup-cell]').allTextContents(),validRows);
+  await minimumField().press('Tab');assert.equal(await minimumField().inputValue(),'5');assert.equal(await minimumField().getAttribute('aria-invalid'),'false');await compare();
+ }
+ await minimumField().fill('');await minimumField().pressSequentially('abc');await minimumField().press('Tab');assert.equal(await minimumField().inputValue(),'5');
+ await setMinimum('10');await setMinimum('0');assert.equal(await minimumField().inputValue(),'10');assert.ok(await minimumField().isDisabled());await compare();
+ await matchup().getByLabel('件数フィルター',{exact:true}).selectOption('custom');assert.equal(await minimumField().inputValue(),'10');await compare();assert.equal(report.rpc.length,rpcBeforeInvalid);
+ await setMinimum('0');check('initial all/default 5, keyboard number input, invalid drafts, retained custom value and no extra RPC');assert.ok(await matchup().locator('button[aria-expanded]').count()>1);
  assert.ok(await matchup().locator('button[aria-expanded]').evaluateAll(es=>es.every(e=>e.getAttribute('aria-expanded')==='false')));
  let before=report.rpc.length;const buttons=matchup().locator('button[aria-expanded]');await buttons.nth(0).focus();await page.keyboard.press('Enter');await buttons.nth(1).click();
  assert.equal(await matchup().locator('button[aria-expanded=true]').count(),2);await buttons.nth(0).focus();await page.keyboard.press('Space');assert.equal(await matchup().locator('button[aria-expanded=true]').count(),1);
@@ -149,7 +167,7 @@ async function verifyPixels(bytes, snapshot) {
  for(const scope of ['mine','all'])for(const mode of ['direct','combined']){
   await go('?'+new URLSearchParams({scope,winRateMode:mode}));await compare();
   const before=report.rpc.length;
-  for(const sort of ['count','win-desc','win-asc'])for(const minimum of ['0','5']){await matchup().getByLabel('並び替え',{exact:true}).selectOption(sort);await matchup().getByLabel('件数フィルター',{exact:true}).selectOption(minimum);await compare();}
+  for(const sort of ['count','win-desc','win-asc'])for(const minimum of ['0','1','3','5','10','30']){await matchup().getByLabel('並び替え',{exact:true}).selectOption(sort);await setMinimum(minimum);await compare();}
   const summary=region(mode==='combined'?'デッキ別サマリー（反転込み）':'使用デッキ別サマリー');
   for(const sort of ['count','win-desc','win-asc','class'])for(const minimum of [0,10]){await summary.getByLabel('並び順',{exact:true}).selectOption(sort);await summary.getByRole('button',{name:minimum===0?'全件表示':mode==='combined'?'10件以上のみ':'10戦以上のみ',exact:true}).click();await compare();}
   assert.equal(report.rpc.length,before);
@@ -157,15 +175,17 @@ async function verifyPixels(bytes, snapshot) {
  check('all scope/mode combinations: exact matrix cells, counts, wins, win rates, ordering and per-pair minimum');
  await go('?myDeck='+decks[0].id);await compare();assert.equal(await matchup().locator('button[aria-expanded]').count(),0);assert.ok(await matchup().locator('[data-matchup-cell]').evaluateAll(es=>es.every(e=>!e.hidden)));await exportBlock('デッキ別対面分析','single');
  await go('?myDeckIds='+decks.slice(0,2).map(d=>d.id).join(','));await compare();assert.equal(await matchup().locator('button[aria-expanded]').count(),2);await exportBlock('デッキ別対面分析','multiple-closed');
- await go('?scope=all&winRateMode=combined');await matchup().getByLabel('件数フィルター',{exact:true}).selectOption('5');await matchup().getByLabel('並び替え',{exact:true}).selectOption('win-asc');await compare();await exportBlock('デッキ別対面分析','filtered-combined');
+ await go('?scope=all&winRateMode=combined');await setMinimum('5');await matchup().getByLabel('並び替え',{exact:true}).selectOption('win-asc');await compare();await exportBlock('デッキ別対面分析','filtered-combined');for(const value of ['1','3','10','30']){await setMinimum(value);await compare();await exportBlock('デッキ別対面分析','filtered-combined-'+value);}
  await go('?'+new URLSearchParams({scope:'all',winRateMode:'combined',myDeck:decks[0].id,opponentDeck:decks[1].id,turnOrder:'second',result:'win',ranks:'master:ruby',playedFrom:'2026-10-10T00:00',playedTo:'2026-10-22T00:00'}));await compare();check('single/multiple selection, rank/date/result/turn/opponent filters and closed PNG preserve exact data');
  await go('?environment='+id(4));await compare();assert.match(await matchup().innerText(),/表示できるデータがありません/);await exportBlock('デッキ別対面分析','empty');
- await go('?myDeck='+decks[3].id);await matchup().getByLabel('件数フィルター',{exact:true}).selectOption('5');await compare();assert.match(await matchup().innerText(),/5戦以上の対面はありません/);
+ await go('?myDeck='+decks[3].id);await setMinimum('5');await compare();assert.match(await matchup().innerText(),/5戦以上の対面はありません/);
  // Same names must remain independent IDs, including names too long for one line.
  decks[1].name=decks[0].name;await go('?scope=all&winRateMode=direct');await compare();
  for(const width of [320,390,768,1440,1920]){
+  await setMinimum('1');
   await page.setViewportSize({width,height:1000});for(const b of await matchup().locator('button[aria-expanded]').all())if(await b.getAttribute('aria-expanded')==='false')await b.click();
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+  assert.equal(await minimumField().getAttribute('inputmode'),'numeric');await minimumField().fill('3');await compare();await minimumField().fill('1');await compare();
   const geometry=await matchup().evaluate(matchupGeometry),sectionBox=await matchup().boundingBox();
   assert.ok(Math.abs(geometry.width-Math.min(960,sectionBox.width-2))<1,'table uses available mobile width and caps at 960px');
   assert.ok(Math.abs(geometry.center-(sectionBox.x+sectionBox.width/2))<1,'table stays centered in its section');
@@ -190,8 +210,8 @@ async function verifyPixels(bytes, snapshot) {
  await page.setViewportSize({width:390,height:844});await exportBlock('デッキ別サマリー（反転込み）','summary-mobile-zip',{zip:true,mobile:true});await page.setViewportSize({width:1440,height:1000});
  // One deck spans several pages; other groups exercise boundaries and heading repetition.
  records.push(...decks.flatMap((d,i)=>Array.from({length:5},(_,j)=>({id:id(90000+i*5+j),user_id:owner,environment_id:envId,my_deck_id:decks[0].id,opponent_deck_id:d.id,my_archetype_id:decks[0].id,opponent_archetype_id:d.id,result:j%2?'win':'lose',turn_order:'first',played_at:'2026-10-20T00:00:00Z',rank_tier:'master',master_group:'ruby'}))));
- await go('?scope=all');await compare();await exportBlock('デッキ別対面分析','large-closed',{zip:true});
- await go('?scope=all&myDeck='+decks[0].id);await matchup().getByLabel('件数フィルター',{exact:true}).selectOption('5');await compare();await exportBlock('デッキ別対面分析','large-single',{zip:true});
+ await go('?scope=all');await compare();await exportBlock('デッキ別対面分析','large-closed',{zip:true});await setMinimum('6');await compare();await exportBlock('デッキ別対面分析','large-filtered-closed',{zip:true});
+ await go('?scope=all&myDeck='+decks[0].id);await setMinimum('5');await compare();await exportBlock('デッキ別対面分析','large-single',{zip:true});
  await page.setViewportSize({width:390,height:844});await exportBlock('デッキ別対面分析','mobile-zip',{zip:true,mobile:true});
  // File sharing boundary is simulated; the generated PNG itself is real.
  await page.evaluate(()=>{Object.defineProperty(navigator,'canShare',{configurable:true,value:()=>true});Object.defineProperty(navigator,'share',{configurable:true,value:async({files})=>{window.sharedFiles=files.map(f=>({type:f.type,size:f.size}));}});});
