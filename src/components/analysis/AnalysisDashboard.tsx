@@ -5,7 +5,6 @@ import { DeckAnalysisCards } from "@/components/analysis/DeckAnalysisCards";
 import { ExportableAnalysisBlock } from "@/components/analysis/ExportableAnalysisBlock";
 import { AnalysisFilters } from "@/components/analysis/AnalysisFilters";
 import { AnalysisMatchups } from "@/components/analysis/AnalysisMatchups";
-import { AnalysisWinRates } from "@/components/analysis/AnalysisWinRates";
 import { buildAnalysisFromAggregates, parseAnalysisAggregates } from "@/lib/analysis-aggregates";
 import { parseRankSelection, serializeRankSelection, type RankSelection } from "@/lib/rank-selection";
 import type { AnalysisPageData } from "@/lib/analysis-page-data";
@@ -132,7 +131,7 @@ export function AnalysisDashboard({ initialData, initialQuery }: { initialData: 
     void load(query, true);
   }
   const { environments, isAdmin, selectedRanks, selectedScope, winRateMode, selectedEnvironmentId, decks, archetypes, selectedEnvironmentName, matrixDecks, selectedMyDeckId, selectedOpponentDeckId, selectedTurnOrder, selectedResult, selectedPlayedFrom, selectedPlayedTo, aggregates } = data;
-  const { registeredMatches, byMyDeck, matrix, summaries } = useMemo(() => buildAnalysisFromAggregates(aggregates, decks, archetypes), [aggregates, decks, archetypes]);
+  const { registeredMatches, matrix, summaries } = useMemo(() => buildAnalysisFromAggregates(aggregates, decks, archetypes), [aggregates, decks, archetypes]);
   const visibleSummaries = useMemo(() => selectAnalysisSummaries(summaries, summarySort, minimumCount), [summaries, summarySort, minimumCount]);
   if (invalidDateQuery !== null) return <AnalysisDateQueryError key={invalidDateQuery} query={invalidDateQuery} />;
   return (
@@ -195,10 +194,6 @@ export function AnalysisDashboard({ initialData, initialQuery }: { initialData: 
             {minimumCount > 0 && visibleSummaries.length === 0 ? <p className="text-sm text-muted">{winRateMode === "combined" ? "対象件数が10件" : "10戦"}以上のデッキはありません。</p>
               : <DeckAnalysisCards summaries={visibleSummaries} combined={winRateMode === "combined"} showTitle={false} recentDetails showStreak={selectedScope === "mine" && winRateMode === "direct"} />}
           </div>
-        </ExportableAnalysisBlock>
-
-        <ExportableAnalysisBlock title={winRateMode === "combined" ? "デッキ別の環境勝率" : "使用デッキ別の勝率"} filename="deck-winrate">
-          <AnalysisWinRates combined={winRateMode === "combined"} rows={byMyDeck} />
         </ExportableAnalysisBlock>
 
         <AnalysisMatchups matrix={matrix} decks={matrixDecks} selectedDeckId={selectedMyDeckId} combined={winRateMode === "combined"} />

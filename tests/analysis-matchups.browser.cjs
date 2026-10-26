@@ -5,6 +5,7 @@ const savedFetch=fetch;require('./register.cjs');globalThis.fetch=savedFetch;
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright'),{unzipSync}=require('fflate'),sharp=require('sharp');
 const {analysisFixture}=require('./analysis-browser-fixture.cjs'),{buildAnalysisFromAggregates}=require('../src/lib/analysis-aggregates');
 const {selectAnalysisSummaries}=require('../src/lib/analysis-presentation');
+const React=require('react'),{renderToStaticMarkup}=require('react-dom/server'),{DeckAnalysisCards}=require('../src/components/analysis/DeckAnalysisCards');
 const {expandLegacyRankFilter}=require('../src/lib/rank-selection');
 const {SHADOWVERSE_CLASSES}=require('../src/lib/constants');
 const origin='http://localhost:3302',out=path.resolve(process.env.MATCHUP_OUTPUT||'build/analysis-matchups/browser');
@@ -30,7 +31,6 @@ const api=http.createServer(async(req,res)=>{try{const u=new URL(req.url,'http:/
  else throw Error('Unexpected read '+table);
  res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify(data));
  }catch(e){report.unexpected.push(e.message);res.writeHead(500);res.end('{}');}});
-const norm=s=>s.replace(/\s+/g,' ').trim();
 async function verifyPixels(bytes, snapshot) {
  const metadata=await sharp(bytes).metadata(),stats=await sharp(bytes).stats();
  assert.ok(stats.channels.slice(0,3).every(c=>c.min<100),'PNG must contain visible text');
@@ -62,7 +62,12 @@ async function verifyPixels(bytes, snapshot) {
   const before=report.rpc.length;await page.goto(origin+'/analysis'+query,{waitUntil:'networkidle'});
   assert.equal(report.rpc.length,before+1);assert.equal(await page.getByRole('region',{name:'相手デッキ別の勝率',exact:true}).count(),0);
   assert.equal(await page.getByRole('heading',{name:'対面別勝率',exact:true}).count(),0);
-  assert.equal(await page.getByRole('button',{name:/をPNG保存$/}).count(),3);
+  for(const name of ['使用デッキ別の勝率','デッキ別の環境勝率'])assert.equal(await region(name).count(),0);
+  assert.equal(await page.locator('[data-analysis-rate]').count(),0);
+  assert.equal(await page.getByRole('button',{name:/をPNG保存$/}).count(),2);
+  const summary=region(report.rpc.at(-1).args.p_include_reversed?'デッキ別サマリー（反転込み）':'使用デッキ別サマリー');
+  assert.equal(await summary.evaluate(e=>e.nextElementSibling?.querySelector('h2')?.textContent),'デッキ別対面分析');
+  assert.equal(Math.round(await summary.evaluate(e=>e.nextElementSibling.getBoundingClientRect().top-e.getBoundingClientRect().bottom)),24,'only the existing grid gap remains');
  }
  async function compare(){
   assert.equal(await matchup().getByText('少数データ',{exact:true}).count(),0);
@@ -75,14 +80,15 @@ async function verifyPixels(bytes, snapshot) {
   assert.deepEqual(await matchup().locator('[data-matchup-heading]').evaluateAll(rows=>rows.map(r=>r.dataset.matchupHeading)),groups.map(g=>g.myDeck.id));
   for(const g of groups)assert.ok((await matchup().locator(`[data-matchup-heading="${g.myDeck.id}"]`).innerText()).includes(String(g.total)));
   const summary=region(args.p_include_reversed?'デッキ別サマリー（反転込み）':'使用デッキ別サマリー');
-  assert.deepEqual((await summary.locator('article h3').allTextContents()).map(norm),selectAnalysisSummaries(model.summaries,'count',0).map(s=>s.deck.name));
-  const rates=region(args.p_include_reversed?'デッキ別の環境勝率':'使用デッキ別の勝率');
-  assert.deepEqual(await rates.locator('[data-analysis-rate] h3').allTextContents(),model.byMyDeck.map(r=>r.label));
+  const summarySort=await summary.getByLabel('並び順',{exact:true}).inputValue(),minimum=(await summary.locator('button[aria-pressed=true]').textContent()).includes('10')?10:0;
+  const html=renderToStaticMarkup(React.createElement(DeckAnalysisCards,{summaries:selectAnalysisSummaries(model.summaries,summarySort,minimum),combined:args.p_include_reversed,showTitle:false,recentDetails:true,showStreak:!args.p_include_all_users&&!args.p_include_reversed}));
+  const expectedCards=await page.evaluate(html=>{const template=document.createElement('template');template.innerHTML=html;return [...template.content.querySelectorAll('article')].map(e=>e.textContent);},html);
+  assert.deepEqual(await summary.locator('article').allTextContents(),expectedCards,'summary counts, rates, turns, TOP3, recent results and streaks are unchanged');
   return groups;
  }
  async function exportBlock(name,label,{zip=false,mobile=false}={}){
   const section=region(name),before=report.rpc.length;
-  const state=await section.evaluate(e=>({cells:[...e.querySelectorAll('[data-matchup-cell]')].map(r=>({id:r.dataset.matchupCell,hidden:r.hidden,text:r.textContent})),expanded:[...e.querySelectorAll('[aria-expanded]')].map(e=>e.getAttribute('aria-expanded'))}));
+  const state=await section.evaluate(e=>({articles:[...e.querySelectorAll('article')].map(e=>e.textContent.replace(/\s+/g,' ').trim()),selects:[...e.querySelectorAll('select')].map(e=>e.value),pressed:[...e.querySelectorAll('[aria-pressed]')].map(e=>e.getAttribute('aria-pressed')),cells:[...e.querySelectorAll('[data-matchup-cell]')].map(r=>({id:r.dataset.matchupCell,hidden:r.hidden,text:r.textContent})),expanded:[...e.querySelectorAll('[aria-expanded]')].map(e=>e.getAttribute('aria-expanded'))}));
   await page.evaluate(()=>{window.exportPages=[];});
   let download;
   if(mobile){
@@ -104,13 +110,13 @@ async function verifyPixels(bytes, snapshot) {
    for(const p of snapshots)assert.doesNotMatch(p.text,/少数データ/);
    const exported=snapshots.flatMap(p=>p.cells);assert.deepEqual(exported,state.cells.map(r=>({id:r.id,text:r.text})));
    for(const p of snapshots)if(p.cells.length)assert.equal(p.headings[0],p.cells[0].id.split('/')[0],'continuation retains deck heading');
-  }
+  }else assert.deepEqual(snapshots.flatMap(p=>p.items),state.articles,'summary export preserves every card without omission or duplication');
   for(let i=0;i<files.length;i++){
    const bytes=Buffer.from(files[i]),meta=await sharp(bytes).metadata();assert.equal(meta.format,'png');assert.ok(meta.width<=4096&&meta.height<=4096);
    const p=snapshots[i];assert.equal(p.buttons,0);assert.equal(p.images,true);assert.equal(p.overflow,false);await verifyPixels(bytes,p);
    if(zip)fs.writeFileSync(out+'/screenshots/'+label+'-'+i+'.png',bytes);
   }
-  assert.deepEqual(await section.evaluate(e=>({cells:[...e.querySelectorAll('[data-matchup-cell]')].map(r=>({id:r.dataset.matchupCell,hidden:r.hidden,text:r.textContent})),expanded:[...e.querySelectorAll('[aria-expanded]')].map(e=>e.getAttribute('aria-expanded'))})),state);
+  assert.deepEqual(await section.evaluate(e=>({articles:[...e.querySelectorAll('article')].map(e=>e.textContent.replace(/\s+/g,' ').trim()),selects:[...e.querySelectorAll('select')].map(e=>e.value),pressed:[...e.querySelectorAll('[aria-pressed]')].map(e=>e.getAttribute('aria-pressed')),cells:[...e.querySelectorAll('[data-matchup-cell]')].map(r=>({id:r.dataset.matchupCell,hidden:r.hidden,text:r.textContent})),expanded:[...e.querySelectorAll('[aria-expanded]')].map(e=>e.getAttribute('aria-expanded'))})),state);
   assert.equal(report.rpc.length,before);assert.equal(await page.locator('[data-report-png]').count(),0);
   report.exports.push({label,files:files.length,filename:download.suggestedFilename()});
  }
@@ -125,6 +131,8 @@ async function verifyPixels(bytes, snapshot) {
   await go('?'+new URLSearchParams({scope,winRateMode:mode}));await compare();
   const before=report.rpc.length;
   for(const sort of ['count','win-desc','win-asc'])for(const minimum of ['0','5']){await matchup().getByLabel('並び替え',{exact:true}).selectOption(sort);await matchup().getByLabel('件数フィルター',{exact:true}).selectOption(minimum);await compare();}
+  const summary=region(mode==='combined'?'デッキ別サマリー（反転込み）':'使用デッキ別サマリー');
+  for(const sort of ['count','win-desc','win-asc','class'])for(const minimum of [0,10]){await summary.getByLabel('並び順',{exact:true}).selectOption(sort);await summary.getByRole('button',{name:minimum===0?'全件表示':mode==='combined'?'10件以上のみ':'10戦以上のみ',exact:true}).click();await compare();}
   assert.equal(report.rpc.length,before);
  }
  check('all scope/mode combinations: exact matrix cells, counts, wins, win rates, ordering and per-pair minimum');
@@ -141,11 +149,19 @@ async function verifyPixels(bytes, snapshot) {
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
   assert.ok(await matchup().locator('img').evaluateAll(es=>es.filter(e=>e.getBoundingClientRect().height>0).every(e=>e.getBoundingClientRect().width>=23)),'class icons retain their size beside long names');
   await matchup().screenshot({path:out+'/screenshots/matchups-'+width+'.png'});
+  await page.screenshot({path:out+'/screenshots/analysis-'+width+'.png',fullPage:true});
   if(width===320||width===390)await exportBlock('デッキ別対面分析','mobile-'+width,{mobile:true});
  }
  check('same-name IDs independent, zero-data/filter-empty states and five responsive widths');
- await page.setViewportSize({width:1440,height:1000});await exportBlock('使用デッキ別サマリー','summary-regression');await exportBlock('使用デッキ別の勝率','rates-regression');
+ await page.setViewportSize({width:1440,height:1000});await exportBlock('使用デッキ別サマリー','summary-regression');
+ await go('?scope=all');await require('./analysis-filter-ux.browser.cjs').openFilters(page);
+ await page.locator('select[name=result]').selectOption('win');await page.locator('select[name=turnOrder]').selectOption('second');
+ before=report.rpc.length;const applied=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/analysis');await page.getByRole('button',{name:'表示',exact:true}).click();assert.equal((await applied).status(),200);
+ await page.waitForFunction(()=>document.querySelector('form[action="/analysis"]')?.getAttribute('aria-busy')!=='true');assert.equal(report.rpc.length,before+1);await compare();
+ check('redundant winrate section/button removed in both modes; summary values and all summary orders/filters retained; analysis filters apply normally');
  fixtures(true);
+ await go('?scope=all&winRateMode=combined');await compare();await exportBlock('デッキ別サマリー（反転込み）','summary-zip',{zip:true});
+ await page.setViewportSize({width:390,height:844});await exportBlock('デッキ別サマリー（反転込み）','summary-mobile-zip',{zip:true,mobile:true});await page.setViewportSize({width:1440,height:1000});
  // One deck spans several pages; other groups exercise boundaries and heading repetition.
  records.push(...decks.flatMap((d,i)=>Array.from({length:5},(_,j)=>({id:id(90000+i*5+j),user_id:owner,environment_id:envId,my_deck_id:decks[0].id,opponent_deck_id:d.id,my_archetype_id:decks[0].id,opponent_archetype_id:d.id,result:j%2?'win':'lose',turn_order:'first',played_at:'2026-10-20T00:00:00Z',rank_tier:'master',master_group:'ruby'}))));
  await go('?scope=all');await compare();await exportBlock('デッキ別対面分析','large-closed',{zip:true});

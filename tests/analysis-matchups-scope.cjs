@@ -5,6 +5,15 @@ const hashes=require('./fixtures/analysis-matchups-source-hashes.json');
 const added=new Set(['src/components/analysis/AnalysisMatchups.tsx','src/lib/analysis-matchups.ts']);
 function assertReviewed(file){
  assert.ok(Object.hasOwn(hashes,file));let source=fs.readFileSync(file,'utf8').replaceAll('\r\n','\n');
+ if(file==='src/components/analysis/AnalysisDashboard.tsx'){
+  const before=cp.execFileSync('git',['show','78c227779b45af86d2b3369a0bdd158472f86746:'+file],{encoding:'utf8'}).replaceAll('\r\n','\n');
+  const removed='        <ExportableAnalysisBlock title={winRateMode === "combined" ? "デッキ別の環境勝率" : "使用デッキ別の勝率"} filename="deck-winrate">\n'
+   +'          <AnalysisWinRates combined={winRateMode === "combined"} rows={byMyDeck} />\n'
+   +'        </ExportableAnalysisBlock>\n\n';
+  assert.equal(before.split(removed).length,2);
+  assert.equal(source,before.replace(removed,'').replace('import { AnalysisWinRates } from "@/components/analysis/AnalysisWinRates";\n','').replace('registeredMatches, byMyDeck, matrix, summaries','registeredMatches, matrix, summaries'),'only the redundant deck-winrate section and unused bindings may be removed');
+  source=before;
+ }
  if(file==='src/components/analysis/AnalysisMatchups.tsx'){
   const before=cp.execFileSync('git',['show','f6d97a7cba78c7387f6d4e31a50949f1113cda8f:'+file],{encoding:'utf8'}).replaceAll('\r\n','\n');
   const removed='                  {cell.isLowSample ? <span className="block text-xs font-normal text-muted">少数データ</span> : null}\n';
