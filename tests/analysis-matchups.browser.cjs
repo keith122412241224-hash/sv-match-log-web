@@ -31,6 +31,23 @@ const api=http.createServer(async(req,res)=>{try{const u=new URL(req.url,'http:/
  else throw Error('Unexpected read '+table);
  res.writeHead(200,{'Content-Type':'application/json'});res.end(JSON.stringify(data));
  }catch(e){report.unexpected.push(e.message);res.writeHead(500);res.end('{}');}});
+function matchupGeometry(root) {
+ const table=root.querySelector('[data-analysis-matchups]');if(!table)return null;
+ const rect=table.getBoundingClientRect(),clipped=[];
+ for(const cell of table.querySelectorAll('th,td')){
+  const box=cell.getBoundingClientRect();if(!box.height)continue;
+  const walker=document.createTreeWalker(cell,NodeFilter.SHOW_TEXT);let node;
+  while((node=walker.nextNode())){if(!node.textContent.trim())continue;const range=document.createRange();range.selectNodeContents(node);
+   for(const text of range.getClientRects())if(text.width&&text.height&&(text.left<box.left-1||text.right>box.right+1||text.top<box.top-1||text.bottom>box.bottom+1))clipped.push(node.textContent);
+  }
+ }
+ const heading=table.querySelector('[data-matchup-heading]'),rows=[...table.querySelectorAll('[data-matchup-cell]')].filter(e=>e.getBoundingClientRect().height);
+ return {width:rect.width,center:rect.x+rect.width/2,columns:[...table.querySelectorAll('thead th')].map(e=>e.getBoundingClientRect().width),clipped,
+  headingBackground:heading?getComputedStyle(heading).backgroundColor:null,rowBackgrounds:rows.slice(0,2).map(e=>getComputedStyle(e).backgroundColor),
+  headingWeight:heading?getComputedStyle([...heading.querySelectorAll('.truncate')].find(e=>e.getBoundingClientRect().height)).fontWeight:null,
+  nameWeight:rows.length?getComputedStyle(rows[0].querySelector('.truncate')).fontWeight:null,
+  numeric:rows.length?[...rows[0].querySelectorAll('td')].map(e=>({align:getComputedStyle(e).textAlign,weight:getComputedStyle(e).fontWeight})):[]};
+}
 async function verifyPixels(bytes, snapshot) {
  const metadata=await sharp(bytes).metadata(),stats=await sharp(bytes).stats();
  assert.ok(stats.channels.slice(0,3).every(c=>c.min<100),'PNG must contain visible text');
@@ -52,6 +69,7 @@ async function verifyPixels(bytes, snapshot) {
  const exp=Math.floor(Date.now()/1000)+3600,session={access_token:['eyJhbGciOiJIUzI1NiJ9',Buffer.from(JSON.stringify({sub:owner,exp})).toString('base64url'),'fixture'].join('.'),refresh_token:'fixture',expires_at:exp,expires_in:3600,token_type:'bearer',user};await context.addCookies([{name:'sb-127-auth-token',value:'base64-'+Buffer.from(JSON.stringify(session)).toString('base64url'),url:origin}]);
  await context.route('**/*',r=>{const u=new URL(r.request().url());if(['localhost','127.0.0.1'].includes(u.hostname)||['data:','blob:'].includes(u.protocol))return r.continue();report.unexpected.push('external '+u.hostname);return r.abort();});
  page=await context.newPage();page.setDefaultTimeout(30000);page.on('pageerror',e=>report.errors.push(e.message));page.on('console',m=>{if(m.type()==='error'&&!fail)report.errors.push(m.text());});
+ await page.addInitScript({content:'window.matchupGeometry = '+matchupGeometry.toString()});
  await page.clock.setFixedTime(new Date('2026-10-21T10:00:45.123Z'));
  await page.addInitScript(()=>{const original=HTMLCanvasElement.prototype.toBlob;HTMLCanvasElement.prototype.toBlob=function(...args){const s=document.querySelector('[data-report-png] > section');if(s)(window.exportPages??=[]).push({items:[...s.querySelectorAll(s.querySelector('table')?'tbody > tr':'article')].map(e=>e.textContent.replace(/\s+/g,' ').trim()),text:s.innerText,hidden:s.querySelector('[data-png-expand]')?.hidden,width:s.getBoundingClientRect().width,height:s.getBoundingClientRect().height,buttons:s.querySelectorAll('button,select').length,images:[...s.querySelectorAll('img')].every(e=>e.complete&&e.naturalWidth>0),overflow:s.scrollWidth>s.clientWidth+1,icons:[...s.querySelectorAll('img')].map(e=>({alt:e.alt,src:e.currentSrc,x:e.getBoundingClientRect().x-s.getBoundingClientRect().x,y:e.getBoundingClientRect().y-s.getBoundingClientRect().y,w:e.width,h:e.height}))});return original.apply(this,args);};});
  const region=name=>page.getByRole('region',{name,exact:true});
@@ -108,6 +126,7 @@ async function verifyPixels(bytes, snapshot) {
   assert.equal(snapshots.length,files.length);
   if(name==='デッキ別対面分析'){
    for(const p of snapshots)assert.doesNotMatch(p.text,/少数データ/);
+   for(const p of snapshots)if(p.layout){assert.ok(p.layout.width<=961);assert.deepEqual(p.layout.clipped,[],'PNG text remains inside its cells');assert.ok(p.layout.columns.every((w,i)=>Math.abs(w-snapshots[0].layout.columns[i])<1),'PNG column widths remain identical across split pages');}
    const exported=snapshots.flatMap(p=>p.cells);assert.deepEqual(exported,state.cells.map(r=>({id:r.id,text:r.text})));
    for(const p of snapshots)if(p.cells.length)assert.equal(p.headings[0],p.cells[0].id.split('/')[0],'continuation retains deck heading');
   }else assert.deepEqual(snapshots.flatMap(p=>p.items),state.articles,'summary export preserves every card without omission or duplication');
@@ -121,7 +140,7 @@ async function verifyPixels(bytes, snapshot) {
   report.exports.push({label,files:files.length,filename:download.suggestedFilename()});
  }
  // Observe exact rows and repeated headings at real PNG encoding time.
- await page.addInitScript(()=>{const original=HTMLCanvasElement.prototype.toBlob;HTMLCanvasElement.prototype.toBlob=function(...args){const result=original.apply(this,args),s=document.querySelector('[data-report-png] > section'),p=window.exportPages?.at(-1);if(s&&p){p.page=parseInt(s.querySelector('header > span')?.textContent||'1',10);p.cells=[...s.querySelectorAll('[data-matchup-cell]')].map(r=>({id:r.dataset.matchupCell,text:r.textContent}));p.headings=[...s.querySelectorAll('[data-matchup-heading]')].map(r=>r.dataset.matchupHeading);}return result;};});
+ await page.addInitScript(()=>{const original=HTMLCanvasElement.prototype.toBlob;HTMLCanvasElement.prototype.toBlob=function(...args){const result=original.apply(this,args),s=document.querySelector('[data-report-png] > section'),p=window.exportPages?.at(-1);if(s&&p){p.page=parseInt(s.querySelector('header > span')?.textContent||'1',10);p.cells=[...s.querySelectorAll('[data-matchup-cell]')].map(r=>({id:r.dataset.matchupCell,text:r.textContent}));p.headings=[...s.querySelectorAll('[data-matchup-heading]')].map(r=>r.dataset.matchupHeading);p.layout=window.matchupGeometry(s);}return result;};});
  await go();await compare();assert.ok(await matchup().locator('button[aria-expanded]').count()>1);
  assert.ok(await matchup().locator('button[aria-expanded]').evaluateAll(es=>es.every(e=>e.getAttribute('aria-expanded')==='false')));
  let before=report.rpc.length;const buttons=matchup().locator('button[aria-expanded]');await buttons.nth(0).focus();await page.keyboard.press('Enter');await buttons.nth(1).click();
@@ -147,6 +166,13 @@ async function verifyPixels(bytes, snapshot) {
  for(const width of [320,390,768,1440,1920]){
   await page.setViewportSize({width,height:1000});for(const b of await matchup().locator('button[aria-expanded]').all())if(await b.getAttribute('aria-expanded')==='false')await b.click();
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+  const geometry=await matchup().evaluate(matchupGeometry),sectionBox=await matchup().boundingBox();
+  assert.ok(Math.abs(geometry.width-Math.min(960,sectionBox.width-2))<1,'table uses available mobile width and caps at 960px');
+  assert.ok(Math.abs(geometry.center-(sectionBox.x+sectionBox.width/2))<1,'table stays centered in its section');
+  assert.deepEqual(geometry.clipped,[],'long names and numbers stay within their own cells');
+  assert.equal(geometry.headingWeight,'700');assert.equal(geometry.nameWeight,'400');assert.notEqual(geometry.headingBackground,geometry.rowBackgrounds[0]);assert.notEqual(geometry.rowBackgrounds[0],geometry.rowBackgrounds[1]);
+  assert.deepEqual(geometry.numeric,[{align:'right',weight:'600'},{align:'right',weight:'400'},{align:'right',weight:'400'}]);
+  (report.layout??=[]).push({viewport:width,...geometry});
   assert.ok(await matchup().locator('img').evaluateAll(es=>es.filter(e=>e.getBoundingClientRect().height>0).every(e=>e.getBoundingClientRect().width>=23)),'class icons retain their size beside long names');
   await matchup().screenshot({path:out+'/screenshots/matchups-'+width+'.png'});
   await page.screenshot({path:out+'/screenshots/analysis-'+width+'.png',fullPage:true});
