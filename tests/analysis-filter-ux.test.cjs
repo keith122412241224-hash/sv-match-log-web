@@ -25,7 +25,8 @@ test('filter SSR starts closed but retains complete form and controls; only admi
  for(const admin of [false,true]){const html=render(React.createElement(AnalysisFilters,{values,decks,environments,canUseAllUsers:admin}));
  assert.match(html,/aria-expanded="false" aria-controls="([^"]+)"/);const id=html.match(/aria-expanded="false" aria-controls="([^"]+)"/)[1];assert.ok(html.includes(`id="${id}" hidden=""`));assert.match(html,/<form[^>]*action="\/analysis"/);
  for(const field of ['environment','winRateMode','myDeck','opponentDeck','turnOrder','result','playedFrom','playedTo'])assert.ok(html.includes(`name="${field}"`),field);
- for(const label of ['登録者のランク','直近7日','直近30日','全期間','表示','リセット'])assert.ok(html.includes(label));assert.equal(html.includes('name="scope"'),admin);assert.equal(html.includes('自分の戦績'),admin);assert.match(html,/aria-live="polite"/);
+ for(const label of ['登録者のランク','直近7日','直近30日','全期間','表示','リセット','分析条件を変更'])assert.ok(html.includes(label));assert.equal(html.includes('name="scope"'),admin);assert.equal(html.includes('自分の戦績'),admin);
+ assert.doesNotMatch(html, /<h2[^>]*>分析条件<\/h2>|data-analysis-conditions|使用デッキ：|相手デッキ：|環境：/);
  }
 });
 test('filter UI scope: exactly three reviewed product files; RPC/API/DB/auth/result rendering and every unrelated byte unchanged',()=>{

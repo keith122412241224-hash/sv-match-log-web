@@ -146,6 +146,9 @@ async function verifyPixels(bytes, snapshot) {
  }
  // Observe exact rows and repeated headings at real PNG encoding time.
  await page.addInitScript(()=>{const original=HTMLCanvasElement.prototype.toBlob;HTMLCanvasElement.prototype.toBlob=function(...args){const result=original.apply(this,args),s=document.querySelector('[data-report-png] > section'),p=window.exportPages?.at(-1);if(s&&p){p.page=parseInt(s.querySelector('header > span')?.textContent||'1',10);p.cells=[...s.querySelectorAll('[data-matchup-cell]')].map(r=>({id:r.dataset.matchupCell,text:r.textContent}));p.headings=[...s.querySelectorAll('[data-matchup-heading]')].map(r=>r.dataset.matchupHeading);p.layout=window.matchupGeometry(s);}return result;};});
+ await require('./analysis-filter-ux.browser.cjs').verifyFilterUx({page,origin,out,report,go,
+  settle:async()=>{await page.waitForFunction(()=>!document.querySelector('form[action="/analysis"]')?.hasAttribute('aria-busy'));await page.waitForLoadState('networkidle');},
+  compare,check,fixtures,getDecks:()=>decks,setDelay:value=>{delay=value;},setFail:value=>{fail=value;},setAdmin:value=>{admin=value;},setEnvironmentName:value=>{environmentName=value;}});
  await go();await compare();
  assert.equal(await matchup().getByLabel('件数フィルター',{exact:true}).inputValue(),'all');assert.equal(await minimumField().inputValue(),'5');assert.ok(await minimumField().isDisabled());
  await matchup().getByLabel('件数フィルター',{exact:true}).focus();await page.keyboard.press('ArrowDown');await page.keyboard.press('Tab');

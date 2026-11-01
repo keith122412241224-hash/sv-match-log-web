@@ -22,6 +22,7 @@ test('v4 all-time renders rankings and deck data without comparison columns or m
   for (const Component of [EnvironmentData, ObsEnvironmentView]) {
     const html = render(React.createElement(Component, { data, activeDeckIds: fixture.decks.map(d => d.id), environmentName: 'test' }));
     assert.ok(html.includes('遭遇率TOP5') && html.includes('勝率TOP5') && html.includes('環境全期間'));
+    assert.doesNotMatch(html, /相手として観測された登録件数 ÷ 同条件の総登録件数|登場した登録戦績が10件以上のデッキを表示します。/);
     for (const absent of ['増加TOP3', '減少TOP3', '>前期間比較</th>', '前期間との比較', '前期間の観測なし', '比較データなし']) assert.ok(!html.includes(absent));
   }
 });

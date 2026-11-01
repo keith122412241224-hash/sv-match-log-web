@@ -37,6 +37,18 @@ async function main(){let browser,app,log;try{
   return (g?classes.slice(1).flatMap(k=>selected.filter(r=>(r.className??'クラス未設定')===k)):selected).map(r=>r.key);
  };
  await page.setViewportSize({width:1152,height:1080});await go();const top=async()=>Promise.all(['遭遇率TOP5','勝率TOP5','増加TOP3','減少TOP3'].map(name=>page.locator('section').filter({has:page.getByRole('heading',{name,exact:true})}).innerText()));const ranking=await top(),rpcCount=report.rpc.length,originalUrl=page.url();
+ for(const width of [320,390,768,1152,1920]){
+  await page.setViewportSize({width,height:1080});
+  assert.doesNotMatch(await page.locator('main').innerText(),/相手として観測された登録件数 ÷ 同条件の総登録件数|登場した登録戦績が10件以上のデッキを表示します。/);
+  for(const title of ['遭遇率TOP5','勝率TOP5']){
+   const heading=page.getByRole('heading',{name:title,exact:true});assert.ok(await heading.isVisible());
+   const card=heading.locator('..');assert.equal(await card.locator(':scope > p').count(),0);
+   const h=await heading.boundingBox(),list=await card.locator('ol').boundingBox();assert.ok(list);assert.equal(Math.round(list.y-h.y-h.height),16,'heading/list spacing');
+  }
+  await fits();await page.evaluate(()=>scrollTo(0,0));await page.screenshot({path:path.join(out,'screenshots','ranking-copy-'+width+'.png')});
+ }
+ await page.setViewportSize({width:1152,height:1080});
+ report.checks.push('TOP5 headings retained, descriptions absent, 16px heading spacing and no overflow at five widths');
  const summary=page.getByRole('region',{name:'集計条件',exact:true}),details=summary.locator('details'),disclosure=summary.locator('summary');
  const totalText=await summary.locator('dd').innerText(),summaryText=await summary.textContent();assert.equal(totalText,'1,000件');assert.equal(await details.getAttribute('open'),null);assert(!(await details.getByText(/^集計対象：/).isVisible()));
  assert(await summary.locator('dd').evaluate(e=>parseFloat(getComputedStyle(e).fontSize)>=36&&Number(getComputedStyle(e).fontWeight)>=700));

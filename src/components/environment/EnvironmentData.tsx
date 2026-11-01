@@ -108,14 +108,12 @@ export function EnvironmentData({ data, activeDeckIds }: { data: EnvironmentDash
     </section>
     <div className="grid gap-4 lg:grid-cols-2">
       <Panel title="遭遇率TOP5">
-        <p className="mb-4 text-xs text-muted">相手として観測された登録件数 ÷ 同条件の総登録件数</p>
         {view.encounters.length ? <ol className="space-y-4">{view.encounters.map((d, i) => <li key={d.key}>
           <div className="mb-1 flex flex-wrap items-start justify-between gap-2"><span className="min-w-0 break-words text-sm font-semibold">{i + 1}. {d.name}</span><EncounterText row={d} total={total.totalMatches} /></div>
           <div aria-hidden="true" className="h-2 rounded bg-slate-100"><div className="h-2 rounded bg-sky-600" style={{ width: `${d.encounterRate}%` }} /></div>
         </li>)}</ol> : <p className="text-sm text-muted">{noRanking}</p>}
       </Panel>
       <Panel title="勝率TOP5">
-        <p className="mb-4 text-xs text-muted">登場した登録戦績が10件以上のデッキを表示します。</p>
         {view.wins.length ? <ol className="space-y-4">{view.wins.map((d, i) => <li key={d.key} className="flex flex-wrap items-start justify-between gap-2 border-b border-slate-100 pb-3">
           <span className="min-w-0 break-words text-sm font-semibold">{i + 1}. {d.name}</span><div><WinText row={d} /><p className="mt-1 text-sm text-muted">対象戦績数{integer(d.current.winrate.evaluationCount!)}件</p></div>
         </li>)}</ol> : <p className="text-sm text-muted">{noRanking}</p>}
