@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { Suspense } from "react";
+import { Analytics } from "@vercel/analytics/next";
 import { GlobalPendingIndicator } from "@/components/GlobalPendingIndicator";
 import "./globals.css";
 
@@ -58,6 +59,7 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
           <GlobalPendingIndicator />
         </Suspense>
         {children}
+        <Analytics />
       </body>
     </html>
   );
