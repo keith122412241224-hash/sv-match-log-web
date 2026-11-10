@@ -93,10 +93,10 @@ const policySections = [
     title: "5. 外部サービスの利用",
     body: (
       <>
-        <p>本サービスでは、サービス提供、認証、データ保存、ホスティング等のために、以下の外部サービスを利用します。</p>
+        <p>本サービスでは、サービス提供、認証、データ保存、ホスティング、アクセス解析等のために、以下の外部サービスを利用します。</p>
         <ul>
           <li>Supabase</li>
-          <li>Vercel</li>
+          <li>Vercel（ホスティングおよびVercel Web Analyticsによるアクセス解析）</li>
         </ul>
         <p>これらの外部サービスにおける情報の取り扱いについては、各サービス提供者のプライバシーポリシー等が適用される場合があります。</p>
       </>
@@ -124,13 +124,63 @@ const policySections = [
     title: "8. Cookie等について",
     body: (
       <>
-        <p>本サービスでは、ログイン状態の維持、利便性向上、利用状況の分析等を目的としてCookie、localStorageその他類似の技術を使用する場合があります。</p>
+        <p>本サービスでは、ログイン状態の維持にCookieを、ゲストモードの戦績保存や入力設定の保持にlocalStorage等を使用します。</p>
         <p>ブラウザの設定によりCookieを無効にすることもできますが、その場合、本サービスの一部機能が正常に利用できなくなる場合があります。</p>
+        <p>アクセス解析および今後の広告配信に関する情報の取り扱いは、以下の各項目をご確認ください。</p>
       </>
     )
   },
   {
-    title: "9. 本ポリシーの変更",
+    title: "9. アクセス解析について",
+    body: (
+      <>
+        <p>本サービスでは、利用状況の把握とサービス改善のため、Vercel Web Analyticsを利用してページビュー数、訪問者数、流入元等を集計しています。</p>
+        <p>
+          閲覧したページのURL、アクセス日時、参照元、ブラウザ・OS・端末の種類、国・地域等のアクセス情報がVercelへ送信され、統計情報として利用されます。
+          本サービスでは、アクセス解析のためのCookieによる追跡や、アカウント情報との紐付けは行っていません。
+          メールアドレスや登録した戦績の内容を、アクセス解析の追加情報として送信することはありません。
+        </p>
+        <p>
+          詳しくは、<a href="https://vercel.com/docs/analytics/privacy-policy">Vercel Web Analyticsのプライバシーに関する説明</a>および
+          <a href="https://vercel.com/legal/privacy-policy">Vercelのプライバシーポリシー</a>をご確認ください。
+        </p>
+      </>
+    )
+  },
+  {
+    title: "10. Google AdSenseによる広告配信について",
+    body: (
+      <>
+        <p>
+          本サービスは、Google AdSenseの利用に向けて審査を申請しています。現在は審査中で、広告配信は開始していません。
+          広告表示コードや自動広告スクリプトは設置していません。以下は、今後広告配信を開始する場合の情報の取り扱いについての説明です。
+        </p>
+        <p>
+          広告配信を開始した場合、Googleおよびそのパートナーなどの第三者広告配信事業者がCookie等を使用し、
+          本サービスや他のウェブサイトへの過去のアクセス情報に基づいて広告を配信することがあります。
+          広告Cookieにより、ユーザーの興味・関心に応じたパーソナライズド広告が表示される場合があります。
+        </p>
+        <p>
+          広告配信時には、閲覧ページのURLやIPアドレス等がGoogleなどの広告配信事業者へ送信される場合があります。
+          これらの情報は、広告の配信・効果測定、不正利用の防止、設定に応じた広告のパーソナライズ等に利用されます。
+        </p>
+        <p>
+          ユーザーは、<a href="https://adssettings.google.com/partnerads?hl=ja">Googleの広告設定</a>から、
+          Googleの広告サービスを利用するサイトでのパーソナライズド広告を無効にできます。
+          無効にしても広告そのものが表示されなくなるわけではなく、効果測定や不正利用防止等のためにCookie等が使われる場合があります。
+        </p>
+        <p>Googleによる情報の取り扱いやCookie等の利用については、以下の公式情報をご確認ください。</p>
+        <ul>
+          <li><a href="https://policies.google.com/privacy?hl=ja">Googleプライバシーポリシー</a></li>
+          <li><a href="https://policies.google.com/technologies/partner-sites?hl=ja">Googleのサービスを使用するサイトやアプリから収集した情報のGoogleによる使用</a></li>
+          <li><a href="https://policies.google.com/technologies/ads?hl=ja">Googleの広告に関するポリシー</a></li>
+        </ul>
+        <p>実際に広告配信を開始する際は、利用する広告サービスや設定に応じて本ポリシーを更新し、必要な通知・同意取得等に対応します。</p>
+      </>
+    )
+  },
+  {
+    title: "11. 本ポリシーの変更",
     body: (
       <>
         <p>本サービスは、法令の変更、本サービスの機能変更その他必要に応じて、本プライバシーポリシーを変更することがあります。</p>
@@ -139,7 +189,7 @@ const policySections = [
     )
   },
   {
-    title: "10. お問い合わせ",
+    title: "12. お問い合わせ",
     body: (
       <>
         <p>本プライバシーポリシーまたは本サービスにおける情報の取り扱いに関するお問い合わせは、以下のXアカウントのDMまでお願いいたします。</p>
@@ -194,7 +244,7 @@ export default function PrivacyPage() {
           {policySections.map((section) => (
             <section className="rounded-md border border-slate-200 bg-white p-5 shadow-sm" key={section.title}>
               <h2 className="text-lg font-bold text-ink">{section.title}</h2>
-              <div className="mt-3 grid gap-3 text-sm leading-7 text-muted [&_dd]:mt-1 [&_dd]:font-semibold [&_dd]:text-ink [&_dt]:font-bold [&_dt]:text-ink [&_li]:my-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5">
+              <div className="mt-3 grid gap-3 text-sm leading-7 text-muted [&_a]:text-emerald-700 [&_a]:underline [&_a]:underline-offset-2 [&_a:hover]:text-emerald-800 [&_dd]:mt-1 [&_dd]:font-semibold [&_dd]:text-ink [&_dt]:font-bold [&_dt]:text-ink [&_li]:my-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5">
                 {section.body}
               </div>
             </section>
@@ -202,6 +252,7 @@ export default function PrivacyPage() {
         </div>
 
         <p className="text-sm font-semibold text-muted">制定日：2026年9月2日</p>
+        <p className="text-sm font-semibold text-muted">最終更新日：2026年11月10日</p>
       </div>
     </main>
   );
