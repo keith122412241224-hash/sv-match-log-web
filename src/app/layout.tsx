@@ -45,6 +45,9 @@ export const metadata: Metadata = {
         google: GOOGLE_SITE_VERIFICATION
       }
     : undefined,
+  other: {
+    "google-adsense-account": "ca-pub-7294013356811928"
+  },
   icons: {
     icon: "/icon/sv-match-log-icon.png",
     apple: "/icon/sv-match-log-icon.png"
