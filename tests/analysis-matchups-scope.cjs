@@ -2,8 +2,9 @@
 const fs=require('node:fs'),cp=require('node:child_process'),assert=require('node:assert/strict'),{createHash}=require('node:crypto');
 const base='504a05ed275e3c78ccd326b3a58596b978d77c88';
 const hashes=require('./fixtures/analysis-matchups-source-hashes.json');
-const added=new Set(['src/components/analysis/AnalysisMatchups.tsx','src/lib/analysis-matchups.ts']);
+const added=new Set(['src/components/analysis/AnalysisMatchups.tsx','src/lib/analysis-matchups.ts',...require('./environment-trends-scope.cjs').added]);
 function assertReviewed(file){
+ if(require('./environment-trends-scope.cjs').added.has(file))return require('./environment-trends-scope.cjs').assertReviewed(file);
  assert.ok(Object.hasOwn(hashes,file));let source=fs.readFileSync(file,'utf8').replaceAll('\r\n','\n');
  if(file==='src/components/analysis/AnalysisDashboard.tsx'){
   const before=cp.execFileSync('git',['show','78c227779b45af86d2b3369a0bdd158472f86746:'+file],{encoding:'utf8'}).replaceAll('\r\n','\n');

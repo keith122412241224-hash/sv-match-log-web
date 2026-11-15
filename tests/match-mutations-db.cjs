@@ -21,7 +21,8 @@ async function setup({ beforeMigration, afterMigration, seed = true } = {}) {
     grant select,insert,update,delete on storage.objects to anon,authenticated,service_role;`);
   for (const file of fs.readdirSync('supabase/migrations').filter(f => f.endsWith('.sql')).sort()) {
     await beforeMigration?.(db, file);
-    await db.exec(fs.readFileSync(path.join('supabase/migrations', file), 'utf8'));
+    // PGlite is single-session. Real concurrent index execution is covered by release-local.
+    await db.exec(fs.readFileSync(path.join('supabase/migrations', file), 'utf8').replace(/create index concurrently/gi, 'create index'));
     await afterMigration?.(db, file);
   }
   if (seed) {

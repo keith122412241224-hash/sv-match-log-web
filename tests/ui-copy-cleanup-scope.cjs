@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const fs = require('node:fs'), cp = require('node:child_process'), assert = require('node:assert/strict');
+const cp = require('node:child_process'), assert = require('node:assert/strict');
 const { createHash } = require('node:crypto');
 const base = '50dcc9de7d62c3b0354b613ba89e308242b49ce7';
 const hashes = {
@@ -9,13 +9,13 @@ const hashes = {
 // Only historical byte guards see the old presentation, after validating the
 // exact reviewed UI changes. Rendering, browser and behavior tests use live code.
 function readBeforeUiCopy(file) {
-  const source = fs.readFileSync(file, 'utf8').replaceAll('\r\n', '\n');
+  const source = require('./environment-trends-scope.cjs').readBeforeTrends(file);
   if (!Object.hasOwn(hashes, file)) return source;
   assert.equal(createHash('sha256').update(source).digest('hex'), hashes[file], 'unreviewed UI copy change: ' + file);
   return cp.execFileSync('git', ['show', base + ':' + file], { encoding: 'utf8' }).replaceAll('\r\n', '\n');
 }
 function excludeReviewedUiCopyChanges(files) {
-  return files.filter(file => {
+  return require('./environment-trends-scope.cjs').excludeReviewedTrendChanges(files).filter(file => {
     if (!Object.hasOwn(hashes, file)) return true;
     readBeforeUiCopy(file);
     return false;

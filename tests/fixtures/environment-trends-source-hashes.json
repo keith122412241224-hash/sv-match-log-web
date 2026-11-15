@@ -1,0 +1,16 @@
+{
+  "src/app/environment/page.tsx": "e2a83115183049c93ab74de9acb7bc9f97c3d2bc5d3e9f73744e3a573b3771e6",
+  "src/components/environment/EnvironmentFilters.tsx": "b8942c2b29db11a58bdd46a89d04df820742f6c5df11b3b1abdebc987f74f781",
+  "src/components/DeckMultiSelectDialog.tsx": "3d893dde72f2de52db13bbbf4794d76e2d9c747800b4df261771f0685b418e50",
+  "src/app/api/environment/trends/route.ts": "035a612ac4de952c3077d8bca7859fad9498b8ca8dbeb5f6f6e063475fd10d88",
+  "src/components/environment/EnvironmentTrends.tsx": "adbc1a8c10d1bf582efc973c57da4bb81e975abee875a7edc8d54bd5e07605d5",
+  "src/components/environment/EnvironmentTrendChart.tsx": "9c744ecf78e9d1d0e837e7b345e6937d9ca3b94eef1ae4a81b1960ab78b6d768",
+  "src/lib/environment-trends.ts": "8090dadd0af92f620cc931dbfce70c000529519f63de830322f35aaf17770ced",
+  "src/lib/environment-trend-data.ts": "b20c9c0dd0f1e4393795dda074ee2930d0172025626a6981bfae16cdaa63273d",
+  "supabase/migrations/20261114104651_environment_trends.sql": "ba9f35bb4f3b35960163c170007fcd52aeeae2c2a490985c4dab8ee52c123d8e",
+  "supabase/migrations/20261026111607_phase2a_minimize_database_privileges.sql": "651faf3fb37a56d92dc21c3093295352beca4b633ef2aa189dd828685617c377",
+  "supabase/migrations/20261114212352_environment_trends_rpc.sql": "c64ce5d864c80cbde7ecbbebf86675b7e66278619340efa3dd1f6a417cfc6597",
+  "supabase/operations/environment-trends/check-index.sql": "89123adcea369f69716cb242e7643765aa36e0b7dfecdb37526fd100a0e4782e",
+  "supabase/operations/environment-trends/disable-rpc.sql": "56fb59344ad0c12ed4ae379ae3a0d611b1fa0ee2eb546d1ce3a30e6f4a682bf8",
+  "supabase/operations/environment-trends/drop-invalid-index.sql": "fd8c9c464b0c1354dd4ffa68989f1a92431a7cc2dcdd4aabff23e34241b81228"
+}

@@ -71,6 +71,27 @@ test('member matrix: full migrations preserve existing policies, table grants, f
       assert.deepEqual({...current,tables:current.tables.filter(t=>t.relname!=='creator_obs_sets'),policies:current.policies.filter(p=>p.tablename!=='creator_obs_sets')},before,'Creator extension preserves every pre-existing policy/grant/function');
       before=current;
     }
+    if(file==='20261026111607_phase2a_minimize_database_privileges.sql'){
+      // Restored production history intentionally tightens these privileges before trends.
+      require('./environment-trends-scope.cjs').assertReviewed('supabase/migrations/'+file);
+      const expected=structuredClone(before);
+      const trigger=expected.functions.find(f=>f.nspname==='public'&&f.proname==='handle_new_user');
+      trigger.acl='{'+trigger.acl.slice(1,-1).split(',').filter(a=>! /^(?:anon|authenticated)?=/.test(a)).join(',')+'}';
+      const updated=expected.functions.find(f=>f.nspname==='public'&&f.proname==='set_updated_at');
+      updated.def=updated.def.replace(' LANGUAGE plpgsql\n'," LANGUAGE plpgsql\n SET search_path TO ''\n");
+      for(const table of expected.tables.filter(t=>t.nspname==='public'&&['profiles','decks','admin_users','user_decks','deck_suggestions','deck_archetypes','deck_aliases','matches'].includes(t.relname)))
+        table.relacl=table.relacl.replace(/((?:\{|,)(?:anon|authenticated)?=)([^/]*)(\/[^,}]*)/g,(_,prefix,privileges,owner)=>prefix+privileges.replace('D','')+owner);
+      const current=await catalog(database);
+      assert.deepEqual(current,expected,'restored hardening changes only reviewed trigger/search_path/TRUNCATE privileges');
+      before=current;
+    }
+    if(file==='20261114212352_environment_trends_rpc.sql'){
+      require('./environment-trends-scope.cjs').assertReviewed('supabase/migrations/'+file);
+      const current=await catalog(database),added=current.functions.filter(f=>f.proname==='get_environment_trend_aggregates_v1');
+      assert.equal(added.length,2);
+      assert.deepEqual({...current,functions:current.functions.filter(f=>f.proname!=='get_environment_trend_aggregates_v1')},before,'later trend RPC preserves every existing policy/grant/function');
+      before=current;
+    }
   }});
   const database=setupResult.db;t.after(()=>database.close());assert.deepEqual(await catalog(database),before);
   const direct=(schema='public',ranks=RANK_ATOMS,env=ids.env)=>database.query(`select ${schema}.get_member_matchup_aggregates_v1($1::uuid,$2::text[]) as data`,[env,ranks]);
