@@ -20,7 +20,7 @@ export default async function EnvironmentPage({ searchParams }: { searchParams: 
   const [{ data: environments, error: environmentError }, { data: activeArchetypes, error: archetypeError }] = await Promise.all([
     supabase.from("environments")
       .select("id,name,created_at,allow_match_input,match_input_start_at,match_input_end_at,dashboard_end_at").order("created_at", { ascending: false }),
-    supabase.from("deck_archetypes").select("id").eq("is_active", true)
+    supabase.from("deck_archetypes").select("id,name,class_name,environment_id").eq("is_active", true)
   ]);
   if (archetypeError) throw new Error("デッキ分類を取得できませんでした。");
   const environment = selectInitialEnvironmentId(environments ?? [], typeof params.environment === "string" ? params.environment : undefined);
@@ -37,6 +37,6 @@ export default async function EnvironmentPage({ searchParams }: { searchParams: 
   }
   return <AppShell navigationPrefetch={false}><div className="space-y-5">
     <div><h1 className="text-2xl font-bold">環境データ</h1><p className="mt-2 text-sm leading-relaxed text-muted">SV Match Log利用者が登録した戦績の集計データです。個別ユーザーの戦績や識別情報は表示しません。集計値とあわせて件数を表示しています。</p></div>
-    <EnvironmentFilters key={environmentHrefV4(selection)} environments={(environments ?? []).map(e => ({ id: e.id, name: e.name }))} activeDeckIds={(activeArchetypes ?? []).map(a => a.id)} initialSelection={selection} initialData={dashboard} initialFailed={failed} />
+    <EnvironmentFilters key={environmentHrefV4(selection)} environments={(environments ?? []).map(e => ({ id: e.id, name: e.name }))} activeDeckIds={(activeArchetypes ?? []).map(a => a.id)} trendCatalog={activeArchetypes ?? []} initialSelection={selection} initialData={dashboard} initialFailed={failed} />
   </div></AppShell>;
 }

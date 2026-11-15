@@ -8,9 +8,11 @@ import { deckDialogClassName, groupDecks, useDeckDialog, type SelectableDeck } f
 import { MAX_ANALYSIS_DECKS, normalizeDeckSelection, type DeckSelection } from "@/lib/analysis-deck-selection";
 
 // Confirm changes only this form field. Applying the analysis form performs the request.
-export function DeckMultiSelectDialog({ decks, value, label, name, disabled = false, selectionRevision }: {
+export function DeckMultiSelectDialog({ decks, value, label, name, disabled = false, selectionRevision, onApply }: {
   decks: readonly SelectableDeck[]; value: DeckSelection; label: string;
-  name: "myDeck" | "opponentDeck"; disabled?: boolean; selectionRevision?: object;
+  name?: "myDeck" | "opponentDeck"; disabled?: boolean; selectionRevision?: object;
+  // Explicit selection mode for charts: empty is allowed, all means the supplied catalog.
+  onApply?: (ids: string[]) => void;
 }) {
   const { id, trigger, dialog, open, setOpen, close, dialogEvents } = useDeckDialog();
   const [confirmed, setConfirmed] = useState(value), [draft, setDraft] = useState(value);
@@ -18,7 +20,7 @@ export function DeckMultiSelectDialog({ decks, value, label, name, disabled = fa
   useLayoutEffect(() => { setConfirmed(value); setDraft(value); setError(""); }, [value, selectionRevision]);
   const groups = useMemo(() => groupDecks(decks), [decks]);
   const selected = confirmed?.length === 1 ? decks.find(deck => deck.id === confirmed[0]) : undefined;
-  const title = confirmed === null ? "すべて" : confirmed.length === 1 ? selected?.name ?? "元のデッキ（現在選択肢なし）" : `${confirmed.length}デッキ選択中`;
+  const title = onApply && !confirmed?.length ? "デッキ選択" : confirmed === null ? "すべて" : confirmed.length === 1 ? selected?.name ?? "元のデッキ（現在選択肢なし）" : `${confirmed.length}デッキ選択中`;
   const selectedIds = new Set(draft ?? []);
   function change(ids: Set<string>) {
     setDraft(groups.flatMap(group => group.decks).filter(deck => ids.has(deck.id)).map(deck => deck.id));
@@ -26,6 +28,10 @@ export function DeckMultiSelectDialog({ decks, value, label, name, disabled = fa
   }
   function confirm() {
     if (disabled) return;
+    if (onApply) {
+      const ids = groups.flatMap(group => group.decks).filter(deck => draft === null || draft.includes(deck.id)).map(deck => deck.id);
+      setConfirmed(ids); onApply(ids); close(); return;
+    }
     try { setConfirmed(normalizeDeckSelection(draft, groups.flatMap(group => group.decks))); close(); }
     catch { setError(`1〜${MAX_ANALYSIS_DECKS}デッキを選ぶか、「すべて」を選択してください。`); }
   }
@@ -39,7 +45,7 @@ export function DeckMultiSelectDialog({ decks, value, label, name, disabled = fa
       <span id={`${id}-value`} className="min-w-0 flex-1 break-words [overflow-wrap:anywhere]">{title}</span>
       <ChevronDown aria-hidden="true" className="size-4 shrink-0" />
     </button>
-    <input type="hidden" name={confirmed && confirmed.length > 1 ? `${name}Ids` : name} value={confirmed?.join(",") ?? ""} />
+    {name && <input type="hidden" name={confirmed && confirmed.length > 1 ? `${name}Ids` : name} value={confirmed?.join(",") ?? ""} />}
     {open && createPortal(<dialog ref={dialog} id={`${id}-dialog`} aria-labelledby={`${id}-title`} {...dialogEvents} className={deckDialogClassName}>
       <div className="flex shrink-0 items-center justify-between gap-2 border-b p-3">
         <h2 id={`${id}-title`} className="text-lg font-bold">{label}を選択</h2>
@@ -47,10 +53,10 @@ export function DeckMultiSelectDialog({ decks, value, label, name, disabled = fa
       </div>
       <div className="min-h-0 overflow-y-auto overscroll-contain p-3" data-deck-options>
         <div className="mb-3 flex flex-wrap gap-2">
-          <button type="button" aria-pressed={draft === null} onClick={() => { setDraft(null); setError(""); }} className="min-h-11 rounded-md border px-3 aria-pressed:border-sky-700 aria-pressed:bg-sky-50">すべて</button>
+          <button type="button" aria-pressed={draft === null} onClick={() => { setDraft(onApply ? decks.map(deck => deck.id) : null); setError(""); }} className="min-h-11 rounded-md border px-3 aria-pressed:border-sky-700 aria-pressed:bg-sky-50">{onApply ? "すべて選択" : "すべて"}</button>
           <button type="button" onClick={() => { setDraft([]); setError(""); }} className="min-h-11 rounded-md border px-3">選択をクリア</button>
         </div>
-        <p role="status" className="mb-3 text-xs text-muted">{draft === null ? "絞り込みなし" : `${draft.length}デッキ選択中`}。決定後に「表示」で集計します。</p>
+        <p role="status" className="mb-3 text-xs text-muted">{draft === null ? "絞り込みなし" : `${draft.length}デッキ選択中`}。{onApply ? "決定するとグラフに反映します。" : "決定後に「表示」で集計します。"}</p>
         {!groups.length && <p>選択できるデッキがありません。</p>}
         {groups.map((group, index) => {
           const count = group.decks.filter(deck => selectedIds.has(deck.id)).length;

@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type SyntheticEvent } from "react";
 import { EnvironmentData } from "@/components/environment/EnvironmentData";
+import { EnvironmentTrends } from "@/components/environment/EnvironmentTrends";
+import { TREND_PERIODS, type TrendPeriod, type TrendCatalogDeck } from "@/lib/environment-trends";
 import { RankMultiSelect } from "@/components/RankMultiSelect";
 import { parseRankSelection, serializeRankSelection } from "@/lib/rank-selection";
 import { DASHBOARD_PERIODS, normalizeDashboardPeriod } from "@/lib/environment-dashboard-period";
@@ -10,9 +12,12 @@ import { environmentHrefV4 as environmentHref, type DashboardSelectionV4 as Dash
 
 import { parseEnvironmentDashboardV4 as parseEnvironmentDashboard, type EnvironmentDashboardV4 as EnvironmentDashboard } from "@/lib/environment-dashboard-v4";
 
-export function EnvironmentFilters({ environments, activeDeckIds, initialSelection, initialData, initialFailed }: {
+export function EnvironmentFilters({ environments, activeDeckIds, trendCatalog = [], initialSelection, initialData, initialFailed }: {
   environments: { id: string; name: string }[]; activeDeckIds: string[]; initialSelection: DashboardSelection; initialData: EnvironmentDashboard | null; initialFailed: boolean;
+  trendCatalog?: TrendCatalogDeck[];
 }) {
+  const [tab, setTab] = useState<"summary" | "trends">("summary");
+  const [trendPeriod, setTrendPeriod] = useState<TrendPeriod>("30d");
   const controller = useRef<AbortController | null>(null);
   const currentSelection = useRef(initialSelection);
   const [selection, setSelection] = useState(initialSelection);
@@ -44,13 +49,23 @@ export function EnvironmentFilters({ environments, activeDeckIds, initialSelecti
     if (pending) return;
     if (environmentHref(next) === environmentHref(selection)) return;
     window.history.replaceState(null, "", environmentHref(next));
-    void load(next);
+    if (tab === "summary") void load(next);
+    else { currentSelection.current = next; setSelection(next); setData(null); setFailed(false); }
   }
   function blockPendingInteraction(e: SyntheticEvent) {
     if (pending) { e.preventDefault(); e.stopPropagation(); }
   }
   const ownQuery = new URLSearchParams({ environment: selection.environment, ranks: serializeRankSelection(selection.ranks), scope: "mine" });
+  function switchTab(next: "summary" | "trends") {
+    setTab(next);
+    if (next === "summary" && !data && !pending && !failed && selection.environment) void load(selection);
+  }
   return <>
+    <div role="tablist" aria-label="環境データの表示" className="flex gap-2 border-b border-slate-200">
+      {([ ["summary", "環境サマリー"], ["trends", "推移分析"] ] as const).map(([value, label]) => <button key={value} type="button" role="tab" id={`environment-tab-${value}`} aria-controls={`environment-panel-${value}`} aria-selected={tab === value} tabIndex={tab === value ? 0 : -1}
+        onClick={() => switchTab(value)} onKeyDown={event => { if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) { event.preventDefault(); const next = event.key === "Home" ? "summary" : event.key === "End" ? "trends" : tab === "summary" ? "trends" : "summary"; switchTab(next); document.getElementById(`environment-tab-${next}`)?.focus(); } }}
+        className="min-h-11 border-b-2 border-transparent px-4 text-sm font-semibold aria-selected:border-sky-700 aria-selected:text-sky-800">{label}</button>)}
+    </div>
     <form onSubmit={e => e.preventDefault()} className="rounded-md border border-slate-200 bg-white p-4">
       {/* Keep the native Tab sequence intact while a selection starts loading. */}
       <fieldset disabled={environments.length === 0} aria-disabled={pending || undefined}
@@ -65,9 +80,9 @@ export function EnvironmentFilters({ environments, activeDeckIds, initialSelecti
         </label>
         <fieldset className="min-w-0">
           <legend className="mb-2 text-sm font-semibold">期間</legend>
-          <div className="grid grid-cols-5 gap-1">
-            {DASHBOARD_PERIODS.map(p => <label key={p.value} className="cursor-pointer">
-              <input className="peer sr-only" type="radio" name="period" value={p.value} checked={selection.period === p.value} onChange={() => update({ ...selection, period: p.value })} />
+          <div className={`grid ${tab === "summary" ? "grid-cols-5" : "grid-cols-4"} gap-1`}>
+            {(tab === "summary" ? DASHBOARD_PERIODS : TREND_PERIODS).map(p => <label key={p.value} className="cursor-pointer">
+              <input className="peer sr-only" type="radio" name="period" value={p.value} checked={(tab === "summary" ? selection.period : trendPeriod) === p.value} onChange={() => tab === "summary" ? update({ ...selection, period: normalizeDashboardPeriod(p.value) }) : setTrendPeriod(p.value as TrendPeriod)} />
               <span className="flex min-h-11 items-center justify-center rounded-md border border-slate-300 px-1 text-sm peer-checked:border-slate-700 peer-checked:bg-slate-800 peer-checked:text-white peer-focus-visible:ring-2 peer-focus-visible:ring-blue-600 peer-disabled:opacity-60">{p.label}</span>
             </label>)}
           </div>
@@ -75,9 +90,14 @@ export function EnvironmentFilters({ environments, activeDeckIds, initialSelecti
         <RankMultiSelect value={selection.ranks} disabled={pending || environments.length === 0} onApply={ranks => update({ ...selection, ranks })} />
       </fieldset>
     </form>
+    <div id="environment-panel-summary" role="tabpanel" aria-labelledby="environment-tab-summary" hidden={tab !== "summary"} className="space-y-5">
     {pending && <p role="status" className="rounded-md border border-slate-200 bg-white p-6">環境データを読み込み中…</p>}
     {!pending && (failed ? <div role="alert" className="rounded-md border border-red-200 bg-white p-5 text-sm"><p>環境データを取得できませんでした。時間をおいて再度お試しください。</p>{selection.environment && <button type="button" onClick={() => void load(selection)} className="mt-3 min-h-11 rounded-md border border-slate-300 px-4">再試行</button>}</div>
       : data ? <EnvironmentData data={data} activeDeckIds={activeDeckIds} /> : <p className="rounded-md border border-slate-200 bg-white p-5">選択できる環境がありません。</p>)}
+    </div>
+    <div id="environment-panel-trends" role="tabpanel" aria-labelledby="environment-tab-trends" hidden={tab !== "trends"}>
+      <EnvironmentTrends selection={{ environment: selection.environment, period: trendPeriod, ranks: selection.ranks }} catalog={trendCatalog} active={tab === "trends"} />
+    </div>
     <section className="rounded-md border border-slate-200 bg-white p-4"><h2 className="font-semibold">自分の登録データを見る</h2><p className="mt-2 text-sm text-muted">環境とランクを引き継ぎます。期間の指定は引き継ぎません。</p>
       <div className="mt-3 flex flex-wrap gap-3">{([ ["analysis", "分析"], ["matrix", "相性表"] ] as const).map(([target, label]) => <div key={target}>
         <Link prefetch={false} href={`/${target}?${ownQuery}`} className="inline-flex min-h-11 items-center rounded-md border border-slate-300 px-3 text-sm font-semibold">自分の{label}を見る</Link>
