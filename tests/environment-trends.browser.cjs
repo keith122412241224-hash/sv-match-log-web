@@ -100,14 +100,26 @@ async function main() {
     for (const width of [1440, 768, 390, 320]) {
       await page.setViewportSize({ width, height: 900 });
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
-      const svg = panel.locator('svg[role=group]'); await svg.scrollIntoViewIfNeeded();
-      await svg.hover({ position: { x: 90, y: 100 } });
-      await page.screenshot({ path: path.join(out, `chart-${width}.png`), fullPage: true });
+      const beforeMetricSwitch = report.requests.length;
+      for (const label of ['遭遇率の推移', '勝率の推移']) {
+        await panel.getByRole('button', { name: label, exact: true }).click();
+        assert.doesNotMatch(await panel.innerText(), /各日付を含む|環境開始前は|当日は集計対象|観測がない箇所|両プレイヤーの視点|ミラー対戦は|対象登録戦績10件未満|日付ごとの詳細で件数|集計対象：/);
+        const svg = panel.locator('svg[role=group]'); await svg.scrollIntoViewIfNeeded();
+        const gap = await panel.getByRole('group', { name: '推移の指標', exact: true }).evaluate(group => group.nextElementSibling.getBoundingClientRect().top - group.getBoundingClientRect().bottom);
+        assert.equal(gap, 16, 'chart follows metric controls with the normal single spacing');
+        assert.equal(await panel.locator('[data-trend-deck]').count(), 2);
+        assert.equal(await panel.getByRole('list', { name: '選択済みデッキ・凡例' }).locator('li').count(), 2);
+        await svg.hover({ position: { x: 90, y: 100 } });
+        await panel.locator('input[type=date]').fill('2026-11-10');
+        assert.match(await panel.locator('[aria-live=polite]').innerText(), /2026-11-10/);
+        await page.screenshot({ path: path.join(out, `chart-${width}-${label === '勝率の推移' ? 'winrate' : 'encounter'}.png`), fullPage: true });
+      }
+      assert.equal(report.requests.length, beforeMetricSwitch, 'metric/date controls do not refetch');
       dialog = await openDecks(); const box = await dialog.boundingBox(); assert.ok(box.x >= 0 && box.x + box.width <= width + 1 && box.y >= 0 && box.y + box.height <= 901);
       await dialog.getByRole('button', { name: '決定', exact: true }).focus(); await page.keyboard.press('Tab'); assert.ok(await dialog.getByRole('button', { name: '閉じる', exact: true }).evaluate(e => e === document.activeElement));
       await page.keyboard.press('Escape');
     }
-    report.checks.push('PC/tablet/mobile 1440/768/390/320px: no overflow, responsive chart, hover details, dialog bounds and keyboard focus containment');
+    report.checks.push('PC/tablet/mobile 1440/768/390/320px, both metrics: supplementary copy absent, 16px chart gap, lines/legend/date details retained, no metric refetch; no overflow, hover details, dialog bounds and keyboard focus containment');
     await page.route('**/api/environment/trends', async route => {
       if (route.request().postDataJSON().period === '30d') await new Promise(r => setTimeout(r, 600));
       await route.continue().catch(() => {});
