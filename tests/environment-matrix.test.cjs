@@ -4,6 +4,7 @@ const React = require('react'), { renderToStaticMarkup: render } = require('reac
 const { buildEnvironmentMatrix: build } = require('../src/lib/environment-matrix');
 const { buildWinRateMatrixFromAggregates: personal } = require('../src/lib/matchup-aggregates');
 const { MatchupMatrix } = require('../src/components/MatchupMatrix');
+const { beforeDensity } = require('./matrix-density-render.cjs');
 const decks = ['a','b','c'].map(id => ({ id, name: id.toUpperCase(), class_name: 'エルフ' }));
 const group = (a,b,total,wins) => ({ myDeckId:a, opponentDeckId:b, total,wins });
 const payload = groups => ({ version:1, totalMatches:groups.reduce((sum,g)=>sum+g.total,0), groups });
@@ -74,7 +75,7 @@ test('personal and Guest rendering including mirrors is byte-identical to pre-ch
   baseline._compile(ts.transpileModule(cp.execFileSync('git',['show','bdbeafc:'+file],{encoding:'utf8'}),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX,esModuleInterop:true}}).outputText,filename);
   for(const title of ['対面勝率表','ゲスト対面勝率表'])for(const wins of [0,4,5,9,10,11,12,13,20]) {
     const props={rows:personal(payload([group('a','a',20,wins),group('a','b',20,wins),group('b','a',1,1)]),decks,decks),opponentDecks:decks,title,createdAtLabel:'2026/11/16'};
-    assert.equal(render(React.createElement(MatchupMatrix,props)),render(React.createElement(baseline.exports.MatchupMatrix,props)));
+    assert.equal(beforeDensity(render(React.createElement(MatchupMatrix,props))),render(React.createElement(baseline.exports.MatchupMatrix,props)));
   }
 });
 
@@ -89,7 +90,7 @@ test('simplified member headers remove only supplementary paragraphs; all contro
     const before=render(React.createElement(baseline.exports.MatchupMatrix,props));
     const after=render(React.createElement(MatchupMatrix,{...props,showSupplementaryInfo:false}));
     const expected=before.replace(/<header\b[\s\S]*?<\/header>/,header=>header.replace(/<p\b[^>]*>[\s\S]*?<\/p>/g,''));
-    assert.equal(after,expected,'only the header paragraphs may change');
+    assert.equal(beforeDensity(after),expected,'only header paragraphs and the separately verified density layout may change');
     assert.doesNotMatch(after,/変動する環境名|2030\/12\/31|対象登録戦績|登録戦績ベース|作成日/);
     assert.match(after,/>対面勝率表<\/h2>/);
   }

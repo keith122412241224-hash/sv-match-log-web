@@ -3,7 +3,7 @@
 import { ChevronDown, Download } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState, type MouseEvent } from "react";
 import { Button } from "@/components/Button";
-import { ClassIcon, DeckWithClassIcon, isShadowverseClass } from "@/components/ClassIcon";
+import { ClassIcon, isShadowverseClass } from "@/components/ClassIcon";
 import { SHADOWVERSE_CLASSES } from "@/lib/constants";
 import { cn, formatPercent } from "@/lib/utils";
 import type { DeckLike, MatrixCell } from "@/lib/analytics";
@@ -270,8 +270,8 @@ export function MatchupMatrix({
           表示するデッキが選択されていません。
         </p>
       ) : (
-        <div className="matrix-scrollbar overflow-x-auto rounded-md border border-slate-200 bg-white">
-          <div ref={ref} className="inline-block min-w-full bg-white p-4">
+        <div className="matrix-scrollbar min-w-0 overflow-x-auto rounded-md border border-slate-200 bg-white [--matrix-cell-width:128px] [--matrix-label-width:168px] lg:[--matrix-cell-width:88px] lg:[--matrix-label-width:144px]">
+          <div ref={ref} className="w-full bg-white p-4" style={{ minWidth: `calc(var(--matrix-label-width) + ${visibleOpponentDecks.length} * var(--matrix-cell-width) + 2rem)` }}>
             <header className="mb-3 flex items-end justify-between gap-4">
               <div>
                 <h2 className="text-xl font-bold text-ink">{title}</h2>
@@ -285,15 +285,20 @@ export function MatchupMatrix({
               </div>
               <div className="text-right text-xs font-bold text-muted">SV Match Log Web</div>
             </header>
-            <table className="min-w-[760px] border-collapse text-center text-sm">
+            <table className="w-full table-fixed border-collapse text-center text-sm">
+              <colgroup>
+                <col style={{ width: "var(--matrix-label-width)" }} />
+                {/* Keep one col per deck: PNG cloning copies each col's computed width. */}
+                {visibleOpponentDecks.map((deck) => <col key={deck.id} />)}
+              </colgroup>
               <thead>
                 <tr>
-                  <th className="sticky left-0 z-10 border border-slate-200 bg-slate-50 px-3 py-2 text-left text-muted">使用＼相手</th>
+                  <th className="sticky left-0 z-10 border border-slate-200 bg-slate-50 px-2 py-2 text-left text-muted">使用＼相手</th>
                   {visibleOpponentDecks.map((deck) => (
-                    <th className="border border-slate-200 bg-slate-50 px-3 py-2 text-muted" key={deck.id}>
+                    <th className="border border-slate-200 bg-slate-50 px-1.5 py-2 text-muted" key={deck.id}>
                       <div className="grid justify-items-center gap-1 font-bold text-ink">
                         <ClassIcon className={deck.class_name} size={26} />
-                        <span>{deck.name}</span>
+                        <span className="min-w-0 max-w-full [overflow-wrap:anywhere]">{deck.name}</span>
                       </div>
                     </th>
                   ))}
@@ -302,11 +307,14 @@ export function MatchupMatrix({
               <tbody>
                 {visibleRows.map((row) => (
                   <tr key={row.myDeck.id}>
-                    <th className="sticky left-0 z-10 border border-slate-200 bg-slate-50 px-3 py-2 text-left">
-                      <DeckWithClassIcon className={row.myDeck.class_name} name={row.myDeck.name} />
+                    <th className="sticky left-0 z-10 border border-slate-200 bg-slate-50 px-2 py-2 text-left">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span className="shrink-0"><ClassIcon className={row.myDeck.class_name} size={24} /></span>
+                        <span className="min-w-0 font-semibold [overflow-wrap:anywhere]">{row.myDeck.name}</span>
+                      </div>
                     </th>
                     {row.cells.map((cell) => (
-                      <td className={cn("h-16 min-w-32 border border-slate-200 px-2 py-2", bandClasses[cell.band])} key={cell.opponentDeckId}>
+                      <td className={cn("h-16 border border-slate-200 px-1.5 py-2", bandClasses[cell.band])} key={cell.opponentDeckId}>
                         {environmentMode && cell.myDeckId === cell.opponentDeckId ? (
                           <span>—</span>
                         ) : cell.total === 0 ? (
@@ -314,7 +322,7 @@ export function MatchupMatrix({
                         ) : (
                           <div className="grid gap-1">
                             <span className="text-lg font-bold">{environmentMode ? `${cell.displayWinRate?.toFixed(1)}%` : formatPercent(cell.winRate)}</span>
-                            <span className="text-xs">
+                            <span className="text-xs [overflow-wrap:anywhere]">
                               {cell.wins}勝 / {cell.total}戦
                             </span>
                           </div>

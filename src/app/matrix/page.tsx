@@ -40,7 +40,7 @@ export default async function MatrixPage({
     : buildWinRateMatrixFromAggregates(aggregates, matrixDecks, matrixDecks);
 
   return (
-    <AppShell>
+    <AppShell wideContent>
       <div className="grid gap-6">
         <section>
           <h1 className="text-2xl font-bold text-ink">相性表</h1>

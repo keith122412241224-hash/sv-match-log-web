@@ -17,7 +17,7 @@ const navItems = [
   { href: "/admin", label: "管理", icon: LockKeyhole }
 ];
 
-export async function AppShell({ children, navigationPrefetch = true }: { children: ReactNode; navigationPrefetch?: boolean }) {
+export async function AppShell({ children, navigationPrefetch = true, wideContent = false }: { children: ReactNode; navigationPrefetch?: boolean; wideContent?: boolean }) {
   const [user, isAdmin] = await Promise.all([getCurrentUser(), getIsAdmin()]);
 
   if (!user) {
@@ -70,7 +70,7 @@ export async function AppShell({ children, navigationPrefetch = true }: { childr
           })}
         </nav>
       </header>
-      <main className="mx-auto max-w-7xl px-3 py-4 sm:px-4 sm:py-6">{children}</main>
+      <main className={wideContent ? "mx-auto max-w-[1800px] px-3 py-4 sm:px-4 sm:py-6" : "mx-auto max-w-7xl px-3 py-4 sm:px-4 sm:py-6"}>{children}</main>
       <footer className="border-t border-slate-200 bg-white">
         <div className="mx-auto flex max-w-7xl justify-end px-3 py-4 sm:px-4">
           <Link className="text-xs font-semibold text-muted hover:text-ink" href="/privacy">

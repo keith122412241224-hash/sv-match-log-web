@@ -98,6 +98,11 @@ async function main() {
     for(const text of exported.cells)assert.ok(['未対戦','データなし','—'].includes(text)||/^\d+(?:\.\d+)?%\d+勝 \/ \d+戦$/.test(text),text);
     assert.equal(fs.readFileSync(path.join(out,name+'.png')).subarray(1,4).toString(),'PNG');
   }
+  if (process.env.MATRIX_DENSITY === '1') {
+    await require('./matrix-density.browser.cjs').verify({page,report,out,h,login,origin,exportMatrix,setDecks:next=>{availableDecks=next;}});
+    assert.deepEqual(report.errors, []); assert.deepEqual(report.unexpected, []); report.passed = true;
+    return;
+  }
   // Run the PNG/share scenarios against this same real Next + isolated SQL fixture.
   if (process.env.MATRIX_MOBILE_PNG === '1') {
     await require('./matrix-mobile-png-share.browser.cjs').verify({page,report,out,h,login,origin,openSelector,setDecks:next=>{availableDecks=next;}});

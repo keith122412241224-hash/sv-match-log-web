@@ -24,7 +24,7 @@ test('normal and browser Guest matrices remove only index/reference labels and r
   // The deck selector has its own interaction tests; keep the entire legend/export/matrix exact.
   const matrixStart='<div class="flex flex-wrap items-center justify-between gap-3">';
   assert.ok(after.includes(matrixStart)&&expected.includes(matrixStart));
-  assert.equal(after.slice(after.indexOf(matrixStart)),expected.slice(expected.indexOf(matrixStart)),'complete matrix/export render parity outside the requested display changes');
+  assert.equal(require('./matrix-density-render.cjs').beforeDensity(after.slice(after.indexOf(matrixStart))),expected.slice(expected.indexOf(matrixStart)),'complete matrix/export render parity outside the reviewed layout changes');
  }
 });
 

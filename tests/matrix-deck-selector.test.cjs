@@ -26,7 +26,7 @@ test('normal and Guest selectors start collapsed with accurate totals, unique gr
 test('selector changes leave the entire rendered matrix, legend, PNG button and export implementation identical to Production',()=>{
  for(const title of ['対面勝率表','ゲスト対面勝率表']){
   const after=render(React.createElement(MatchupMatrix,{...props,title})),before=render(React.createElement(baseline.exports.MatchupMatrix,{...props,title})),start='<div class="flex flex-wrap items-center justify-between gap-3">';
-  assert.ok(after.includes(start)&&before.includes(start));assert.equal(after.slice(after.indexOf(start)),before.slice(before.indexOf(start)));
+  assert.ok(after.includes(start)&&before.includes(start));assert.equal(require('./matrix-density-render.cjs').beforeDensity(after.slice(after.indexOf(start))),before.slice(before.indexOf(start)));
   assert.match(after,/62\.5%/);assert.match(after,/5勝 \/ 8戦/);assert.doesNotMatch(after,/指数|参考値/);
  }
  const slice=(s,a,b)=>s.slice(s.indexOf(a),s.indexOf(b,s.indexOf(a))).trim();
