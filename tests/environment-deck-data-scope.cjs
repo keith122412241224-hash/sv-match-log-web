@@ -7,6 +7,8 @@ function assertReviewed(){assert.equal(createHash('sha256').update(read(file)).d
 function readBeforeDeckData(f){if(f!==file)return read(f);assertReviewed();return git('show',base+':'+f);}
 // Project only this exact reviewed file for historical inventory comparisons.
 function historicalChanges(files,historicalBase){return require('./security-audit-scope.cjs').excludeReviewedSecurityChanges(files).filter(f=>{
+ const environmentMatrix=require('./environment-matrix-scope.cjs');
+ if(Object.hasOwn(environmentMatrix.hashes,f))return environmentMatrix.readBeforeEnvironmentMatrix(f)!==git('show',historicalBase+':'+f);
  const matchups=require('./analysis-matchups-scope.cjs');
  if(Object.hasOwn(matchups.hashes,f)){
   matchups.assertReviewed(f);

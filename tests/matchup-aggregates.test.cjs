@@ -107,7 +107,12 @@ test('actual matrix page keeps default environment, member/admin scopes, active-
       renderToStaticMarkup(await MatrixPage({ searchParams: Promise.resolve({ scope: 'all' }) }));
       assert.deepEqual(calls, [['get_member_matchup_aggregates_v1', { p_environment_id: newEnvironment, p_rank_filters: require('../src/lib/rank-selection').RANK_ATOMS }]]);
       const visible = archetypes.length ? archetypes : decks;
+      // Environment mode now complements the reverse cell; personal mode retains the old oracle.
+      assert.deepEqual(observedRows, require('../src/lib/environment-matrix').buildEnvironmentMatrix(response.data, visible));
+      calls = [];
+      renderToStaticMarkup(await MatrixPage({ searchParams: Promise.resolve({ scope: 'mine' }) }));
       assert.deepEqual(observedRows, buildWinRateMatrix([{ my_deck_id: 'A', opponent_deck_id: 'B', result: 'win' }], visible, visible));
+      assert.equal(calls[0][1].p_include_all_users, false);
     }
   }
   calls = [];

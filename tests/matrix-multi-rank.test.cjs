@@ -48,7 +48,7 @@ test('page renders reused multi-selector, old URLs and canonical ranks; both mem
     assert.deepEqual(calls[0].args, { p_environment_id: env, p_rank_filters: expandLegacyRankFilter(rank) });
     assert.match(html, /name="scope"/);
   }
-  data = empty; calls = [];
+  data = { version: 1, totalMatches: 0, groups: [] }; calls = [];
   assert.match(render(await Page({ searchParams: Promise.resolve({ ranks: 'a,unranked,a' }) })), /name="ranks" value="unranked,a"/);
   assert.deepEqual(calls[0].args.p_rank_filters, ['unranked', 'a']);
   assert.equal(RANK_ATOMS[0], 'unranked');

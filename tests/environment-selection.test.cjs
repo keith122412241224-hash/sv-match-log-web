@@ -26,7 +26,9 @@ test('all three actual pages honor explicit closed history and select an open de
  t.mock.method(Date,'now',()=>boundary);
  state.environments[0].allow_match_input=false;
  state.environments[1].match_input_end_at=null;
- for(const [name,page] of Object.entries(pages))for(const [params,expected] of [[{},'old'],[{environment:'new'},'new'],[{environment:'missing'},'old']]){
+ const newer='00000000-0000-4000-8000-000000000100',older='00000000-0000-4000-8000-000000000101';
+ state.environments[0].id=newer;state.environments[1].id=older;
+ for(const [name,page] of Object.entries(pages))for(const [params,expected] of [[{},older],[{environment:newer},newer],[{environment:'missing'},older]]){
   state.calls.length=0;const result=await page({searchParams:Promise.resolve(params)});
   if(name==='matrix' && params.environment==='missing'){
    assert.equal(state.calls.length,0);assert.equal(result.props.children.props.role,'alert');assert.equal(result.props.children.props.children,'環境の指定が不正です。');

@@ -26,13 +26,13 @@ test('member matrix loader normalizes ranks and never falls back on RPC failures
   for(const ranks of [[],['bad'],[null],['master'],Array(18).fill('a')]){calls=[];await assert.rejects(()=>getMemberMatchupAggregates(env,ranks));assert.deepEqual(calls,[]);}
   for(const invalid of ['', 'bad']){calls=[];await assert.rejects(()=>getMemberMatchupAggregates(invalid,['a']));assert.deepEqual(calls,[]);}
 });
-test('member page defaults to mine, exposes all-users to members only and guards forged scope URL',async()=>{
+test('member page defaults to environment, preserves explicit mine and guards forged scope URL',async()=>{
   data={version:1,totalMatches:0,groups:[]};error=null;
   for(user of [{id:'member',is_anonymous:false},{id:'admin',is_anonymous:false},{id:'guest',is_anonymous:true},{id:'guest'},null]){
-    for(const scope of [undefined,'mine','all']){
+    for(const scope of [undefined,'mine','all','invalid',['all']]){
       calls=[];const html=render(await Page({searchParams:Promise.resolve({environment:env,scope})}));
       assert.equal(html.includes('name="scope"'),user?.is_anonymous===false);
-      if(scope==='all'&&user?.is_anonymous===false){assert.equal(calls.length,1);assert.equal(calls[0].name,'get_member_matchup_aggregates_v1');assert.match(html,/SV Match Logに登録された全ユーザーの戦績を集計しています。/);}
+      if((scope===undefined||scope==='all')&&user?.is_anonymous===false){assert.equal(calls.length,1);assert.equal(calls[0].name,'get_member_matchup_aggregates_v1');assert.match(html,/全ユーザーの戦績を、A対B・B対Aの両方向で統合/);}
       else {assert.ok(calls.every(c=>c.name!=='get_member_matchup_aggregates_v1'&&c.args.p_include_all_users===false));assert.match(html,/自分が登録した戦績だけ/);}
     }
   }
@@ -46,6 +46,19 @@ test('matrix serializes only display metadata to client components, never owner 
   assert.deepEqual(props.opponentDecks,[{id:'a',name:'A',class_name:'エルフ'}]);
   assert.deepEqual(props.rows[0].myDeck,props.opponentDecks[0]);
   assert.doesNotMatch(JSON.stringify(props),/private-owner|private-date|private-memo|user_id/);archetypes=[];
+});
+test('environment custom ranks are named in the export metadata and default RPC errors never fall back to personal data',async()=>{
+  user={id:'member',is_anonymous:false};archetypes=[{id:'a',name:'A',class_name:'エルフ'},{id:'b',name:'B',class_name:'ロイヤル'}];
+  data={version:1,totalMatches:1,groups:[{myDeckId:'a',opponentDeckId:'b',total:1,wins:1}]};error=null;calls=[];
+  const html=render(await Page({searchParams:Promise.resolve({environment:env,ranks:'a,aa'})}));
+  assert.match(html,/環境全体（全ユーザー） \/ ランク: Aランク、AAランク \/ 対象登録戦績: 1件/);
+  assert.match(html,/100\.0%/);assert.match(html,/0\.0%/);assert.doesNotMatch(html,/少数データ|参考値|サンプル不足/);
+  assert.equal(calls.length,1);assert.equal(calls[0].name,'get_member_matchup_aggregates_v1');
+  for(error of [{code:'42501'},{code:'PGRST202'},{code:'XX000'}]){
+    calls=[];await assert.rejects(()=>Page({searchParams:Promise.resolve({environment:env})}));
+    assert.equal(calls.length,1);assert.equal(calls[0].name,'get_member_matchup_aggregates_v1');
+  }
+  error=null;archetypes=[];
 });
 test('member matrix scope preserves all existing SQL/auth/analysis/renderer/dependencies byte-for-byte',()=>{
   const cp=require('node:child_process'),{createHash}=require('node:crypto');

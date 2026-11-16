@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const fs = require('node:fs'), cp = require('node:child_process'), assert = require('node:assert/strict'), { createHash } = require('node:crypto');
+const cp = require('node:child_process'), assert = require('node:assert/strict'), { createHash } = require('node:crypto');
+const matrix = require('./environment-matrix-scope.cjs');
 const base = 'b318f771a272a04bbfb8eef196401bcf21d7e21b';
 const hashes = require('./fixtures/environment-trends-source-hashes.json');
 const added = new Set([
@@ -10,10 +11,11 @@ const added = new Set([
   'supabase/migrations/20261114212352_environment_trends_rpc.sql',
   'supabase/operations/environment-trends/check-index.sql',
   'supabase/operations/environment-trends/disable-rpc.sql',
-  'supabase/operations/environment-trends/drop-invalid-index.sql'
+  'supabase/operations/environment-trends/drop-invalid-index.sql', ...matrix.added
 ]);
-const read = file => fs.readFileSync(file, 'utf8').replaceAll('\r\n', '\n');
+const read = file => matrix.readBeforeEnvironmentMatrix(file);
 function assertReviewed(file) {
+  if (matrix.added.has(file)) return matrix.assertReviewed(file);
   assert.ok(Object.hasOwn(hashes, file));
   assert.equal(createHash('sha256').update(read(file)).digest('hex'), hashes[file], 'unreviewed environment trends change: ' + file);
 }
@@ -24,6 +26,6 @@ function readBeforeTrends(file) {
   return cp.execFileSync('git', ['show', base + ':' + file], { encoding: 'utf8' }).replaceAll('\r\n', '\n');
 }
 function excludeReviewedTrendChanges(files) {
-  return files.filter(file => { if (!Object.hasOwn(hashes, file)) return true; assertReviewed(file); return false; });
+  return matrix.excludeReviewedMatrixChanges(files).filter(file => { if (!Object.hasOwn(hashes, file)) return true; assertReviewed(file); return false; });
 }
 module.exports = { base, hashes, added, read, assertReviewed, readBeforeTrends, excludeReviewedTrendChanges };

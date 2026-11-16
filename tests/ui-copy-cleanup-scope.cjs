@@ -9,13 +9,14 @@ const hashes = {
 // Only historical byte guards see the old presentation, after validating the
 // exact reviewed UI changes. Rendering, browser and behavior tests use live code.
 function readBeforeUiCopy(file) {
-  const source = require('./environment-trends-scope.cjs').readBeforeTrends(file);
+  const source = require('./site-metadata-scope.cjs').readBeforeSiteMetadata(file, require('./environment-trends-scope.cjs').readBeforeTrends(file));
   if (!Object.hasOwn(hashes, file)) return source;
   assert.equal(createHash('sha256').update(source).digest('hex'), hashes[file], 'unreviewed UI copy change: ' + file);
   return cp.execFileSync('git', ['show', base + ':' + file], { encoding: 'utf8' }).replaceAll('\r\n', '\n');
 }
 function excludeReviewedUiCopyChanges(files) {
   return require('./environment-trends-scope.cjs').excludeReviewedTrendChanges(files).filter(file => {
+    if (require('./site-metadata-scope.cjs').files.includes(file)) { readBeforeUiCopy(file); return false; }
     if (!Object.hasOwn(hashes, file)) return true;
     readBeforeUiCopy(file);
     return false;

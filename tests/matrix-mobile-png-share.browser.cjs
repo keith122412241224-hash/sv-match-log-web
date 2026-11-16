@@ -20,14 +20,15 @@ async function verify({page,report,out,h,login,origin,openSelector,setDecks}){
  async function capture(label){
   console.log('capture '+label);
   const expected=await page.locator('.matrix-scrollbar').innerText(),calls=report.calls.length,start=performance.now();
+  const colors=await page.locator('tbody td').evaluateAll(es=>es.map(e=>({background:getComputedStyle(e).backgroundColor,color:getComputedStyle(e).color})));
   const iconBoxes=await page.locator('.matrix-scrollbar > div').evaluate(n=>{const r=n.getBoundingClientRect();return [...n.querySelectorAll('img')].map(i=>{const b=i.getBoundingClientRect();return{x:(b.x-r.x)*2,y:(b.y-r.y)*2,w:b.width*2,h:b.height*2};});});
   await page.evaluate(()=>{window.matrixSvg=null;const d=Object.getOwnPropertyDescriptor(HTMLImageElement.prototype,'src');window.restoreSvg=()=>Object.defineProperty(HTMLImageElement.prototype,'src',d);Object.defineProperty(HTMLImageElement.prototype,'src',{...d,set(v){if(typeof v==='string'&&v.startsWith('data:image/svg+xml'))window.matrixSvg=decodeURIComponent(v.slice(v.indexOf(',')+1));return d.set.call(this,v);}});});
   const waiting=page.waitForEvent('download',{timeout:120000});await page.getByRole('button',{name:'PNG保存',exact:true}).click();
   if(!baseline&&(await page.viewportSize()).width<768){const dialog=page.getByRole('dialog',{name:'相性表画像の保存'});await dialog.getByRole('img').waitFor();await dialog.getByRole('button',{name:'PNGをダウンロード',exact:true}).click();}
   const d=await waiting;await d.saveAs(out+'/'+label+'.png');
   const bytes=fs.readFileSync(out+'/'+label+'.png'),meta=await sharp(bytes).metadata(),raw=await sharp(bytes).ensureAlpha().raw().toBuffer();
-  const svg=await page.evaluate(()=>{window.restoreSvg();const doc=new DOMParser().parseFromString(window.matrixSvg,'image/svg+xml');return{text:doc.querySelector('foreignObject').textContent,cells:[...doc.querySelectorAll('td')].map(x=>x.textContent),icons:[...doc.querySelectorAll('img')].map(i=>({alt:i.getAttribute('alt'),src:i.getAttribute('src')}))};});
-  assert.deepEqual(svg.cells,await page.locator('tbody td').allTextContents());assert.doesNotMatch(svg.text,/表示するデッキ|全解除|画像を共有/);assert.equal(report.calls.length,calls);assert.match(d.suggestedFilename(),/^sv-matchup-2026-10-22\.png$/);
+  const svg=await page.evaluate(()=>{window.restoreSvg();const doc=new DOMParser().parseFromString(window.matrixSvg,'image/svg+xml');return{text:doc.querySelector('foreignObject').textContent,cells:[...doc.querySelectorAll('td')].map(x=>x.textContent),colors:[...doc.querySelectorAll('td')].map(x=>({background:x.style.backgroundColor,color:x.style.color})),icons:[...doc.querySelectorAll('img')].map(i=>({alt:i.getAttribute('alt'),src:i.getAttribute('src')}))};});
+  assert.deepEqual(svg.cells,await page.locator('tbody td').allTextContents());assert.deepEqual(svg.colors,colors,'PNG preserves every cell background and text color');assert.doesNotMatch(svg.text,/表示するデッキ|全解除|画像を共有|少数データ|サンプル不足|参考値/);assert.equal(report.calls.length,calls);assert.match(d.suggestedFilename(),/^sv-matchup-2026-10-22\.png$/);
   const icons=svg.icons.map(i=>({alt:i.alt,hash:digest(i.src)}));
   report.exports.push({label,filename:d.suggestedFilename(),bytes:bytes.length,width:meta.width,height:meta.height,sha256:digest(bytes),pixels:digest(raw),cells:svg.cells,icons,iconBoxes,ms:Math.round(performance.now()-start)});
   assert.equal(await page.locator('.matrix-scrollbar').innerText(),expected);

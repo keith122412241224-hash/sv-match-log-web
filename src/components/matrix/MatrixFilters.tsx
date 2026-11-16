@@ -63,8 +63,8 @@ export function MatrixFilters({
             disabled={pending}
             defaultValue={scope}
           >
-            <option value="mine">自分のみ</option>
-            <option value="all">全ユーザー</option>
+            <option value="all">環境全体</option>
+            <option value="mine">自分の戦績</option>
           </select>
         </label>
       ) : null}

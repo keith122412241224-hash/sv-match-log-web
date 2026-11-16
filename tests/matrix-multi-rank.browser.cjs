@@ -42,6 +42,10 @@ async function main() {
         else if (name === 'deck_suggestions') data = []; // AdminPage is the redirected Creator entrance.
         else throw Error('Unexpected read ' + name);
       }
+      // Honor PostgREST projections; returning extra owner fields here falsely
+      // leaked fixture metadata through the environment page's trend catalog.
+      const select=u.searchParams.get('select');
+      if(select&&!select.includes('*')&&!select.includes('(')&&Array.isArray(data))data=data.map(row=>Object.fromEntries(select.split(',').filter(k=>Object.hasOwn(row,k)).map(k=>[k,row[k]])));
       res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(data));
     } catch (e) { report.unexpected.push(e.stack); res.writeHead(500); res.end('{}'); }
   });
@@ -54,7 +58,10 @@ async function main() {
   assert.ok(ready);
   browser = await chromium.launch({ headless: true, executablePath: process.env.CHROME_EXECUTABLE }); report.browser = browser.version();
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, timezoneId: 'Asia/Tokyo' });
-  await context.route('**/*', route => { const u = new URL(route.request().url()); if (['localhost', '127.0.0.1'].includes(u.hostname) || ['data:', 'blob:'].includes(u.protocol)) return route.continue(); report.unexpected.push('External request ' + u.origin); return route.abort(); });
+  await context.route('**/*', route => { const u = new URL(route.request().url());
+    // The Vercel-hosted analytics asset is absent on next start; keep telemetry local.
+    if(['localhost','127.0.0.1'].includes(u.hostname)&&u.pathname.startsWith('/_vercel/insights/'))return route.fulfill({status:200,contentType:'application/javascript',body:''});
+    if (['localhost', '127.0.0.1'].includes(u.hostname) || ['data:', 'blob:'].includes(u.protocol)) return route.continue(); report.unexpected.push('External request ' + u.origin); return route.abort(); });
   async function login(id, anonymous = false) {
     who = id; guest = anonymous; await context.clearCookies();
     if (!id) return;
@@ -68,7 +75,8 @@ async function main() {
   async function plainMatrix() {
     const content=await page.locator('.matrix-scrollbar').innerText();assert.doesNotMatch(content,/指数|参考値/);
     const cells=await page.locator('tbody td').evaluateAll(es=>es.map(e=>({text:e.innerText,spans:e.querySelectorAll('span').length,fits:[...e.querySelectorAll('span')].every(s=>{const a=s.getBoundingClientRect(),b=e.getBoundingClientRect();return a.top>=b.top&&a.bottom<=b.bottom&&a.left>=b.left&&a.right<=b.right;})})));
-    for(const c of cells){assert.equal(c.spans,c.text==='未対戦'?1:2);assert.ok(c.fits,'cell text stays inside its border');}
+    assert.doesNotMatch(content,/サンプル不足|少数データ|参考値/);
+    for(const c of cells){assert.equal(c.spans,['未対戦','データなし','—'].includes(c.text)?1:2);assert.ok(c.fits,'cell text stays inside its border');}
   }
   async function exportMatrix(name) {
     await plainMatrix();const before=report.calls.length;
@@ -85,7 +93,7 @@ async function main() {
     if(page.viewportSize().width<768)await preview.getByRole('button',{name:'閉じる',exact:true}).click();
     const exported=await page.evaluate(()=>{window.restoreMatrixExport();const svg=window.matrixExportSvg;if(!svg)return null;const doc=new DOMParser().parseFromString(svg,'image/svg+xml');return{text:doc.querySelector('foreignObject')?.textContent,cells:[...doc.querySelectorAll('td')].map(e=>e.textContent)};});
     assert.ok(exported);assert.doesNotMatch(exported.text,/指数|参考値|表示するデッキ|全選択|全解除/);assert.deepEqual(exported.cells,expectedCells,'PNG contains exactly the selected matrix');assert.ok(exported.cells.length);assert.equal(report.calls.length,before,'PNG does not refetch data');
-    for(const text of exported.cells)assert.ok(text==='未対戦'||/^\d+(?:\.\d+)?%\d+勝 \/ \d+戦$/.test(text),text);
+    for(const text of exported.cells)assert.ok(['未対戦','データなし','—'].includes(text)||/^\d+(?:\.\d+)?%\d+勝 \/ \d+戦$/.test(text),text);
     assert.equal(fs.readFileSync(path.join(out,name+'.png')).subarray(1,4).toString(),'PNG');
   }
   // Run the PNG/share scenarios against this same real Next + isolated SQL fixture.
@@ -108,12 +116,24 @@ async function main() {
     await page.waitForURL(u => u.pathname === '/matrix');
     await page.getByRole('heading', { name: '相性表', exact: true }).waitFor();
     await page.waitForFunction(value => document.querySelector('input[name=ranks]')?.value === value, selection.join(','));
+    await page.waitForFunction(expected => document.querySelector('.matrix-scrollbar h2')?.textContent === expected, scope==='all'?'環境全体の対面勝率表':'対面勝率表');
     const source = rows.filter(r => r.environment_id === env && (r.user_id === who || (who && !guest && scope === 'all')) && selection.includes(h.atom(r)));
     assert.match(await page.locator('main').innerText(), new RegExp(`対象登録戦績: ${source.length}件`));
-    const cells = buildWinRateMatrix(source, h.decks, h.decks).flatMap(r => r.cells);
+    // Independent raw-row oracle: expand each registration into its two perspectives.
+    const expanded = scope === 'all' ? source.flatMap(r => [r, {...r, my_deck_id:r.opponent_deck_id, opponent_deck_id:r.my_deck_id, my_archetype_id:r.opponent_archetype_id, opponent_archetype_id:r.my_archetype_id, result:r.result==='win'?'lose':'win'}]) : source;
+    const cells = buildWinRateMatrix(expanded, h.decks, h.decks).flatMap(r => r.cells);
+    if(scope==='all')for(const c of cells){
+      const mirror=c.myDeckId===c.opponentDeckId;
+      const p=c.wins*100,n=c.total;
+      c.band=mirror?'even':!n?'empty':p>60*n?'favored':p>55*n?'slightly_favored':p>=45*n?'even':p>=40*n?'slightly_unfavored':'unfavored';
+      const first=c.myDeckId<c.opponentDeckId;
+      const tenths=n?Math.floor((first?c.wins:n-c.wins)*1000/n+0.5):0;
+      c.display=mirror?'—':!n?'データなし':`${((first?tenths:1000-tenths)/10).toFixed(1)}%${c.wins}勝 / ${n}戦`;
+    }
     const actual = await page.locator('tbody td').allTextContents(); assert.equal(actual.length, cells.length);
     for (let i = 0; i < cells.length; i++) {
-      const c = cells[i]; if (!c.total) assert.equal(actual[i], '未対戦');
+      const c = cells[i]; if(scope==='all')assert.equal(actual[i],c.display);
+      else if (!c.total) assert.equal(actual[i], '未対戦');
       else { assert.ok(actual[i].includes(`${c.wins}勝 / ${c.total}戦`), actual[i]); assert.ok(actual[i].includes(`${Math.round(c.winRate * 10) / 10}%`), actual[i]); }
     }
     assert.equal(await page.locator('input[name=ranks]').inputValue(), selection.join(',')); report.conditions++;
@@ -124,24 +144,25 @@ async function main() {
     cells.forEach((c,i)=>assert.ok(classes[i].split(' ').includes(colors[c.band]),'unchanged rate background'));
   }
   const custom = ['master:ruby', 'master:sapphire', 'grandmaster:epic'];
-  await page.goto(origin + '/matrix', { waitUntil: 'networkidle' }); await verify(RANK_ATOMS);
+  await page.goto(origin + '/matrix', { waitUntil: 'networkidle' }); await verify(RANK_ATOMS,'all');
+  assert.equal(await page.locator('select[name=scope]').inputValue(),'all');assert.equal(report.calls.at(-1).name,'get_member_matchup_aggregates_v1');
   await open(); assert.equal(await boxes().count(), 17);
   assert.ok(await dialog().locator('img').count() >= 16);
   for (const p of RANK_PRESETS) { await dialog().getByRole('button', { name: p.label, exact: true }).click(); assert.deepEqual(await boxes().evaluateAll(es => es.filter(e => e.checked).map(e => e.value)), p.ranks); }
   await dialog().getByRole('checkbox', { name: 'GrandMasterすべて', exact: true }).uncheck();
   assert.equal(await dialog().getByRole('button', { name: '適用', exact: true }).getAttribute('aria-disabled'), 'true');
   const noCalls = report.calls.length; await dialog().getByRole('button', { name: '適用', exact: true }).click({ force: true }); assert.equal(await dialog().count(), 1); assert.equal(report.calls.length, noCalls);
-  await dialog().getByRole('button', { name: 'キャンセル', exact: true }).click(); assert.equal(await trigger().evaluate(e => e === document.activeElement), true); await verify(RANK_ATOMS);
+  await dialog().getByRole('button', { name: 'キャンセル', exact: true }).click(); assert.equal(await trigger().evaluate(e => e === document.activeElement), true); await verify(RANK_ATOMS,'all');
   await open(); await draft(custom);
   assert.equal(await dialog().getByRole('checkbox', { name: 'Masterすべて', exact: true }).evaluate(e => e.indeterminate), true);
   const before = report.calls.length; await dialog().getByRole('button', { name: '適用', exact: true }).click();
-  await page.waitForURL(u => u.searchParams.get('ranks') === custom.join(',')); await settled(); assert.equal(report.calls.length, before + 1); await verify(custom);
+  await page.waitForURL(u => u.searchParams.get('ranks') === custom.join(',')); await settled(); assert.equal(report.calls.length, before + 1); await verify(custom,'all');
   report.checks.push('icons, presets, parents, empty prevention, cancel, custom apply: one RPC');
   await page.screenshot({ path: path.join(out, 'matrix-desktop.png'), fullPage: true });
-  await page.reload({ waitUntil: 'networkidle' }); await verify(custom);
-  await page.goBack({ waitUntil: 'networkidle' }); await verify(RANK_ATOMS);
-  await page.goForward({ waitUntil: 'networkidle' }); await verify(custom);
-  await page.locator('select[name=environment]').selectOption(h.OLD); await page.getByRole('button', { name: '表示', exact: true }).click(); await settled(); await verify(custom, 'mine', h.OLD);
+  await page.reload({ waitUntil: 'networkidle' }); await verify(custom,'all');
+  await page.goBack({ waitUntil: 'networkidle' }); await verify(RANK_ATOMS,'all');
+  await page.goForward({ waitUntil: 'networkidle' }); await verify(custom,'all');
+  await page.locator('select[name=environment]').selectOption(h.OLD); await page.getByRole('button', { name: '表示', exact: true }).click(); await settled(); await verify(custom, 'all', h.OLD);
   await page.locator('select[name=scope]').selectOption('all'); await page.getByRole('button', { name: '表示', exact: true }).click(); await settled(); await verify(custom, 'all', h.OLD);
   report.checks.push('reload/back/forward; environment/scope keep ranks');
   for (const scope of ['mine', 'all']) for (const selection of [RANK_ATOMS, ...RANK_ATOMS.map(a => [a]), ['a', 'aa'], ['unranked', 'a'], custom]) {
@@ -150,16 +171,16 @@ async function main() {
     await verify(selection, scope); assert.equal(report.calls.length, n + 1);
   }
   for (const { value } of [...ANALYSIS_RANK_FILTERS, { value: 'grandmaster-plus' }]) {
-    await page.goto(origin + '/matrix?rank=' + encodeURIComponent(value), { waitUntil: 'networkidle' }); await verify(expandLegacyRankFilter(value));
+    await page.goto(origin + '/matrix?rank=' + encodeURIComponent(value), { waitUntil: 'networkidle' }); await verify(expandLegacyRankFilter(value),'all');
   }
-  await page.goto(origin + '/matrix?' + new URLSearchParams({ environment: h.EMPTY, ranks: custom.join(',') }), { waitUntil: 'networkidle' }); await verify(custom, 'mine', h.EMPTY);
+  await page.goto(origin + '/matrix?' + new URLSearchParams({ environment: h.EMPTY, ranks: custom.join(',') }), { waitUntil: 'networkidle' }); await verify(custom, 'all', h.EMPTY);
   for (const query of ['ranks=', 'ranks=bad', 'rank=', 'rank=bad', 'ranks=a&rank=master', 'ranks=a&ranks=b', 'environment=invalid', 'environment=']) {
     const n = report.calls.length; await page.goto(origin + '/matrix?' + query, { waitUntil: 'networkidle' }); assert.equal(await page.locator('main [role=alert]').count(), 1); assert.equal(report.calls.length, n);
   }
   await login(h.MEMBER);
   await page.goto(origin + '/matrix?' + new URLSearchParams({ environment: h.NEW, scope: 'all', ranks: custom.join(',') }), { waitUntil: 'networkidle' });
   await verify(custom,'all'); assert.equal(await page.locator('select[name=scope]').count(), 1); assert.equal(report.calls.at(-1).name, 'get_member_matchup_aggregates_v1');
-  assert.match(await page.locator('main').innerText(), /SV Match Logに登録された全ユーザーの戦績を集計しています。/);
+  assert.match(await page.locator('main').innerText(), /全ユーザーの戦績を、A対B・B対Aの両方向で統合/);
   await page.screenshot({path:path.join(out,'member-all-desktop.png'),fullPage:true});
   await page.locator('select[name=scope]').selectOption('mine');await page.getByRole('button',{name:'表示',exact:true}).click();await settled();await verify(custom);
   await page.locator('select[name=scope]').selectOption('all');await page.getByRole('button',{name:'表示',exact:true}).click();await settled();await verify(custom,'all');

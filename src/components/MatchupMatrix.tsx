@@ -12,7 +12,7 @@ import { matrixPngFile, matrixPngSize, MATRIX_PNG_TOO_LARGE } from "@/lib/matrix
 
 type MatrixRow = {
   myDeck: DeckLike;
-  cells: MatrixCell[];
+  cells: (MatrixCell & { displayWinRate?: number | null })[];
 };
 
 const bandClasses: Record<MatrixCell["band"], string> = {
@@ -30,6 +30,7 @@ export function MatchupMatrix({
   opponentDecks,
   title = "対面勝率表",
   populationLabel,
+  environmentMode = false,
   environmentName = "現在の環境"
 }: {
   createdAtLabel?: string;
@@ -37,6 +38,7 @@ export function MatchupMatrix({
   opponentDecks: DeckLike[];
   title?: string;
   populationLabel?: string;
+  environmentMode?: boolean;
   environmentName?: string;
 }) {
   const deckIds = useMemo(() => opponentDecks.map((deck) => deck.id), [opponentDecks]);
@@ -245,11 +247,11 @@ export function MatchupMatrix({
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-2 text-xs font-semibold">
-          <span className="rounded bg-emerald-700 px-2 py-1 text-white">60%以上 有利</span>
-          <span className="rounded bg-emerald-100 px-2 py-1 text-emerald-950">50-59% 微有利</span>
-          <span className="rounded bg-slate-100 px-2 py-1 text-slate-900">45-49% 五分</span>
-          <span className="rounded bg-amber-100 px-2 py-1 text-amber-950">40-44% 微不利</span>
-          <span className="rounded bg-red-700 px-2 py-1 text-white">39%以下 不利</span>
+          <span className="rounded bg-emerald-700 px-2 py-1 text-white">{environmentMode ? "60%超 有利" : "60%以上 有利"}</span>
+          <span className="rounded bg-emerald-100 px-2 py-1 text-emerald-950">{environmentMode ? "55%超〜60% 微有利" : "50-59% 微有利"}</span>
+          <span className="rounded bg-slate-100 px-2 py-1 text-slate-900">{environmentMode ? "45〜55% 五分" : "45-49% 五分"}</span>
+          <span className="rounded bg-amber-100 px-2 py-1 text-amber-950">{environmentMode ? "40%以上〜45%未満 微不利" : "40-44% 微不利"}</span>
+          <span className="rounded bg-red-700 px-2 py-1 text-white">{environmentMode ? "40%未満 不利" : "39%以下 不利"}</span>
         </div>
         <Button type="button" variant="secondary" onClick={saveImage} disabled={visibleRows.length === 0 || saving} aria-busy={saving || undefined}>
           <Download size={17} aria-hidden="true" />
@@ -272,6 +274,7 @@ export function MatchupMatrix({
               <div>
                 <h2 className="text-xl font-bold text-ink">{title}</h2>
                 {populationLabel ? <p className="text-xs text-muted">{populationLabel}</p> : null}
+                {environmentMode ? <p className="text-xs text-muted">登録戦績ベース。双方が登録した同一対戦を含む場合があります。ミラーは「—」で表示します。</p> : null}
                 <p className="text-xs text-muted">
                   {environmentName} / 作成日 {createdAt}
                 </p>
@@ -300,11 +303,13 @@ export function MatchupMatrix({
                     </th>
                     {row.cells.map((cell) => (
                       <td className={cn("h-16 min-w-32 border border-slate-200 px-2 py-2", bandClasses[cell.band])} key={cell.opponentDeckId}>
-                        {cell.total === 0 ? (
-                          <span className="text-xs">未対戦</span>
+                        {environmentMode && cell.myDeckId === cell.opponentDeckId ? (
+                          <span>—</span>
+                        ) : cell.total === 0 ? (
+                          <span className="text-xs">{environmentMode ? "データなし" : "未対戦"}</span>
                         ) : (
                           <div className="grid gap-1">
-                            <span className="text-lg font-bold">{formatPercent(cell.winRate)}</span>
+                            <span className="text-lg font-bold">{environmentMode ? `${cell.displayWinRate?.toFixed(1)}%` : formatPercent(cell.winRate)}</span>
                             <span className="text-xs">
                               {cell.wins}勝 / {cell.total}戦
                             </span>
