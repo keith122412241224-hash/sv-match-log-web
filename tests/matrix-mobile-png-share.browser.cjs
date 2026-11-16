@@ -29,6 +29,11 @@ async function verify({page,report,out,h,login,origin,openSelector,setDecks}){
   const bytes=fs.readFileSync(out+'/'+label+'.png'),meta=await sharp(bytes).metadata(),raw=await sharp(bytes).ensureAlpha().raw().toBuffer();
   const svg=await page.evaluate(()=>{window.restoreSvg();const doc=new DOMParser().parseFromString(window.matrixSvg,'image/svg+xml');return{text:doc.querySelector('foreignObject').textContent,cells:[...doc.querySelectorAll('td')].map(x=>x.textContent),colors:[...doc.querySelectorAll('td')].map(x=>({background:x.style.backgroundColor,color:x.style.color})),icons:[...doc.querySelectorAll('img')].map(i=>({alt:i.getAttribute('alt'),src:i.getAttribute('src')}))};});
   assert.deepEqual(svg.cells,await page.locator('tbody td').allTextContents());assert.deepEqual(svg.colors,colors,'PNG preserves every cell background and text color');assert.doesNotMatch(svg.text,/表示するデッキ|全解除|画像を共有|少数データ|サンプル不足|参考値/);assert.equal(report.calls.length,calls);assert.match(d.suggestedFilename(),/^sv-matchup-2026-10-22\.png$/);
+  if(!baseline&&new URL(page.url()).pathname==='/matrix'){
+   assert.equal(await page.locator('.matrix-scrollbar header p').count(),0);
+   assert.doesNotMatch(expected,/対象登録戦績|登録戦績ベース|作成日|表示デッキの選択前/);
+   assert.doesNotMatch(svg.text,/対象登録戦績|登録戦績ベース|作成日|表示デッキの選択前/);
+  }
   const icons=svg.icons.map(i=>({alt:i.alt,hash:digest(i.src)}));
   report.exports.push({label,filename:d.suggestedFilename(),bytes:bytes.length,width:meta.width,height:meta.height,sha256:digest(bytes),pixels:digest(raw),cells:svg.cells,icons,iconBoxes,ms:Math.round(performance.now()-start)});
   assert.equal(await page.locator('.matrix-scrollbar').innerText(),expected);

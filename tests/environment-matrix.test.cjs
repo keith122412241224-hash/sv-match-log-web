@@ -54,7 +54,7 @@ test('exact 40/45/50/55/60 boundaries and adjacent fractions have complementary 
 test('environment cells show only fixed-one-decimal rate and counts; mirrors neutral, zero is data missing',()=>{
   for(const groups of [[],[group('a','a',1,1),group('a','b',1,1)],[group('a','b',25,15)]]) {
     const rows=build(payload(groups),decks);
-    const html=render(React.createElement(MatchupMatrix,{rows,opponentDecks:decks,environmentMode:true,createdAtLabel:'2026/11/16',populationLabel:'環境全体 / ランク: A / 対象登録戦績: 26件'}));
+    const html=render(React.createElement(MatchupMatrix,{rows,opponentDecks:decks,environmentMode:true,showSupplementaryInfo:false,createdAtLabel:'2026/11/16',populationLabel:'環境全体 / ランク: A / 対象登録戦績: 26件'}));
     const cells=[...html.matchAll(/<td class="([^"]+)"[^>]*>([\s\S]*?)<\/td>/g)];
     for(const [i,cell] of cells.entries()) {
       const value=rows.flatMap(r=>r.cells)[i],contents=cell[2].replace(/<[^>]+>/g,'');
@@ -63,7 +63,7 @@ test('environment cells show only fixed-one-decimal rate and counts; mirrors neu
       else assert.equal(contents,`${value.displayWinRate.toFixed(1)}%${value.wins}勝 / ${value.total}戦`);
     }
     assert.doesNotMatch(html,/サンプル不足|少数データ|参考値|注意アイコン/);
-    assert.match(html,/環境全体 \/ ランク: A \/ 対象登録戦績: 26件/);
+    assert.doesNotMatch(html,/対象登録戦績|登録戦績ベース|作成日|表示デッキの選択前/);
   }
 });
 
@@ -75,5 +75,22 @@ test('personal and Guest rendering including mirrors is byte-identical to pre-ch
   for(const title of ['対面勝率表','ゲスト対面勝率表'])for(const wins of [0,4,5,9,10,11,12,13,20]) {
     const props={rows:personal(payload([group('a','a',20,wins),group('a','b',20,wins),group('b','a',1,1)]),decks,decks),opponentDecks:decks,title,createdAtLabel:'2026/11/16'};
     assert.equal(render(React.createElement(MatchupMatrix,props)),render(React.createElement(baseline.exports.MatchupMatrix,props)));
+  }
+});
+
+test('simplified member headers remove only supplementary paragraphs; all controls, cells, colors and export layout remain unchanged',()=>{
+  const cp=require('node:child_process'),Module=require('node:module'),path=require('node:path'),ts=require('typescript');
+  const file='src/components/MatchupMatrix.tsx',filename=path.resolve(file),baseline=new Module(filename,module);
+  baseline.filename=filename;baseline.paths=module.paths;
+  baseline._compile(ts.transpileModule(cp.execFileSync('git',['show','d2421c0:'+file],{encoding:'utf8'}),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX,esModuleInterop:true}}).outputText,filename);
+  for(const environmentMode of [false,true])for(const wins of [0,4,5,9,10,11,12,13,20]) {
+    const data=payload([group('a','a',20,wins),group('a','b',20,wins),group('b','a',1,1)]);
+    const props={rows:environmentMode?build(data,decks):personal(data,decks,decks),opponentDecks:decks,environmentMode,environmentName:'変動する環境名',createdAtLabel:'2030/12/31',populationLabel:`対象登録戦績: ${data.totalMatches}件`};
+    const before=render(React.createElement(baseline.exports.MatchupMatrix,props));
+    const after=render(React.createElement(MatchupMatrix,{...props,showSupplementaryInfo:false}));
+    const expected=before.replace(/<header\b[\s\S]*?<\/header>/,header=>header.replace(/<p\b[^>]*>[\s\S]*?<\/p>/g,''));
+    assert.equal(after,expected,'only the header paragraphs may change');
+    assert.doesNotMatch(after,/変動する環境名|2030\/12\/31|対象登録戦績|登録戦績ベース|作成日/);
+    assert.match(after,/>対面勝率表<\/h2>/);
   }
 });

@@ -32,7 +32,7 @@ test('member page defaults to environment, preserves explicit mine and guards fo
     for(const scope of [undefined,'mine','all','invalid',['all']]){
       calls=[];const html=render(await Page({searchParams:Promise.resolve({environment:env,scope})}));
       assert.equal(html.includes('name="scope"'),user?.is_anonymous===false);
-      if((scope===undefined||scope==='all')&&user?.is_anonymous===false){assert.equal(calls.length,1);assert.equal(calls[0].name,'get_member_matchup_aggregates_v1');assert.match(html,/全ユーザーの戦績を、A対B・B対Aの両方向で統合/);}
+      if((scope===undefined||scope==='all')&&user?.is_anonymous===false){assert.equal(calls.length,1);assert.equal(calls[0].name,'get_member_matchup_aggregates_v1');assert.match(html,/全ユーザーの戦績を集計して表示しています。/);}
       else {assert.ok(calls.every(c=>c.name!=='get_member_matchup_aggregates_v1'&&c.args.p_include_all_users===false));assert.match(html,/自分が登録した戦績だけ/);}
     }
   }
@@ -47,11 +47,13 @@ test('matrix serializes only display metadata to client components, never owner 
   assert.deepEqual(props.rows[0].myDeck,props.opponentDecks[0]);
   assert.doesNotMatch(JSON.stringify(props),/private-owner|private-date|private-memo|user_id/);archetypes=[];
 });
-test('environment custom ranks are named in the export metadata and default RPC errors never fall back to personal data',async()=>{
+test('environment custom ranks still filter the RPC without export notes; RPC errors never fall back to personal data',async()=>{
   user={id:'member',is_anonymous:false};archetypes=[{id:'a',name:'A',class_name:'エルフ'},{id:'b',name:'B',class_name:'ロイヤル'}];
   data={version:1,totalMatches:1,groups:[{myDeckId:'a',opponentDeckId:'b',total:1,wins:1}]};error=null;calls=[];
   const html=render(await Page({searchParams:Promise.resolve({environment:env,ranks:'a,aa'})}));
-  assert.match(html,/環境全体（全ユーザー） \/ ランク: Aランク、AAランク \/ 対象登録戦績: 1件/);
+  assert.doesNotMatch(html,/対象登録戦績|登録戦績ベース|作成日|表示デッキの選択前/);
+  assert.deepEqual(calls[0].args.p_rank_filters,['a','aa']);
+  assert.match(html,/>対面勝率表<\/h2>/);
   assert.match(html,/100\.0%/);assert.match(html,/0\.0%/);assert.doesNotMatch(html,/少数データ|参考値|サンプル不足/);
   assert.equal(calls.length,1);assert.equal(calls[0].name,'get_member_matchup_aggregates_v1');
   for(error of [{code:'42501'},{code:'PGRST202'},{code:'XX000'}]){

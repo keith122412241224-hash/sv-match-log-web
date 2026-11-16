@@ -30,6 +30,7 @@ export function MatchupMatrix({
   opponentDecks,
   title = "対面勝率表",
   populationLabel,
+  showSupplementaryInfo = true,
   environmentMode = false,
   environmentName = "現在の環境"
 }: {
@@ -38,6 +39,7 @@ export function MatchupMatrix({
   opponentDecks: DeckLike[];
   title?: string;
   populationLabel?: string;
+  showSupplementaryInfo?: boolean;
   environmentMode?: boolean;
   environmentName?: string;
 }) {
@@ -273,11 +275,13 @@ export function MatchupMatrix({
             <header className="mb-3 flex items-end justify-between gap-4">
               <div>
                 <h2 className="text-xl font-bold text-ink">{title}</h2>
-                {populationLabel ? <p className="text-xs text-muted">{populationLabel}</p> : null}
-                {environmentMode ? <p className="text-xs text-muted">登録戦績ベース。双方が登録した同一対戦を含む場合があります。ミラーは「—」で表示します。</p> : null}
-                <p className="text-xs text-muted">
-                  {environmentName} / 作成日 {createdAt}
-                </p>
+                {showSupplementaryInfo ? <>
+                  {populationLabel ? <p className="text-xs text-muted">{populationLabel}</p> : null}
+                  {environmentMode ? <p className="text-xs text-muted">登録戦績ベース。双方が登録した同一対戦を含む場合があります。ミラーは「—」で表示します。</p> : null}
+                  <p className="text-xs text-muted">
+                    {environmentName} / 作成日 {createdAt}
+                  </p>
+                </> : null}
               </div>
               <div className="text-right text-xs font-bold text-muted">SV Match Log Web</div>
             </header>

@@ -93,6 +93,8 @@ async function main() {
     if(page.viewportSize().width<768)await preview.getByRole('button',{name:'閉じる',exact:true}).click();
     const exported=await page.evaluate(()=>{window.restoreMatrixExport();const svg=window.matrixExportSvg;if(!svg)return null;const doc=new DOMParser().parseFromString(svg,'image/svg+xml');return{text:doc.querySelector('foreignObject')?.textContent,cells:[...doc.querySelectorAll('td')].map(e=>e.textContent)};});
     assert.ok(exported);assert.doesNotMatch(exported.text,/指数|参考値|表示するデッキ|全選択|全解除/);assert.deepEqual(exported.cells,expectedCells,'PNG contains exactly the selected matrix');assert.ok(exported.cells.length);assert.equal(report.calls.length,before,'PNG does not refetch data');
+    if(new URL(page.url()).pathname==='/matrix')assert.doesNotMatch(exported.text,/対象登録戦績|登録戦績ベース|作成日|表示デッキの選択前/);
+    else assert.match(exported.text,/ゲスト入力 \/ 作成日/,'Guest export retains its existing header');
     for(const text of exported.cells)assert.ok(['未対戦','データなし','—'].includes(text)||/^\d+(?:\.\d+)?%\d+勝 \/ \d+戦$/.test(text),text);
     assert.equal(fs.readFileSync(path.join(out,name+'.png')).subarray(1,4).toString(),'PNG');
   }
@@ -116,9 +118,10 @@ async function main() {
     await page.waitForURL(u => u.pathname === '/matrix');
     await page.getByRole('heading', { name: '相性表', exact: true }).waitFor();
     await page.waitForFunction(value => document.querySelector('input[name=ranks]')?.value === value, selection.join(','));
-    await page.waitForFunction(expected => document.querySelector('.matrix-scrollbar h2')?.textContent === expected, scope==='all'?'環境全体の対面勝率表':'対面勝率表');
+    await page.waitForFunction(() => document.querySelector('.matrix-scrollbar h2')?.textContent === '対面勝率表');
     const source = rows.filter(r => r.environment_id === env && (r.user_id === who || (who && !guest && scope === 'all')) && selection.includes(h.atom(r)));
-    assert.match(await page.locator('main').innerText(), new RegExp(`対象登録戦績: ${source.length}件`));
+    assert.equal(await page.locator('.matrix-scrollbar header p').count(),0);
+    assert.doesNotMatch(await page.locator('.matrix-scrollbar').innerText(),/対象登録戦績|登録戦績ベース|作成日|表示デッキの選択前/);
     // Independent raw-row oracle: expand each registration into its two perspectives.
     const expanded = scope === 'all' ? source.flatMap(r => [r, {...r, my_deck_id:r.opponent_deck_id, opponent_deck_id:r.my_deck_id, my_archetype_id:r.opponent_archetype_id, opponent_archetype_id:r.my_archetype_id, result:r.result==='win'?'lose':'win'}]) : source;
     const cells = buildWinRateMatrix(expanded, h.decks, h.decks).flatMap(r => r.cells);
@@ -180,7 +183,7 @@ async function main() {
   await login(h.MEMBER);
   await page.goto(origin + '/matrix?' + new URLSearchParams({ environment: h.NEW, scope: 'all', ranks: custom.join(',') }), { waitUntil: 'networkidle' });
   await verify(custom,'all'); assert.equal(await page.locator('select[name=scope]').count(), 1); assert.equal(report.calls.at(-1).name, 'get_member_matchup_aggregates_v1');
-  assert.match(await page.locator('main').innerText(), /全ユーザーの戦績を、A対B・B対Aの両方向で統合/);
+  assert.match(await page.locator('main').innerText(), /全ユーザーの戦績を集計して表示しています。/);
   await page.screenshot({path:path.join(out,'member-all-desktop.png'),fullPage:true});
   await page.locator('select[name=scope]').selectOption('mine');await page.getByRole('button',{name:'表示',exact:true}).click();await settled();await verify(custom);
   await page.locator('select[name=scope]').selectOption('all');await page.getByRole('button',{name:'表示',exact:true}).click();await settled();await verify(custom,'all');

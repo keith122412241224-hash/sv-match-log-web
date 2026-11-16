@@ -81,24 +81,25 @@ const delay = ms => new Promise(r=>setTimeout(r,ms));
             assert.ok(errors.some(e=>/#418|hydration/i.test(e)),'original mismatch must reproduce');
             results.push({tz,route,serverTime,clientTime,errors});
           } else {
-            assert.ok(html.includes(expected),'JST label in server HTML');
+            assert.ok(!html.includes('作成日'),'no date label in server HTML');
             const body = await page.locator('main').innerText();
-            assert.ok(body.includes(route.includes('scope=all') ? '全ユーザー / ランク:' : '自分のみ / ランク:'));
-            assert.ok(body.includes('対象登録戦績: '+(route.includes('scope=all') ? 4 : 2)+'件'));
+            assert.doesNotMatch(body,/対象登録戦績|登録戦績ベース|作成日|表示デッキの選択前/);
+            assert.equal(await page.locator('.matrix-scrollbar header p').count(),0);
+            assert.equal(await page.locator('.matrix-scrollbar h2').textContent(),'対面勝率表');
             if (results.length === 0) {
               const waiting = page.waitForEvent('download');
               await page.getByRole('button', {name: /PNG/}).click();
               const download = await waiting;
               await download.saveAs(path.join(output, 'matrix-context.png'));
             }
-            assert.equal(await label(),expected);
-            await page.reload({waitUntil:'networkidle'});assert.equal(await label(),expected);
+            assert.equal(await label(),undefined);
+            await page.reload({waitUntil:'networkidle'});assert.equal(await label(),undefined);
             const marker=await page.evaluate(()=>window.__matrixDocumentId);
             await page.locator('nav a[href="/"]').click();await page.waitForURL(origin+'/');await page.waitForLoadState('networkidle');
             assert.equal(await page.evaluate(()=>window.__matrixDocumentId),marker,'Next Link navigation retains document');
             await page.goBack();await page.waitForURL(origin+route);await page.waitForLoadState('networkidle');
             assert.equal(await page.evaluate(()=>window.__matrixDocumentId),marker,'client history navigation retains document');
-            assert.equal(await label(),expected);
+            assert.equal(await label(),undefined);
             assert.deepEqual(errors,[]);
             results.push({tz,route,serverTime,clientTime,expected,hardReload:true,clientNavigation:true,errors});
           }

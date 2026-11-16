@@ -2,7 +2,7 @@ import { selectInitialEnvironmentId } from "@/lib/environment-selection";
 import { AppShell } from "@/components/AppShell";
 import { EmptyState } from "@/components/EmptyState";
 import { MatrixFilters } from "@/components/matrix/MatrixFilters";
-import { ATOMIC_RANK_GROUPS, getRankSelectionLabel, parseRankSelection, serializeRankSelection } from "@/lib/rank-selection";
+import { parseRankSelection, serializeRankSelection } from "@/lib/rank-selection";
 import { MatchupMatrix } from "@/components/MatchupMatrix";
 import { buildWinRateMatrixFromAggregates } from "@/lib/matchup-aggregates";
 import { buildEnvironmentMatrix } from "@/lib/environment-matrix";
@@ -33,18 +33,11 @@ export default async function MatrixPage({
         : getMatchupAggregates(selectedEnvironmentId, false, selectedRanks)
       : { version: 1 as const, totalMatches: 0, groups: [] }
   ]);
-  const selectedEnvironmentName = environments.find((environment) => environment.id === selectedEnvironmentId)?.name ?? "環境なし";
   // Only display metadata crosses the server/client boundary.
   const matrixDecks = (archetypes.length > 0 ? archetypes : decks).map(({ id, name, class_name }) => ({ id, name, class_name }));
   const rows = selectedScope === "all"
     ? buildEnvironmentMatrix(aggregates, matrixDecks)
     : buildWinRateMatrixFromAggregates(aggregates, matrixDecks, matrixDecks);
-
-  const rankLabel = selectedScope === "all" && getRankSelectionLabel(selectedRanks).startsWith("カスタム")
-    ? ATOMIC_RANK_GROUPS.flatMap(group => group.options).filter(option => selectedRanks.includes(option.value)).map(option => option.fullLabel).join("、")
-    : getRankSelectionLabel(selectedRanks);
-  const populationLabel = `${selectedScope === "all" ? "環境全体（全ユーザー）" : "自分のみ"} / ランク: ${rankLabel} / 対象登録戦績: ${aggregates.totalMatches}件（表示デッキの選択前）。ランクは登録者本人の対戦時点の値です。`;
-  const createdAtLabel = new Date().toLocaleDateString("ja-JP", { timeZone: "Asia/Tokyo" });
 
   return (
     <AppShell>
@@ -61,7 +54,7 @@ export default async function MatrixPage({
           </div>
           <p className="mt-1 text-sm text-muted">
             {selectedScope === "all"
-              ? "SV Match Logに登録された全ユーザーの戦績を、A対B・B対Aの両方向で統合しています。"
+              ? "SV Match Logに登録された全ユーザーの戦績を集計して表示しています。"
               : "自分が登録した戦績だけを集計しています。"}
           </p>
           {!canUseAllUsers && params.scope === "all" ? <p className="mt-1 text-sm text-muted">全ユーザーの相性表には会員ログインが必要です。</p> : null}
@@ -84,7 +77,7 @@ export default async function MatrixPage({
             action="デッキ管理へ"
           />
         ) : (
-          <MatchupMatrix rows={rows} opponentDecks={matrixDecks} environmentMode={selectedScope === "all"} title={selectedScope === "all" ? "環境全体の対面勝率表" : undefined} environmentName={selectedEnvironmentName} createdAtLabel={createdAtLabel} populationLabel={populationLabel} />
+          <MatchupMatrix rows={rows} opponentDecks={matrixDecks} environmentMode={selectedScope === "all"} showSupplementaryInfo={false} />
         )}
       </div>
     </AppShell>
