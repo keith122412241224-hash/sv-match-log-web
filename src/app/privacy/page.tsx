@@ -1,3 +1,4 @@
+import { ThemeSelect } from "@/components/ThemeProvider";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { ShieldCheck } from "lucide-react";
@@ -217,11 +218,12 @@ export default function PrivacyPage() {
   return (
     <main className="min-h-screen bg-surface text-ink">
       <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-3">
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3">
           <Link className="flex items-center gap-2 font-bold" href="/">
             <BrandMark className="size-10" />
             <span>SV Match Log Web</span>
           </Link>
+          <ThemeSelect />
           <Link className="rounded-md px-3 py-2 text-sm font-semibold text-muted hover:bg-slate-100 hover:text-ink" href="/">
             トップへ
           </Link>

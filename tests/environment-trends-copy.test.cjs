@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),cp=require('node:child_process'),path=require('node:path'),Module=require('node:module'),ts=require('typescript');
+const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),cp=require('./historical-scope-process.cjs'),path=require('node:path'),Module=require('node:module'),ts=require('typescript');
 const React=require('react'),{renderToStaticMarkup:render}=require('react-dom/server');
 const scope=require('./environment-trends-copy-scope.cjs');
 test('trend copy removal is limited to three paragraphs and their unused formatter; chart, fetch, calculations and all other product files stay exact',()=>{
@@ -22,7 +22,11 @@ test('both metrics retain the complete rendered controls/chart/details across em
     function html(component){states=[mode==='empty'?[]:['deck-a'],metric,result,0];return render(component({selection,catalog,active:true}));}
     const old=html(before),current=html(after);
     const expected=old.replace(/<p class="text-xs leading-relaxed text-muted">各日付[\s\S]*?<\/p>/,'').replace(/<p class="text-xs text-muted">対象登録戦績10件未満[\s\S]*?<\/p>/,'').replace(/<p class="text-xs text-muted">集計対象：[\s\S]*?<\/p>/,'');
-    assert.equal(normalizeIds(current),normalizeIds(expected));
+    // Resolve only the new theme lightness token to the original light value.
+    // Keep the full controls/chart/error/details comparison, including all colors.
+    const lightToken=fs.readFileSync('src/app/theme.css','utf8').match(/--chart-lightness:\s*(\d+%)/)[1];
+    assert.equal(lightToken,'36%');
+    assert.equal(normalizeIds(current.replaceAll('var(--chart-lightness)',lightToken)),normalizeIds(expected.replaceAll('var(--chart-lightness)',lightToken)));
     assert.doesNotMatch(current,/各日付を含む|環境開始前は|当日は集計対象|観測がない箇所|両プレイヤーの視点|ミラー対戦は|対象登録戦績10件未満|日付ごとの詳細で件数|集計対象：/);
     if(mode==='success'){assert.match(current,/詳細を見る日付/);assert.match(current,/data-trend-deck="deck-a"/);if(metric==='winrate')assert.match(current,/サンプル不足/,'detail sample labels remain');}
   }

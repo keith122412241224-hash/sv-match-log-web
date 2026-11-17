@@ -50,11 +50,14 @@ test('arbitrary minimum includes exact boundaries per matchup without changing g
  }
 });
 test('matchup change is limited to reviewed presentation/export files; aggregates, APIs and all other product files are unchanged',()=>{
- const cp=require('node:child_process'),scope=require('./analysis-matchups-scope.cjs');
+ const cp=require('./historical-scope-process.cjs'),scope=require('./analysis-matchups-scope.cjs');
  Object.keys(scope.hashes).forEach(scope.assertReviewed);
  const changed=cp.execFileSync('git',['diff','--name-only',scope.base,'--','src','supabase','package.json','package-lock.json'],{encoding:'utf8'}).trim().split('\n').filter(Boolean);
  const matrix=require('./environment-matrix-scope.cjs');
- const unchangedSinceBase=f=>Object.hasOwn(matrix.hashes,f)&&!matrix.added.has(f)&&matrix.readBeforeEnvironmentMatrix(f)===cp.execFileSync('git',['show',scope.base+':'+f],{encoding:'utf8'}).replaceAll('\r\n','\n');
+ // The later responsive-density revision also changed AppShell. Its existing
+ // exact hash is checked by readBeforeEnvironmentMatrix's density projection.
+ const density=require('./matrix-density-scope.cjs');
+ const unchangedSinceBase=f=>(Object.hasOwn(matrix.hashes,f)||Object.hasOwn(density.hashes,f))&&!matrix.added.has(f)&&matrix.readBeforeEnvironmentMatrix(f)===cp.execFileSync('git',['show',scope.base+':'+f],{encoding:'utf8'}).replaceAll('\r\n','\n');
  assert.deepEqual(require('./security-audit-scope.cjs').excludeReviewedSecurityChanges(changed).filter(f=>!scope.added.has(f)&&!unchangedSinceBase(f)).sort(),Object.keys(scope.hashes).filter(f=>!scope.added.has(f)).sort());
  const previous=new Set(cp.execFileSync('git',['ls-tree','-r','--name-only',scope.base,'--','src','supabase'],{encoding:'utf8'}).trim().split('\n'));
  const inventory=cp.execFileSync('git',['ls-files','--cached','--others','--exclude-standard','--','src','supabase'],{encoding:'utf8'}).trim().split('\n').filter(Boolean);

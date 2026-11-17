@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const { test } = require('node:test'), assert = require('node:assert/strict'), cp = require('node:child_process');
+const { test } = require('node:test'), assert = require('node:assert/strict'), cp = require('./historical-scope-process.cjs');
 const { base, hashes, changed, added, readCurrent, assertReviewed } = require('./environment-dashboard-v4-scope.cjs');
 const git = args => cp.execFileSync('git', args, { encoding: 'utf8', maxBuffer: 64e6 }).replaceAll('\r\n', '\n');
 test('v4 scope pins every reviewed change and addition; all previous SQL, RLS, grants, save actions, ordinary aggregates and dependencies remain byte-identical', () => {

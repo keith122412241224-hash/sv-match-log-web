@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),cp=require('node:child_process'),{createHash}=require('node:crypto');
+const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),cp=require('./historical-scope-process.cjs'),{createHash}=require('node:crypto');
 test('Phase 2 only changes candidate actions/UI, private receipt migration; Phase 1 and all unrelated product stay byte-identical',()=>{
  const {base,hashes,added,readBeforeSuggestionApproval}=require('./suggestion-approval-scope.cjs');
  const expected=['src/app/admin/actions.ts','src/app/admin/page.tsx','src/components/admin/SuggestionsPanel.tsx',...added];assert.deepEqual(Object.keys(hashes).sort(),expected.filter(f=>!require('./member-matrix-scope.cjs').added.has(f)).sort());

@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 const { test } = require('node:test'), assert = require('node:assert/strict');
-const cp = require('node:child_process');
+const cp = require('./historical-scope-process.cjs');
 const { readBeforeRouteLoading } = require('./route-loading-scope.cjs');
 test('match entry UX preserves every other Production source, DB migration, API action and dependency', () => {
   const base = '1756a2e3432256b143a0a036a7c790e48bb59624';

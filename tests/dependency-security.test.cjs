@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const {test}=require('node:test'),assert=require('node:assert/strict'),cp=require('node:child_process'),{createHash}=require('node:crypto'),sharp=require('sharp');
+const {test}=require('node:test'),assert=require('node:assert/strict'),cp=require('./historical-scope-process.cjs'),{createHash}=require('node:crypto'),sharp=require('sharp');
 const {base,hashes,read}=require('./dependency-security-scope.cjs');
 test('QA2-008 validates the exact dependency patch and preserves every application and SQL file',()=>{
  const git=args=>cp.execFileSync('git',args,{encoding:'utf8',maxBuffer:64e6}).replaceAll('\r\n','\n');

@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const { test } = require('node:test'), assert = require('node:assert/strict'), cp = require('node:child_process');
+const { test } = require('node:test'), assert = require('node:assert/strict'), cp = require('./historical-scope-process.cjs');
 const { base, hashes, added, readBeforeCreator } = require('./creator-scope.cjs');
 test('creator scope: existing auth/RPC/SQL/aggregates/pages unchanged except the pinned admin entry and sharp dependency', () => {
   const git = args => cp.execFileSync('git', args, { encoding: 'utf8', maxBuffer: 64e6 }).replaceAll('\r\n', '\n');

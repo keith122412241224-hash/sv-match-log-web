@@ -7,8 +7,8 @@
 }
 
 body {
-  background: #f7f8fb;
-  color: #1d2433;
+  background: rgb(var(--surface));
+  color: rgb(var(--ink));
 }
 
 html,

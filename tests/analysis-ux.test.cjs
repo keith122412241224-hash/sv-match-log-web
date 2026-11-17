@@ -60,7 +60,7 @@ test('analysis description cleanup removes only two paragraphs and retains colla
 });
 
 test('Analysis UX scope pins only presentation and keeps all existing server/API/SQL/auth/aggregate/dependency files identical',()=>{
- const cp=require('node:child_process'),s=require('./analysis-ux-scope.cjs'),git=(...args)=>cp.execFileSync('git',args,{encoding:'utf8'}).replaceAll('\r\n','\n');
+ const cp=require('./historical-scope-process.cjs'),s=require('./analysis-ux-scope.cjs'),git=(...args)=>cp.execFileSync('git',args,{encoding:'utf8'}).replaceAll('\r\n','\n');
  for(const f of Object.keys(s.hashes))s.assertReviewed(f);
  const files=git('ls-tree','-r','--name-only',s.base).trim().split('\n').filter(f=>/^(src|supabase)\//.test(f)||/^package(-lock)?\.json$/.test(f));
  for(const f of files)assert.equal(s.readBeforeAnalysisUx(f),git('show',s.base+':'+f),f);

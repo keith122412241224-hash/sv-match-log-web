@@ -63,7 +63,7 @@ test('analysis controls: independent IDs, empty all, legacy values and admin sco
  }
 });
 test('deck selection scope: exact five UI files; every server, aggregation, DB, rank, Guest persistence and dependency byte unchanged',()=>{
- const s=require('./deck-select-dialog-scope.cjs'),cp=require('node:child_process'),git=(...args)=>cp.execFileSync('git',args,{encoding:'utf8'}).replaceAll('\r\n','\n');
+ const s=require('./deck-select-dialog-scope.cjs'),cp=require('./historical-scope-process.cjs'),git=(...args)=>cp.execFileSync('git',args,{encoding:'utf8'}).replaceAll('\r\n','\n');
  assert.deepEqual(Object.keys(s.hashes).sort(),['src/components/ClassIcon.tsx','src/components/DeckSelectDialog.tsx','src/components/analysis/AnalysisDashboard.tsx','src/components/analysis/AnalysisFilters.tsx','src/components/matches/QuickMatchForm.tsx'].sort());
  for(const f of Object.keys(s.hashes))s.assertReviewed(f);
  const files=git('ls-tree','-r','--name-only',s.base).trim().split('\n').filter(f=>/^(src|supabase)\//.test(f)||/^package(-lock)?\.json$/.test(f));

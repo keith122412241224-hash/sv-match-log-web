@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const {test}=require('node:test'),assert=require('node:assert/strict'),cp=require('node:child_process');
+const {test}=require('node:test'),assert=require('node:assert/strict'),cp=require('./historical-scope-process.cjs');
 const {base,hashes,added,readBeforeBoard}=require('./creator-board-scope.cjs');
 test('creator board scope: only Creator UI/API/data adapter; all existing auth, SQL, RPC, aggregation and ordinary pages unchanged',()=>{
  const git=args=>cp.execFileSync('git',args,{encoding:'utf8',maxBuffer:64e6}).replaceAll('\r\n','\n');

@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const { test } = require('node:test'), assert = require('node:assert/strict'), cp = require('node:child_process');
+const { test } = require('node:test'), assert = require('node:assert/strict'), cp = require('./historical-scope-process.cjs');
 const scope = require('./admin-tools-cleanup-scope.cjs');
 
 test('admin cleanup changes presentation only; report, OBS, auth, all other product code and migrations remain intact', () => {

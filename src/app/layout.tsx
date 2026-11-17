@@ -4,6 +4,9 @@ import { Suspense } from "react";
 import { Analytics } from "@vercel/analytics/next";
 import { GlobalPendingIndicator } from "@/components/GlobalPendingIndicator";
 import "./globals.css";
+import "./theme.css";
+import { ThemeProvider } from "@/components/ThemeProvider";
+import { THEME_BOOTSTRAP } from "@/lib/theme";
 
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://sv-match-log-web.vercel.app").replace(/\/$/, "");
 const GOOGLE_SITE_VERIFICATION = process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION;
@@ -56,12 +59,13 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <html lang="ja">
+    <html lang="ja" suppressHydrationWarning>
+      <head><script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP }} /></head>
       <body>
         <Suspense fallback={null}>
           <GlobalPendingIndicator />
         </Suspense>
-        {children}
+        <ThemeProvider>{children}</ThemeProvider>
         <Analytics />
       </body>
     </html>

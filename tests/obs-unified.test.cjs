@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const {test}=require('node:test'),assert=require('node:assert/strict'),cp=require('node:child_process');
+const {test}=require('node:test'),assert=require('node:assert/strict'),cp=require('./historical-scope-process.cjs');
 const {parseObsSet,obsOptions,selectedObsContents,obsCompositionUrl}=require('../src/lib/creator/obs-set');
 const {uuid}=require('./creator-db.cjs');
 test('seven content combinations preserve relative conditions and canonical ranks; reject invalid and empty configurations',()=>{

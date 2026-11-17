@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const { test } = require('node:test'), assert = require('node:assert/strict'), cp = require('node:child_process');
+const { test } = require('node:test'), assert = require('node:assert/strict'), cp = require('./historical-scope-process.cjs');
 const scope = require('./admin-tools-navigation-scope.cjs');
 test('admin navigation changes only the reviewed Creator entrance; auth, tabs, report, OBS settings and every other product file remain exact', () => {
   const git = (...args) => cp.execFileSync('git', args, { encoding: 'utf8', maxBuffer: 64e6 }).replaceAll('\r\n', '\n');

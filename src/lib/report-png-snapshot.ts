@@ -1,9 +1,11 @@
 /** Only used by Analysis/period-report exports; never mutates the visible source. */
 export function createReportPngSnapshot(source: HTMLElement, minimumWidth = 0) {
   const snapshot = source.cloneNode(true) as HTMLElement;
+  snapshot.dataset.theme = "light";
   const host = document.createElement("div");
   host.setAttribute("aria-hidden", "true");
   host.dataset.reportPng = "";
+  host.dataset.theme = "light";
   host.inert = true;
   Object.assign(host.style, {
     position: "fixed", left: "-100000px", top: "0", pointerEvents: "none",

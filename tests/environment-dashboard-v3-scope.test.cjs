@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),cp=require('node:child_process');
+const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),cp=require('./historical-scope-process.cjs');
 const {base,changed,added}=require('./environment-dashboard-v3-scope.cjs');
 const git=args=>cp.execFileSync('git',args,{encoding:'utf8',maxBuffer:64e6}).replaceAll('\r\n','\n');
 test('Environment v3 changes only its own display/loading paths and adds one RPC; all old SQL, RLS, analysis, matrix and dependencies unchanged',()=>{

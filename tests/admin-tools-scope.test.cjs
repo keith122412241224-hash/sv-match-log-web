@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const { test } = require('node:test'), assert = require('node:assert/strict'), cp = require('node:child_process');
+const { test } = require('node:test'), assert = require('node:assert/strict'), cp = require('./historical-scope-process.cjs');
 const { base, hashes, readBeforeAdminTools } = require('./admin-tools-scope.cjs');
 test('admin tools changes only two reviewed UI files; all routes, auth, queries, aggregates, SQL and dependencies stay byte-identical', () => {
   const git = args => cp.execFileSync('git', args, { encoding: 'utf8', maxBuffer: 64e6 }).replaceAll('\r\n', '\n');

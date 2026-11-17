@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const {test}=require('node:test'),assert=require('assert/strict'),cp=require('child_process'),{createHash}=require('crypto');
+const {test}=require('node:test'),assert=require('assert/strict'),cp=require('./historical-scope-process.cjs'),{createHash}=require('crypto');
 const {base,hashes,added,read,readBeforeAnalysisDates}=require('./analysis-date-scope.cjs');
 test('QA2-005 pins date validation only and preserves every other source, SQL and dependency',()=>{
  const git=args=>cp.execFileSync('git',args,{encoding:'utf8',maxBuffer:64e6}).replaceAll('\r\n','\n');

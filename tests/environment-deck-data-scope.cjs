@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const cp=require('node:child_process'),assert=require('node:assert/strict'),{createHash}=require('node:crypto');
+const cp=require('./historical-scope-process.cjs'),assert=require('node:assert/strict'),{createHash}=require('node:crypto');
 const base='19abda5448efc18fabbd58e5b92add01fd38426a',file='src/components/environment/EnvironmentData.tsx',hash='03f740bdc27b4f8737e3ff1bc4f9fbebf0df9278a821daa960735201971e8dc7';
 const read=require('./match-input-environment-scope.cjs').readBeforeMatchInput;
 const git=(...args)=>cp.execFileSync('git',args,{encoding:'utf8',maxBuffer:64e6}).replaceAll('\r\n','\n');

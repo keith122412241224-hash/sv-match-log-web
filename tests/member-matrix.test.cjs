@@ -63,7 +63,7 @@ test('environment custom ranks still filter the RPC without export notes; RPC er
   error=null;archetypes=[];
 });
 test('member matrix scope preserves all existing SQL/auth/analysis/renderer/dependencies byte-for-byte',()=>{
-  const cp=require('node:child_process'),{createHash}=require('node:crypto');
+  const cp=require('./historical-scope-process.cjs'),{createHash}=require('node:crypto');
   const s=require('./member-matrix-scope.cjs');
   const git=args=>cp.execFileSync('git',args,{encoding:'utf8',maxBuffer:64e6}).replaceAll('\r\n','\n');
   const files=git(['ls-tree','-r','--name-only',s.base]).trim().split('\n').filter(f=>/^(src|supabase)\//.test(f)||/^package(-lock)?\.json$/.test(f));

@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 const { legacySourcePath } = require('./legacy-source.cjs');
-const {test}=require('node:test'),assert=require('node:assert/strict'),cp=require('node:child_process'),path=require('node:path'),ts=require('typescript');
+const {test}=require('node:test'),assert=require('node:assert/strict'),cp=require('./historical-scope-process.cjs'),path=require('node:path'),ts=require('typescript');
 const base='e430a568dedd847aa38e34b90c7a45e9a63752c8';
 const git=args=>cp.execFileSync('git',['-c','safe.directory='+process.cwd().replaceAll('\\','/'),...args],{encoding:'utf8'});
 const normalized=s=>s.replaceAll('\r\n','\n');

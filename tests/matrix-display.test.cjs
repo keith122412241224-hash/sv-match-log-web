@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const {test}=require('node:test'),assert=require('node:assert/strict'),cp=require('node:child_process'),Module=require('node:module'),path=require('node:path'),ts=require('typescript');
+const {test}=require('node:test'),assert=require('node:assert/strict'),cp=require('./historical-scope-process.cjs'),Module=require('node:module'),path=require('node:path'),ts=require('typescript');
 const React=require('react'),{renderToStaticMarkup:render}=require('react-dom/server');
 const {MatchupMatrix}=require('../src/components/MatchupMatrix');
 const {buildWinRateMatrix}=require('../src/lib/analytics');

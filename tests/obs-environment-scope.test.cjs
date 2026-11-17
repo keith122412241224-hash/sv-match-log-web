@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const { test } = require('node:test'), assert = require('node:assert/strict'), cp = require('node:child_process'), { createHash } = require('node:crypto');
+const { test } = require('node:test'), assert = require('node:assert/strict'), cp = require('./historical-scope-process.cjs'), { createHash } = require('node:crypto');
 const { base, hashes, changed, added, read, readBeforeObs } = require('./obs-environment-scope.cjs');
 test('OBS changes only reviewed admin presentation; existing actions, normal pages, SQL/RPC/RLS, aggregation and dependencies are byte-identical', () => {
   const git = args => cp.execFileSync('git', args, { encoding: 'utf8', maxBuffer: 64e6 }).replaceAll('\r\n', '\n');

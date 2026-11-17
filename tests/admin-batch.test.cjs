@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const {test}=require('node:test'),assert=require('node:assert/strict'),cp=require('node:child_process'),{createHash}=require('node:crypto');
+const {test}=require('node:test'),assert=require('node:assert/strict'),cp=require('./historical-scope-process.cjs'),{createHash}=require('node:crypto');
 const {batchResult,batchSummary,readBatchValues,sameBatchValues}=require('../src/lib/admin-batch');
 const {runAdminBatch}=require('../src/lib/admin-batch-server');
 const id='00000000-0000-4000-8000-000000000001';

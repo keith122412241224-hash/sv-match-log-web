@@ -1,3 +1,4 @@
+import { ThemeSelect } from "@/components/ThemeProvider";
 import type { Metadata } from "next";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
@@ -288,13 +289,14 @@ function SignedOutFooterActions() {
 function GuideHeader({ signedIn }: { signedIn: boolean }) {
   return (
     <header className="border-b border-slate-200 bg-white">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-3 py-3 sm:px-4">
+      <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 px-3 py-3 sm:px-4">
         <Link className="flex min-w-0 items-center gap-2 font-bold text-ink" href="/">
           <BrandMark className="size-9 shrink-0" />
           <span className="hidden truncate sm:inline">SV Match Log Web</span>
         </Link>
+        <ThemeSelect />
         {signedIn ? (
-          <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+          <div className="flex flex-wrap items-center gap-1 sm:gap-2">
             <Link className="rounded-md px-2 py-2 text-sm font-semibold text-muted hover:bg-slate-100 hover:text-ink sm:px-3" href="/guide">
               使い方
             </Link>
@@ -305,7 +307,7 @@ function GuideHeader({ signedIn }: { signedIn: boolean }) {
             </form>
           </div>
         ) : (
-          <nav className="flex shrink-0 items-center gap-1 sm:gap-2" aria-label="公開ページ">
+          <nav className="flex flex-wrap items-center gap-1 sm:gap-2" aria-label="公開ページ">
             <Link className="rounded-md px-2 py-2 text-sm font-semibold text-muted hover:bg-slate-100 hover:text-ink sm:px-3" href="/guest">
               ゲストで試す
             </Link>

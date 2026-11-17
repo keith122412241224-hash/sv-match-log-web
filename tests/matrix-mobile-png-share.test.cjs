@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const {test}=require('node:test'),assert=require('node:assert/strict'),cp=require('node:child_process');
+const {test}=require('node:test'),assert=require('node:assert/strict'),cp=require('./historical-scope-process.cjs');
 const {validateMatrixPngSize,matrixPngFile,MATRIX_PNG_TOO_LARGE}=require('../src/lib/matrix-png');
 test('matrix raster allocation: mobile boundaries, invalid dimensions and desktop 30-deck budget',()=>{
  assert.deepEqual(validateMatrixPngSize(1000,900,true),{width:1000,height:900,pixelRatio:2,canvasWidth:2000,canvasHeight:1800});

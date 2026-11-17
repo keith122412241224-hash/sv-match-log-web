@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('node:fs'), cp = require('node:child_process');
+const fs = require('node:fs'), cp = require('./historical-scope-process.cjs');
 const { base, removed, readBeforeRouteLoading } = require('./route-loading-scope.cjs');
 test('route loading UX changes only the two fallbacks and exact Toast/Indicator positioning; all data, timers and prefetch remain unchanged', () => {
   const git = args => cp.execFileSync('git', args, { encoding: 'utf8', maxBuffer: 64e6 }).replaceAll('\r\n', '\n');

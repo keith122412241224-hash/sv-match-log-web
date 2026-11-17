@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const {test}=require('node:test'),assert=require('node:assert/strict'),cp=require('node:child_process');
+const {test}=require('node:test'),assert=require('node:assert/strict'),cp=require('./historical-scope-process.cjs');
 const {base,hashes,added,readBeforeUX}=require('./creator-ux-scope.cjs');
 test('UX scope: only creator presentation/API and additive migration; prior schema, RLS, aggregates, dependencies untouched',()=>{
  const git=args=>cp.execFileSync('git',args,{encoding:'utf8',maxBuffer:64e6}).replaceAll('\r\n','\n');

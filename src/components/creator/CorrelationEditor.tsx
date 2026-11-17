@@ -1,4 +1,5 @@
 "use client";
+import { ThemeSelect } from "@/components/ThemeProvider";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
@@ -88,7 +89,7 @@ export function CorrelationEditor({ tier, initial, images: initialImages, librar
   }
   const obsQuery = transparent ? "?transparent=1" : "";
   return <main className={styles.page}>
-    <header className={styles.header}><div><p className={styles.muted}>相関図メーカー</p><h1>{work ? "相関図を編集" : "新しい相関図"}</h1><p className="break-words">{tier ? `作成元：${tier.document.title || "無題のTier表"}` : "画像を配置して、自由に相性をつなげます。"}</p></div><div className={styles.toolbar}>{tier && <Link className={styles.button} href={`/admin/creator/tier?work=${tier.id}`} onClick={e => { if (busy || !confirmLeave()) e.preventDefault(); }}>Tier表に戻る</Link>}<Link className={styles.button} href="/admin/creator/correlation" onClick={e=>{if(busy||!confirmLeave())e.preventDefault();}}>相関図一覧へ</Link></div></header>
+    <header className={styles.header}><div><p className={styles.muted}>相関図メーカー</p><h1>{work ? "相関図を編集" : "新しい相関図"}</h1><p className="break-words">{tier ? `作成元：${tier.document.title || "無題のTier表"}` : "画像を配置して、自由に相性をつなげます。"}</p></div><div className={styles.toolbar}>{tier && <Link className={styles.button} href={`/admin/creator/tier?work=${tier.id}`} onClick={e => { if (busy || !confirmLeave()) e.preventDefault(); }}>Tier表に戻る</Link>}<Link className={styles.button} href="/admin/creator/correlation" onClick={e=>{if(busy||!confirmLeave())e.preventDefault();}}>相関図一覧へ</Link></div><ThemeSelect /></header>
     {notice && <p role={notice.error ? "alert" : "status"} className={`${styles.notice} ${notice.error ? styles.error : ""}`}>{notice.text}</p>}
     <div className={styles.toolbar} aria-busy={busy}>
       <button className={styles.primary} disabled={busy} onClick={() => void run(async () => {

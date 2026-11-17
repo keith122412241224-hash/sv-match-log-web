@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const { test } = require('node:test'), assert = require('node:assert/strict'), cp = require('node:child_process');
+const { test } = require('node:test'), assert = require('node:assert/strict'), cp = require('./historical-scope-process.cjs');
 const { createHash } = require('node:crypto');
 const { base, hashes, added, laterAdded, read, readBeforeGuestImport } = require('./guest-import-scope.cjs');
 test('guest import changes only its action, type and additive migration; all previous SQL and unrelated features preserved', () => {

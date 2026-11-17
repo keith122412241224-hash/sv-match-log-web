@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const {test}=require('node:test'),assert=require('node:assert/strict'),cp=require('node:child_process'),{createHash}=require('node:crypto');
+const {test}=require('node:test'),assert=require('node:assert/strict'),cp=require('./historical-scope-process.cjs'),{createHash}=require('node:crypto');
 const {parseCreatorCursor,mergeCreatorImages,creatorRead}=require('../src/lib/creator/pagination');
 const id='00000000-0000-4000-8000-000000000001';
 test('Creator cursor preserves microseconds, UUID tie-break and timezone offsets',()=>{

@@ -4,6 +4,7 @@ import { getPeriodReportRankLabel } from "@/lib/period-report-rank";
 import { parsePeriodReportEnvironment } from "@/lib/period-report-environment";
 import { PeriodReportRankProvider } from "@/components/admin/PeriodReportRankContext";
 import Link from "next/link";
+import { ThemeSelect } from "@/components/ThemeProvider";
 import { redirect } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
 import { WeeklyReportInteractiveSections } from "@/components/admin/WeeklyReportInteractiveSections";
@@ -45,6 +46,7 @@ export default async function AdminWeeklyReportPage({
     return (
       <main className="min-h-screen bg-surface px-4 py-6">
         <div className="mx-auto max-w-7xl">
+          <div className="mb-4 flex justify-end"><ThemeSelect /></div>
           <p className="rounded-md border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-800">
             {fetchError ?? "期間レポートを表示できません。"}
           </p>
@@ -66,6 +68,7 @@ export default async function AdminWeeklyReportPage({
             <h1 className="text-2xl font-bold text-ink">期間環境レポート</h1>
           </div>
           <div className="flex flex-wrap gap-2">
+            <ThemeSelect />
             <Link className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-ink" href="/admin">
               管理画面へ
             </Link>

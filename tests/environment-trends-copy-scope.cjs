@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const fs=require('node:fs'),cp=require('node:child_process'),assert=require('node:assert/strict');
+const cp=require('node:child_process'),assert=require('node:assert/strict');
 const base='c2d29dc99e986bdf215f2cac94c6b465390910fb',file='src/components/environment/EnvironmentTrends.tsx';
-const read=f=>fs.readFileSync(f,'utf8').replaceAll('\r\n','\n');
+const read=require('./theme-source.cjs').readBeforeTheme;
 function original(){return cp.execFileSync('git',['show',base+':'+file],{encoding:'utf8'}).replaceAll('\r\n','\n');}
 function withoutSupplementaryCopy(source){
   return source.replace('import { formatJstDateTime } from "@/lib/utils";\n','')

@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const { test } = require('node:test'), assert = require('node:assert/strict'), cp = require('node:child_process');
+const { test } = require('node:test'), assert = require('node:assert/strict'), cp = require('./historical-scope-process.cjs');
 const scope = require('./admin-obs-direct-access-scope.cjs');
 test('direct environment OBS restores only existing settings and preserves every other product file and migration', () => {
   scope.assertReviewed();

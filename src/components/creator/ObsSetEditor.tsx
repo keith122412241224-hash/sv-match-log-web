@@ -1,4 +1,5 @@
 "use client";
+import { ThemeSelect } from "@/components/ThemeProvider";
 import Link from "next/link";
 import { useRef, useState } from "react";
 import { OBS_CONTENTS, OBS_LABELS, obsOptions, selectedObsContents, obsCompositionUrl, parseObsSet, type ObsSet, type ObsContent } from "@/lib/creator/obs-set";
@@ -60,7 +61,7 @@ export function ObsSetEditor({ initial, environments }: { environments: Environm
   const canSave = !!name.trim() && enabled.length > 0 && (!enabled.includes("environment") || !!environmentId) && (!enabled.includes("tier") || !!tierId) && (!enabled.includes("correlation") || !!correlationId);
   const pager = (label: string, list: typeof tiers | typeof correlations | typeof sets) => <CreatorPager label={label} index={list.index} hasNext={!!list.page.nextCursor} busy={busy} loading={list.loading} error={list.error} onPage={i=>void run(()=>list.load(i))} onRetry={()=>void run(()=>list.load(list.retryTarget))} />;
   return <main className={styles.page}>
-    <header className={styles.header}><h1>OBS表示管理</h1><Link className={styles.button} href="/admin?section=tools" aria-disabled={busy} onClick={e=>{if(busy||active.current||!confirmLeave())e.preventDefault();}}>運用ツールへ戻る</Link></header>
+    <header className={styles.header}><h1>OBS表示管理</h1><Link className={styles.button} href="/admin?section=tools" aria-disabled={busy} onClick={e=>{if(busy||active.current||!confirmLeave())e.preventDefault();}}>運用ツールへ戻る</Link><ThemeSelect /></header>
     {notice && <p role={notice.error ? "alert" : "status"} className={notice.error ? styles.error : styles.notice}>{notice.text}</p>}
     <section className={styles.panel} aria-label="セット編集"><div className={styles.toolbar}><button disabled={busy} onClick={()=>{if(confirmLeave()){select(null);setNotice(null);}}}>新しいセット</button><span>{dirty ? "未保存の変更あり" : current ? "保存済み" : "新規セット（未保存）"}</span></div>
       <label>セット名<input value={name} maxLength={120} disabled={busy} onChange={e=>{setName(e.target.value);setDirty(true);}} /></label>

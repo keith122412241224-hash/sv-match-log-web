@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const {test}=require('node:test'),assert=require('node:assert/strict'),cp=require('node:child_process'),{createHash}=require('node:crypto');
+const {test}=require('node:test'),assert=require('node:assert/strict'),cp=require('./historical-scope-process.cjs'),{createHash}=require('node:crypto');
 const {base,hashes,added,read,readBeforeNormalRequest}=require('./normal-match-request-scope.cjs');
 test('normal request fix preserves all previous SQL, guest imports, admin RLS, aggregation, creator and dependencies',()=>{
  const git=args=>cp.execFileSync('git',args,{encoding:'utf8',maxBuffer:64e6}).replaceAll('\r\n','\n');

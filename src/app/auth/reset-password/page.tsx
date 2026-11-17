@@ -1,3 +1,4 @@
+import { ThemeSelect } from "@/components/ThemeProvider";
 import { updatePassword } from "@/app/actions";
 import { FieldLabel, Input } from "@/components/Field";
 import { SubmitButton } from "@/components/SubmitButton";
@@ -12,6 +13,7 @@ export default async function ResetPasswordPage({
   return (
     <main className="grid min-h-screen place-items-center bg-surface px-4 py-10">
       <section className="w-full max-w-md rounded-md border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="mb-4 flex justify-end"><ThemeSelect /></div>
         <h1 className="text-xl font-bold text-ink">パスワード再設定</h1>
         <p className="mt-2 text-sm leading-6 text-muted">新しいパスワードを設定すると、そのままログインします。</p>
         <form action={updatePassword} className="mt-6 grid gap-4">

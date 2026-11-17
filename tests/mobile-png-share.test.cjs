@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),ts=require('typescript'),cp=require('node:child_process');
+const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),ts=require('typescript'),cp=require('./historical-scope-process.cjs');
 const {unzipSync}=require('fflate');
 
 // Boundary fakes exercise the real session/pagination/download code. Actual PNG rendering is

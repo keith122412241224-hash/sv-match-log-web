@@ -55,7 +55,7 @@ test('page renders reused multi-selector, old URLs and canonical ranks; both mem
 });
 
 test('matrix multi-rank changes only four pinned product files; SQL, analysis, OBS, Creator, auth, rates, renderer and dependencies remain unchanged', () => {
-  const cp = require('node:child_process');
+  const cp = require('./historical-scope-process.cjs');
   const git = args => cp.execFileSync('git', args, { encoding: 'utf8', maxBuffer: 64e6 }).replaceAll('\r\n', '\n');
   const files = git(['ls-tree', '-r', '--name-only', scope.base]).trim().split('\n').filter(f => /^(src|supabase)\//.test(f) || /^package(-lock)?\.json$/.test(f));
   for (const file of files) assert.equal(scope.readBeforeMatrixMultiRank(file), git(['show', scope.base + ':' + file]), file);

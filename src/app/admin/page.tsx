@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ThemeSelect } from "@/components/ThemeProvider";
 import { redirect } from "next/navigation";
 import { AdminEnvironmentTable } from "@/components/admin/AdminEnvironmentTable";
 import { AdminArchetypeTable } from "@/components/admin/AdminArchetypeTable";
@@ -79,6 +80,7 @@ export default async function AdminPage({
             <p className="mt-1 text-sm text-muted">環境・標準デッキの管理と運用ツール。</p>
           </div>
           <div className="flex flex-wrap gap-2">
+            <ThemeSelect />
             <Link className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-ink" href="/">
               通常画面へ
             </Link>

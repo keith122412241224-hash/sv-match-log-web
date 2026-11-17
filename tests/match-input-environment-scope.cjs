@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const cp = require('node:child_process'), assert = require('node:assert/strict');
+const cp = require('./historical-scope-process.cjs'), assert = require('node:assert/strict');
 const { createHash } = require('node:crypto');
 const base = '00c921c87684d04a7435f88a5aa364676cd0d20b';
 const hashes = {

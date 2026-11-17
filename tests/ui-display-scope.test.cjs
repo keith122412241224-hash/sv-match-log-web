@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const {test}=require('node:test'),assert=require('node:assert/strict'),cp=require('node:child_process');
+const {test}=require('node:test'),assert=require('node:assert/strict'),cp=require('./historical-scope-process.cjs');
 const {base,hashes,readBeforeUiDisplay}=require('./ui-display-scope.cjs');
 test('UI cleanup changes only seven pinned presentation files; all RPC, SQL, types, filters and calculations stay byte-identical',()=>{
  const git=args=>cp.execFileSync('git',args,{encoding:'utf8',maxBuffer:64e6}).replaceAll('\r\n','\n');

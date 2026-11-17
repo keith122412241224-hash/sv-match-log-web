@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const {test}=require('node:test'),assert=require('node:assert/strict'),cp=require('node:child_process');
+const {test}=require('node:test'),assert=require('node:assert/strict'),cp=require('./historical-scope-process.cjs');
 const {parseDeckSelection,normalizeDeckSelection,canonicalDeckQuery,DeckSelectionError,MAX_ANALYSIS_DECKS}=require('../src/lib/analysis-deck-selection');
 const id=n=>'00000000-0000-4000-8000-'+String(n).padStart(12,'0');
 const decks=[{id:id(2),class_name:'ロイヤル'},{id:id(1),class_name:'エルフ'},{id:id(3),class_name:'エルフ'}];

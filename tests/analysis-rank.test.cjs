@@ -1,7 +1,7 @@
 ﻿/* eslint-disable @typescript-eslint/no-require-imports */
 const { legacySourcePath } = require('./legacy-source.cjs');
 const { readBeforeRouteLoading } = require('./route-loading-scope.cjs');
-const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),cp=require('node:child_process');
+const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),cp=require('./historical-scope-process.cjs');
 const {ANALYSIS_RANK_FILTERS,parseAnalysisRankFilter}=require('../src/lib/analysis-rank-filter');
 const {MASTER_GROUPS,GRANDMASTER_RATINGS}=require('../src/constants/ranks');
 const {RANKS}=require('../src/constants/ranks');

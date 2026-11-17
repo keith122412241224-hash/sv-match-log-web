@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const { test } = require('node:test'), assert = require('node:assert/strict'), cp = require('node:child_process');
+const { test } = require('node:test'), assert = require('node:assert/strict'), cp = require('./historical-scope-process.cjs');
 const { createHash } = require('node:crypto');
 const { base, hashes, added, read, readBeforeMatchMutations } = require('./match-mutations-scope.cjs');
 test('match mutations preserve all existing RPCs, RLS, schema, aggregate code and dependencies', () => {

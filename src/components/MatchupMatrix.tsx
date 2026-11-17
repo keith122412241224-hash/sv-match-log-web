@@ -9,6 +9,7 @@ import { cn, formatPercent } from "@/lib/utils";
 import type { DeckLike, MatrixCell } from "@/lib/analytics";
 import { PngSharePreview } from "@/components/PngSharePreview";
 import { matrixPngFile, matrixPngSize, MATRIX_PNG_TOO_LARGE } from "@/lib/matrix-png";
+import { createLightPngSnapshot } from "@/lib/light-png-snapshot";
 
 type MatrixRow = {
   myDeck: DeckLike;
@@ -129,12 +130,15 @@ export function MatchupMatrix({
     saveTrigger.current = event.currentTarget;
     setSaving(true);
     setSaveError("");
+    let removeSnapshot: (() => void) | undefined;
     try {
-      const node = ref.current;
+      const { snapshot: node, remove } = createLightPngSnapshot(ref.current);
+      removeSnapshot = remove;
       const mobile = window.matchMedia("(max-width: 767px)").matches;
       matrixPngSize(node, mobile);
       const { toPng } = await import("html-to-image");
       await document.fonts.ready;
+      await Promise.all(Array.from(node.querySelectorAll("img"), image => image.decode()));
       if (!mounted.current) return;
       matrixPngSize(node, mobile);
       const dataUrl = await toPng(node, {
@@ -158,6 +162,7 @@ export function MatchupMatrix({
       if (mounted.current) setSaveError(error instanceof RangeError && error.message === MATRIX_PNG_TOO_LARGE
         ? MATRIX_PNG_TOO_LARGE : "PNGを保存できませんでした。画像の読み込みや表示するデッキ数を確認して、もう一度お試しください。");
     } finally {
+      removeSnapshot?.();
       busy.current = false;
       if (mounted.current) setSaving(false);
     }

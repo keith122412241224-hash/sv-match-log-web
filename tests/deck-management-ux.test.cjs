@@ -86,7 +86,7 @@ test('deck management: actual action refuses missing required values and unauthe
 });
 
 test('deck management: exact UI revision only; all other product code, database and dependencies identical', () => {
-  const cp = require('node:child_process'), fs = require('node:fs'), s = require('./deck-management-ux-scope.cjs');
+  const cp = require('./historical-scope-process.cjs'), fs = require('node:fs'), s = require('./deck-management-ux-scope.cjs');
   const git = (...args) => cp.execFileSync('git', args, { encoding: 'utf8' }).replaceAll('\r\n', '\n');
   const files = git('ls-tree', '-r', '--name-only', s.base).trim().split('\n').filter(f => /^(src|supabase)\//.test(f) || /^package(-lock)?\.json$/.test(f));
   for (const f of files) assert.equal(s.readBeforeDeckManagement(f), git('show', s.base + ':' + f), f);

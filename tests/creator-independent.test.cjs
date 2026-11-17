@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const {test}=require('node:test'),assert=require('node:assert/strict'),cp=require('node:child_process');
+const {test}=require('node:test'),assert=require('node:assert/strict'),cp=require('./historical-scope-process.cjs');
 const {parseObsSet}=require('../src/lib/creator/obs-set'),{newCorrelationDocument,parseCorrelation}=require('../src/lib/creator/correlation');
 const id=n=>'00000000-0000-4000-8000-'+String(n).padStart(12,'0');
 test('independent draft is valid, empty, titled and creates fresh mutable arrays',()=>{const a=newCorrelationDocument(),b=newCorrelationDocument();assert.deepEqual(parseCorrelation(a),a);assert.equal(a.title,'新しい相関図');assert.deepEqual(a.nodes,[]);assert.deepEqual(a.edges,[]);assert.notEqual(a.nodes,b.nodes);});

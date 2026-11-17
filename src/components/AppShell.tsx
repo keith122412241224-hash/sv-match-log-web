@@ -1,3 +1,4 @@
+import { ThemeSelect } from "@/components/ThemeProvider";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { BarChart3, Grid3X3, Home, ListPlus, LockKeyhole, LogOut, Swords } from "lucide-react";
@@ -37,6 +38,7 @@ export async function AppShell({ children, navigationPrefetch = true, wideConten
             <span className="sm:hidden">SVML</span>
           </Link>
           <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+            <ThemeSelect />
             <Link className="rounded-md px-2 py-2 text-sm font-semibold text-muted hover:bg-slate-100 hover:text-ink sm:px-3" href="/guide">
               使い方
             </Link>

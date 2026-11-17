@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const {test}=require('node:test'),assert=require('node:assert/strict'),cp=require('node:child_process');
+const {test}=require('node:test'),assert=require('node:assert/strict'),cp=require('./historical-scope-process.cjs');
 const {base,hashes,added,readBeforeUpload}=require('./creator-upload-scope.cjs');
 test('upload fix scope: only Tier upload preparation changes; API, DB, Storage, auth, dependencies and existing pages remain unchanged',()=>{
  const git=args=>cp.execFileSync('git',args,{encoding:'utf8',maxBuffer:64e6}).replaceAll('\r\n','\n');
