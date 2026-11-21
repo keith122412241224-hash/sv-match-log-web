@@ -3,7 +3,7 @@ import { RankBadge } from "@/components/RankBadge";
 import { MatchActions, MatchActionsProvider } from "@/components/matches/MatchActions";
 import { selectInitialEnvironmentId } from "@/lib/environment-selection";
 import Link from "next/link";
-import { BarChart3, BookOpen, Grid3X3, ListPlus, LogIn, Swords, Trophy } from "lucide-react";
+import { BarChart3, BookOpen, Grid3X3, ListPlus, LogIn, Swords, TrendingUp } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { BrandMark } from "@/components/BrandMark";
 import { DeckWithClassIcon } from "@/components/ClassIcon";
@@ -160,22 +160,22 @@ function LandingPage() {
     {
       icon: ListPlus,
       title: "戦績入力",
-      description: "使用デッキ、相手デッキ、先攻/後攻、勝敗、対戦日時をスマホから素早く記録できます。"
+      description: "使用デッキや対戦結果を簡単に記録できます。"
     },
     {
       icon: BarChart3,
       title: "勝率分析",
-      description: "総試合数、勝率、先攻勝率、後攻勝率、デッキ別勝率を自動で集計します。"
-    },
-    {
-      icon: Trophy,
-      title: "対面勝率",
-      description: "自分の実戦データから、得意対面・苦手対面・参考値を確認できます。"
+      description: "自分の勝率や先攻・後攻別の成績を自動集計できます。"
     },
     {
       icon: Grid3X3,
       title: "相性表",
-      description: "使用デッキ × 相手デッキの勝率表を自動生成し、有利不利を色で見やすく表示します。"
+      description: "デッキ別の対面勝率を集計し、得意・苦手な相手を可視化できます。"
+    },
+    {
+      icon: TrendingUp,
+      title: "環境分析",
+      description: "利用者全体の対戦データから、デッキの遭遇率・勝率・環境の変化を把握できます。"
     }
   ];
 
@@ -207,11 +207,10 @@ function LandingPage() {
         <div>
           <p className="text-sm font-bold text-emerald-700">Shadowverse: Worlds Beyond 向け</p>
           <h1 className="mt-3 max-w-3xl text-4xl font-black leading-tight sm:text-5xl">
-            戦績を入れるだけで、勝率分析と相性表を自動作成。
+            戦績を記録するだけで、自分の勝率も、環境の動きも見える。
           </h1>
           <p className="mt-5 max-w-2xl text-base leading-8 text-muted">
-            SV Match Log Webは、シャドバWBの対戦結果をブラウザで記録し、勝率、先攻/後攻勝率、対面勝率、相性表を確認できる無料の戦績管理ツールです。
-            公式カード画像や公式素材は使わず、テキストと色だけでシンプルに整理します。
+            SV Match Log Webは、シャドバWBの対戦結果を記録・分析できる無料の戦績管理ツールです。自分の勝率やデッキ相性だけでなく、利用者全体の対戦データから、デッキの遭遇率・勝率・環境の変化を確認できます。
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <Link className="inline-flex min-h-11 items-center gap-2 rounded-md bg-ink px-5 text-sm font-bold text-white" href="/login">
@@ -228,17 +227,18 @@ function LandingPage() {
             <BrandMark className="size-12" />
             <div>
               <h2 className="font-bold">できること</h2>
-              <p className="text-sm text-muted">入力した戦績から自動で集計します。</p>
+              <p className="text-sm text-muted">自分の戦績と、利用者全体の環境データを分析できます。</p>
             </div>
           </div>
           <div className="mt-4 grid gap-3">
-            {["戦績入力", "勝率分析", "対面勝率", "相性表PNG保存"].map((item) => (
+            {["戦績入力", "勝率分析", "相性表", "環境分析"].map((item) => (
               <div className="flex items-center justify-between rounded-md bg-slate-50 px-3 py-2 text-sm" key={item}>
                 <span className="font-semibold">{item}</span>
                 <span className="rounded-md bg-emerald-100 px-2 py-1 text-xs font-bold text-emerald-800">無料</span>
               </div>
             ))}
           </div>
+          <p className="mt-3 text-xs leading-5 text-muted">環境分析の利用には、無料のアカウント登録・ログインが必要です。</p>
         </div>
       </section>
 
@@ -269,9 +269,9 @@ function LandingPage() {
                 <Swords size={16} aria-hidden="true" />
                 SV Match Log Web
               </div>
-              <h2 className="mt-2 text-2xl font-black">まずは戦績入力から始められます</h2>
+              <h2 className="mt-2 text-2xl font-black">自分の戦績と環境の動きを確認しよう</h2>
               <p className="mt-2 text-sm leading-6 text-muted">
-                アカウント登録後、管理された環境と標準デッキを選んで戦績を保存できます。ゲストモードでは保存なしで入力体験を試せます。
+                無料のアカウント登録で、戦績の記録・分析と環境分析を利用できます。ゲストモードでは、戦績入力や自分の戦績分析を試せます。
               </p>
             </div>
             <Link className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-md bg-ink px-5 text-sm font-bold text-white" href="/login">
