@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import Link from "next/link";
-import { ArrowRight, BarChart3, FileText, Grid3X3, ListPlus, LogIn, PlayCircle, Swords, Trophy } from "lucide-react";
+import { ArrowRight, BarChart3, FileText, Grid3X3, ListPlus, LogIn, PlayCircle, Swords, TrendingUp, Trophy } from "lucide-react";
 import { signOut } from "@/app/actions";
 import { BrandMark } from "@/components/BrandMark";
 import { GuideScreenshot } from "@/components/guide/GuideScreenshot";
@@ -11,9 +11,9 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { getCurrentUser } from "@/lib/data";
 
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://sv-match-log-web.vercel.app").replace(/\/$/, "");
-const title = "SV Match Log Webの使い方｜シャドバWBの戦績・勝率を記録する方法";
+const title = "SV Match Log Webの使い方｜シャドバWBの戦績分析・環境分析ガイド";
 const description =
-  "シャドバWB向け無料戦績管理ツール「SV Match Log Web」の使い方を解説します。戦績入力、勝率分析、対面別勝率、相性表の作成、PNG保存まで画像付きで確認できます。";
+  "シャドバWB向け無料戦績管理ツール「SV Match Log Web」の使い方を解説します。戦績入力、自分の勝率・対面分析、相性表のPNG保存、利用者全体のデータによる環境分析まで画像付きで確認できます。";
 
 function existingPublicPath(path: string) {
   return existsSync(join(process.cwd(), "public", path.replace(/^\//, ""))) ? path : undefined;
@@ -56,26 +56,30 @@ const steps = [
     title: "利用を開始する",
     screenshot: {
       src: "/guide/ゲストモード画面.png",
+      width: 1100,
+      height: 429,
       alt: "SV Match Log Webのゲストモード画面",
       label: "ゲストモード画面のイメージ"
     },
     body: [
-      "SV Match Log Webは、ログインせずにゲストモードで操作を試せます。まず入力の流れや分析画面を確認したい場合は、ゲストモードから始めるのが簡単です。",
-      "戦績を継続して保存したい場合は、メールアドレスとパスワードでアカウント登録してください。登録後は入力した戦績を自分のデータとして管理できます。"
+      "「ログインせず試す」からゲストモードを開き、まずは「戦績入力」で1試合入力してみましょう。入力した戦績はこの端末に一時保存され、分析や相性表も試せます。",
+      "継続して戦績を管理する場合は、メールアドレスとパスワードで無料のアカウント登録・ログインをしてください。ゲスト戦績を取り込めるほか、環境分析や環境全体の相性表も利用できます。"
     ]
   },
   {
     id: "decks",
     icon: Swords,
-    title: "デッキを設定する",
+    title: "標準デッキを確認する",
     screenshot: {
       src: "/guide/デッキ管理画面.png",
+      width: 1100,
+      height: 1023,
       alt: "SV Match Log Webのデッキ管理画面",
       label: "デッキ管理画面のイメージ"
     },
     body: [
-      "戦績入力では、管理者が登録した標準デッキから使用デッキと相手デッキを選択できます。",
-      "標準デッキに存在しないデッキは、デッキ管理画面の「一覧にないデッキを提案」からクラスとデッキ名を指定して提案できます。管理者に承認されると、標準デッキとして選択できるようになります。"
+      "会員ログイン後、「デッキ管理」でクラスを開くと標準デッキの一覧を確認できます。戦績入力ではこの一覧から選ぶため、自分でデッキを作成する必要はありません。",
+      "使いたいデッキが見つからない場合は、「デッキ候補を申請」を開き、クラスとデッキ名を入力して申請できます。管理者に承認されると標準デッキとして選べるようになります。"
     ]
   },
   {
@@ -84,12 +88,14 @@ const steps = [
     title: "戦績を入力する",
     screenshot: {
       src: "/guide/戦績入力画面.png",
+      width: 1100,
+      height: 777,
       alt: "SV Match Log Webの戦績入力画面",
       label: "戦績入力画面のイメージ"
     },
     body: [
-      "戦績入力画面では、使用デッキ、相手デッキ、先攻・後攻、勝敗を選択して登録します。",
-      "スマートフォンでも操作しやすいよう、選択肢をタップしながら素早く入力できる画面になっています。対戦後すぐに記録しておくと、後から勝率や相性を振り返りやすくなります。"
+      "「戦績入力」で表示中の環境を確認し、使用デッキ・相手デッキ・先攻／後攻・勝敗を選びます。自分のランクは任意で入力でき、対戦日時は保存時に自動で記録されます。",
+      "会員は「保存して続ける」で連続入力でき、「保存してホームへ」で記録後にホームへ戻れます。ゲストは「入力を試す」でこの端末に一時保存できます。"
     ]
   },
   {
@@ -98,12 +104,14 @@ const steps = [
     title: "勝率を分析する",
     screenshot: {
       src: "/guide/分析画面.png",
+      width: 1068,
+      height: 555,
       alt: "SV Match Log Webの分析画面",
       label: "分析画面のイメージ"
     },
     body: [
-      "分析画面では、総合試合数、勝利数、勝率、先攻勝率、後攻勝率を確認できます。",
-      "さらに、使用デッキ別の勝率、相手デッキ別の勝率、先攻・後攻別の勝率、対面別勝率も確認できます。環境、デッキ、先攻・後攻、勝敗、日時で絞り込めるため、特定期間や特定デッキの振り返りにも使えます。"
+      "「分析」では、自分が使ったデッキごとの試合数・勝率・先攻／後攻別の勝率・直近の成績を確認できます。まずは「使用デッキ別サマリー」で全体を振り返りましょう。",
+      "「分析条件を変更」で環境や期間、ランク、使用デッキ・相手デッキなどを絞り込めます。表示したサマリーは「PNG保存」から画像として残せます。"
     ]
   },
   {
@@ -112,26 +120,53 @@ const steps = [
     title: "対面別勝率を確認する",
     screenshot: {
       src: "/guide/対面勝率画面.png",
+      width: 1068,
+      height: 627,
       alt: "SV Match Log Webの対面別勝率画面",
       label: "対面勝率画面のイメージ"
     },
     body: [
-      "対面別勝率では、相手デッキごとの試合数と勝率を確認できます。",
-      "得意対面や苦手対面を把握できるため、デッキ調整、プレイ方針の見直し、環境分析に活用できます。使用デッキ別サマリーでは、一定数以上対戦した得意対面・苦手対面も確認できます。"
+      "同じ分析画面の「デッキ別対面分析」で使用デッキの行を開くと、相手デッキごとの勝率・勝利数・対戦数を確認できます。",
+      "対戦数や勝率で並び替えたり、最低対戦数を指定したりして、得意・苦手な対面を探せます。少数の対戦だけで判断せず、件数とあわせて振り返りましょう。"
     ]
   },
   {
     id: "matrix",
     icon: Grid3X3,
-    title: "相性表を作成・保存する",
+    title: "相性表を確認・保存する",
     screenshot: {
       src: "/guide/相性表画面.png",
+      width: 1100,
+      height: 1048,
       alt: "SV Match Log Webの相性表画面",
       label: "相性表画面のイメージ"
     },
     body: [
-      "会員の相性表は環境全体が初期表示です。全ユーザーの登録戦績を両方向で統合した対面勝率を確認でき、自分の戦績にも切り替えられます。環境全体のミラー対面は「—」で表示します。表示したいデッキをボタンで切り替えると、行と列の両方に反映されます。",
-      "作成した相性表はPNG形式で保存できます。XなどのSNS投稿や、自分の戦績振り返り用の画像として利用できます。"
+      "会員の「相性表」は環境全体が初期表示です。利用者全体の戦績からデッキ同士の対面勝率を確認でき、「集計範囲」を「自分の戦績」に切り替えることもできます。環境全体の同じデッキ同士の対面は「—」で表示します。",
+      "表示デッキを選んで見やすく整理し、「PNG保存」から画像にできます。スマートフォンではプレビューから共有・保存できます。ゲストの相性表は、この端末に入力した戦績が対象です。"
+    ]
+  },
+  {
+    id: "environment",
+    icon: TrendingUp,
+    title: "環境を確認する",
+    screenshot: {
+      src: "/guide/環境分析画面.png",
+      width: 1068,
+      height: 798,
+      alt: "環境サマリーの遭遇率・勝率ランキングと増減傾向",
+      label: "環境サマリー画面のイメージ"
+    },
+    secondaryScreenshot: {
+      src: "/guide/推移分析画面.png",
+      width: 1068,
+      height: 731,
+      alt: "推移分析でデッキごとの遭遇率の変化を確認する画面",
+      label: "推移分析画面のイメージ"
+    },
+    body: [
+      "無料の会員ログイン後、メニューの「環境」を開きます。「環境サマリー」では利用者全体の戦績をもとに、デッキの遭遇率・勝率を確認できます。期間を指定すると、前の期間からの増減も確認できます。",
+      "「推移分析」に切り替え、気になるデッキを選ぶと、遭遇率や勝率の変化をグラフで見られます。集計件数も確認しながら、STEP 6の環境全体の相性表とあわせてデッキ選びに活用しましょう。個別ユーザーの戦績や識別情報は表示されません。"
     ]
   }
 ];
@@ -150,7 +185,7 @@ export default async function GuidePage() {
             <p className="text-sm font-bold text-emerald-700">Shadowverse: Worlds Beyond向け戦績管理ガイド</p>
             <h1 className="mt-3 max-w-3xl text-4xl font-black leading-tight sm:text-5xl">SV Match Log Webの使い方</h1>
             <p className="mt-5 max-w-2xl text-base leading-8 text-muted">
-              戦績入力から勝率分析、相性表のPNG保存まで、SV Match Log Webの基本的な使い方を紹介します。ログインせず、ゲストモードで操作を試すこともできます。
+              戦績の記録から自分の勝率・対面分析、利用者全体のデータによる環境分析まで、基本的な使い方を紹介します。まずはゲストモードで試すこともできます。
             </p>
             {signedIn ? <SignedInHeroActions /> : <SignedOutHeroActions />}
           </div>
@@ -161,11 +196,11 @@ export default async function GuidePage() {
                 <BrandMark className="size-12" />
                 <div>
                   <h2 className="font-bold">できること</h2>
-                  <p className="text-sm text-muted">入力、分析、相性表保存までを一通り確認できます。</p>
+                  <p className="text-sm text-muted">自分の戦績と環境の動きを確認できます。</p>
                 </div>
               </div>
               <ol className="mt-4 grid gap-2 text-sm font-semibold">
-                {["ゲストモードで試す", "戦績を入力する", "勝率を分析する", "相性表をPNG保存する"].map((item, index) => (
+                {["戦績を入力する", "自分の勝率・対面を分析する", "相性表を確認・PNG保存する", "環境の遭遇率・勝率・推移を確認する"].map((item, index) => (
                   <li className="flex items-center gap-2 rounded-md bg-slate-50 px-3 py-2" key={item}>
                     <span className="grid size-6 shrink-0 place-items-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-800">{index + 1}</span>
                     {item}
@@ -178,6 +213,7 @@ export default async function GuidePage() {
       </section>
 
       <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10">
+        <p className="text-xs leading-6 text-muted">画面は操作説明用のサンプルデータです。デッキ名や集計値は実際の環境と異なります。画像を選ぶと拡大できます。</p>
         {steps.map((step, index) => {
           const Icon = step.icon;
           return (
@@ -198,10 +234,16 @@ export default async function GuidePage() {
                   ))}
                 </div>
               </div>
-              <GuideScreenshot
-                {...step.screenshot}
-                src={existingPublicPath(step.screenshot.src)}
-              />
+              <div className="grid min-w-0 gap-3">
+                {[step.screenshot, step.secondaryScreenshot].filter((screenshot) => screenshot !== undefined).map((screenshot) => (
+                  <a key={screenshot.src} href={screenshot.src} target="_blank" rel="noreferrer" className="block rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700" aria-label={`${screenshot.alt}を拡大（新しいタブ）`}>
+                    <GuideScreenshot
+                      {...screenshot}
+                      src={existingPublicPath(screenshot.src)}
+                    />
+                  </a>
+                ))}
+              </div>
             </section>
           );
         })}
@@ -216,8 +258,8 @@ export default async function GuidePage() {
               <h2 className="mt-2 text-2xl font-black text-ink">まずは戦績入力から始めてみましょう</h2>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-emerald-950">
                 {signedIn
-                  ? "ログイン中のアカウントで、そのまま戦績入力や分析を利用できます。"
-                  : "ゲストモードで試してから、必要に応じてアカウント登録できます。継続して戦績を管理したい場合はログインして利用してください。"}
+                  ? "ログイン中のアカウントで、戦績入力・分析や環境の確認を利用できます。"
+                  : "ゲストモードで試してから、無料のアカウント登録で戦績の管理と環境分析を始められます。"}
               </p>
             </div>
             {signedIn ? <SignedInFooterActions /> : <SignedOutFooterActions />}

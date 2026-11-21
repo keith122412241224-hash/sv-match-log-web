@@ -7,11 +7,15 @@ import { useState } from "react";
 export function GuideScreenshot({
   src,
   alt,
-  label
+  label,
+  width = 1280,
+  height = 800
 }: {
   src?: string;
   alt: string;
   label: string;
+  width?: number;
+  height?: number;
 }) {
   const [failed, setFailed] = useState(!src);
 
@@ -21,11 +25,11 @@ export function GuideScreenshot({
         <Image
           alt={alt}
           className="h-auto w-full"
-          height={800}
+          height={height}
           loading="lazy"
           onError={() => setFailed(true)}
           src={src}
-          width={1280}
+          width={width}
         />
       ) : (
         <div className="grid aspect-[16/10] place-items-center bg-slate-50 px-4 text-center">

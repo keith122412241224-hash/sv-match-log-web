@@ -4,7 +4,7 @@ const base='3d9d12d';
 const allowed=new Set([
   'src/app/admin/page.tsx','src/app/admin/weekly-report/page.tsx','src/app/auth/reset-password/page.tsx',
   'src/app/globals.css','src/app/guide/page.tsx','src/app/layout.tsx','src/app/login/page.tsx','src/app/page.tsx','src/app/privacy/page.tsx',
-  'src/components/AppShell.tsx','src/components/MatchupMatrix.tsx','src/components/creator/CorrelationEditor.tsx',
+  'src/components/AppShell.tsx','src/components/MatchupMatrix.tsx','src/components/guide/GuideScreenshot.tsx','src/components/creator/CorrelationEditor.tsx',
   'src/components/creator/CorrelationList.tsx','src/components/creator/Creator.module.css','src/components/creator/ObsSetEditor.tsx',
   'src/components/creator/TierEditor.tsx','src/components/environment/EnvironmentTrendChart.tsx','src/components/environment/EnvironmentTrends.tsx','src/components/guest/GuestApp.tsx',
   'src/lib/report-png-snapshot.ts'
