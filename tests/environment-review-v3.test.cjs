@@ -162,3 +162,21 @@ test("no sources cannot generate a divergence or arbitrary verdict",()=>{
   assert(!JSON.stringify(result.public).includes("searchLog"));result.public.decks[0].tier=1;
   assert.throws(()=>validateEvaluation(result,ctx));
 });
+
+test("new AI rule covers every non-mirror pair, including the unobserved and the ninth deck",()=>{
+  const {allPairTargets,majorPairTargets}=require("../src/lib/environment-review/assessment-v3");
+  const decks="ihgfedcba".split("").map(deckId=>({...ctx.decks[0],deckId,encounterRate:1}));
+  assert.equal(allPairTargets(decks).length,36);
+  const main=majorPairTargets(decks);
+  assert.equal(main.length,28);assert.ok(main.includes("a/h")&&!main.includes("a/i"));
+  const snapshot={...ctx,decks,pairs:[{a:"a",b:"b",count:7,wins:5,dataRating:null}]};
+  const choices=allPairTargets(decks).map(target=>choice({target,value:null,sourceIds:[],priority:"保留",confidence:"判断保留"}));
+  choices[0]={...choices[0],value:1,priority:"実測",confidence:"低"};
+  const input={...aiDoc([],choices),judgmentRule:"evidence-judgment-v2"};
+  const result=validateEvaluation(input,snapshot);
+  assert.equal(result.public.pairs.length,36);assert.equal(result.public.pairs.find(p=>p.a==="a"&&p.b==="b").rating,1);
+  assert.deepEqual(validateEvaluation(result,snapshot),result);
+  assert.throws(()=>validateEvaluation({...input,internal:{...input.internal,judgments:choices.slice(0,-1)}},snapshot),/不足/);
+  const empty=choices.find(j=>j.target==="a/i");Object.assign(empty,{value:0,priority:"実測",confidence:"低"});
+  assert.throws(()=>validateEvaluation(input,snapshot),/実測も直接資料もない/);
+});

@@ -1,9 +1,11 @@
-import { anchoredStrength } from "./assessment-v3";
+import { anchoredStrength, allPairTargets } from "./assessment-v3";
 import { fail, id, indexed, list, object, oneOf, string, type Confidence, type Divergence, type PublicEvaluation } from "./evaluation-v1";
 import type { ReviewSnapshot } from "./metrics";
 import { originGroups, type Research } from "./research-v3";
 
-export const JUDGMENT_RULE = "evidence-judgment-v1";
+export const LEGACY_JUDGMENT_RULE = "evidence-judgment-v1";
+export const JUDGMENT_RULE = "evidence-judgment-v2";
+export type JudgmentRule = typeof JUDGMENT_RULE | typeof LEGACY_JUDGMENT_RULE;
 type Support = {id:string; group:string; value:number|null; credible:boolean};
 type Subject = {target:string; base:number|null; measured:Confidence; count:number; reference:number|null; support:Support[]};
 
@@ -48,9 +50,15 @@ function readChoice(raw:unknown) {
 }
 export type Judgment=ReturnType<typeof readChoice>;
 
-export function assessJudgments(snapshot:ReviewSnapshot,research:Research,input:unknown,baseline:PublicEvaluation) {
+export function assessJudgments(snapshot:ReviewSnapshot,research:Research,input:unknown,baseline:PublicEvaluation,rule:JudgmentRule=LEGACY_JUDGMENT_RULE) {
   const subjects=judgmentSubjects(snapshot,research);
+  const required = rule===JUDGMENT_RULE ? allPairTargets(snapshot.decks) : [];
+  for (const target of required) {
+    if (!subjects.has(target)) subjects.set(target,{target,base:null,measured:"判断保留",count:0,reference:null,support:[]});
+  }
   const judgments=list(input,readChoice,subjects.size,"AI判断"), byKey=indexed(judgments,j=>j.target,"判断対象");
+  const missing = required.filter(key=>!byKey.has(key));
+  if (missing.length) fail("対面の個別判断または保留理由が不足しています（"+missing.length+"件） "+missing.slice(0,3).join(", "));
   for(const key of byKey.keys()) if(!subjects.has(key)) fail("戦績・直接資料に存在しない対象です。");
   const decks:PublicEvaluation["decks"]=[], pairs:PublicEvaluation["pairs"]=[];
   const baseDecks=new Map(baseline.decks.map(d=>[d.deckId,d]));
@@ -71,6 +79,7 @@ export function assessJudgments(snapshot:ReviewSnapshot,research:Research,input:
     if((priority==="外部" || priority==="総合") && !support.length) fail("外部判断には対象を直接扱う資料が必要です。");
     if(value!==null && !count && !support.length && base===null) fail("実測も直接資料もない対象は保留です。");
     if(priority==="実測" && base===null && !count) fail("実測を優先する根拠がありません。");
+    if(rule===JUDGMENT_RULE && pair && value!==null && count<10 && confidence!=="低") fail("少数戦の対面は低信頼の暫定評価としてください。");
     const credibleGroups=new Set(support.filter(x=>x.credible).map(x=>x.group)).size;
     const opinions=support.flatMap(x=>x.value===null?[]:[x.value]);
     const disputed=new Set(opinions).size>1;

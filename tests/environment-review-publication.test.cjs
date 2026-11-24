@@ -31,11 +31,13 @@ test('member projection takes only selected measurements; comparison keeps held 
 test('report distinguishes held assessments, missing comparison and no detected discrepancy',()=>{
   const unavailable = renderToStaticMarkup(createElement(ReviewReport,{publication:fixture()}));
   assert.match(unavailable,/評価保留/);
-  assert.match(unavailable,/外部情報が不足しており、比較できません/);
+  assert.match(unavailable,/実測のみ（外部資料不足）/);
+  assert.match(unavailable,/環境下位・評価材料不足/);
+  assert.doesNotMatch(unavailable,/乖離分析・統計の詳細/);
   assert.doesNotMatch(unavailable,/大きな評価の乖離は確認されていません/);
-  const assessed = renderToStaticMarkup(createElement(ReviewReport,{publication:fixture('available')}));
+  const assessed = renderToStaticMarkup(createElement(ReviewReport,{publication:fixture('available'),preview:true}));
   assert.match(assessed,/大きな評価の乖離は確認されていません/);
-  assert.match(assessed,/ミラー/);
+  assert.match(assessed,/ミラー・評価対象外">－<\/td>/);
 });
 test('late report retains original successful publication time',()=>{
   const pub=fixture();

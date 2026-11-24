@@ -30,6 +30,11 @@ export type ReviewPair = Rate & PairBias & {
 export type ReviewSnapshot = Omit<ReviewSource, "cells" | "decks" | "pairBias"> & {
   schemaVersion: 1 | 2; ruleVersion: string; confidenceRuleVersion: string; snapshotId: string; ranks: RankAtomicFilter[];
   environmentStart?: string; promptVersion?: string;
+  weekly?: {
+    start: string; matchCount: number;
+    decks: Pick<ReviewDeck, "deckId" | "encounters" | "encounterRate" | "count" | "winRate" | "eligibleCount" | "eligibleWinRate">[];
+    pairs: (Rate & {a: string; b: string})[];
+  };
   matchCount: number; shortMatchCount: number; decks: ReviewDeck[]; pairs: ReviewPair[];
 };
 

@@ -1,4 +1,4 @@
-import { anchoredStrength } from "./assessment-v3";
+import { anchoredStrength, allPairTargets, majorPairTargets } from "./assessment-v3";
 import type { ReviewSnapshot } from "./metrics";
 import type { Publication } from "./publication";
 import type { Research } from "./research-v3";
@@ -9,7 +9,9 @@ export function researchPlan(snapshot:ReviewSnapshot, research?:Research, previo
   const environment=snapshot.environmentName;
   const prefix=environment+" ローテーション ";
   const subjects=snapshot.decks.filter(d=>!d.isOther);
-  const byId=new Map(subjects.map(d=>[d.deckId,d]));
+  const majorTargets=majorPairTargets(snapshot.decks);
+  const required=new Set(majorTargets);
+  const byId=new Map(snapshot.decks.map(d=>[d.deckId,d]));
   const published=previous && previous.payload.snapshot.environmentId===snapshot.environmentId &&
     Date.parse(previous.as_of)<=Date.parse(snapshot.asOf) && (!since || Date.parse(previous.as_of)>=Date.parse(since)) ? previous.payload : null;
   const finalTiers=new Map(current?.decks.map(d=>[d.deckId,d.tier]));
@@ -49,7 +51,7 @@ export function researchPlan(snapshot:ReviewSnapshot, research?:Research, previo
       reasons.push("期間中の遭遇が直近に集中");
     add(d.deckId,d.name,share,reasons,externalPriority?1:2,["構築 主要カード 対策 練度","ランクマッチ ランク別 勝率 大会 採用"]);
   }
-  const pairKeys=new Set([...snapshot.pairs.map(p=>p.a+"/"+p.b),...claims.filter(c=>c.topic==="対面相性").map(c=>c.target)]);
+  const pairKeys=new Set([...majorTargets,...snapshot.pairs.map(p=>p.a+"/"+p.b),...claims.filter(c=>c.topic==="対面相性").map(c=>c.target)]);
   const pairs=new Map(snapshot.pairs.map(p=>[p.a+"/"+p.b,p]));
   for(const key of pairKeys) {
     const [a,b]=key.split("/").map(k=>byId.get(k));
@@ -62,7 +64,8 @@ export function researchPlan(snapshot:ReviewSnapshot, research?:Research, previo
     if(new Set(opinions).size>1) reasons.push("対面の外部見解が分裂");
     if(measured===null && opinions.length) reasons.push("外部の暫定対面を検証");
     const share=Math.min(a.encounterRate??0,b.encounterRate??0), external=reasons.length>0;
-    if(share>=5 && pair?.dataRating==null) reasons.push("主要デッキ同士の未確定対面");
+    if(required.has(key)) reasons.push(pair ? "主要対面・個別判断必須" : "主要デッキ同士の未観測対面");
+    else if(share>=5 && pair?.dataRating==null) reasons.push("主要デッキ同士の未確定対面");
     add(key,a.name+" 対 "+b.name,share,reasons,external?1:3,["対面 先攻 後攻 構築 勝ち筋"]);
   }
   // Also research frequent pairs that have no registered games or external opinions.
@@ -74,7 +77,7 @@ export function researchPlan(snapshot:ReviewSnapshot, research?:Research, previo
   }
   targets.sort((a,b)=>a.priority-b.priority || b.share-a.share || a.key.localeCompare(b.key));
   const candidates=guides.flatMap(g=>g.guideCheck!.candidates.map(name=>({name,source:g.id,query:prefix+name+" 新構築 別名 主要カード"})));
-  return {environmentId:snapshot.environmentId,environment,environmentStart:snapshot.environmentStart??null,
+  return {requiredPairTargets:allPairTargets(snapshot.decks),majorPairTargets:majorTargets,environmentId:snapshot.environmentId,environment,environmentStart:snapshot.environmentStart??null,
     balanceChange:research?.balanceChange??null,asOf:snapshot.asOf,previousAsOf:published?previous!.as_of:null,
     openingQueries:[prefix+"能力変更 適用日時 公式",prefix+"最新 Tier表 GameWith",prefix+"最新 Tier表 Game8"],
     targets,candidates};

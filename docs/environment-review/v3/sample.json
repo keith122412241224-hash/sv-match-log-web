@@ -2,7 +2,7 @@
   "schemaVersion": 2,
   "promptVersion": "environment-review-prompt-v2",
   "reviewVersion": 3,
-  "judgmentRule": "evidence-judgment-v1",
+  "judgmentRule": "evidence-judgment-v2",
   "tierRule": "encounter-v3.1",
   "environmentId": "00000000-0000-4000-8000-000000000001",
   "snapshotId": "00000000-0000-4000-8000-000000000002",
@@ -13,7 +13,7 @@
       "mode": "current",
       "analyzedAt": "2026-11-24T13:53:11.771+09:00",
       "sources": [],
-      "searchLog": "実測のみの形式例。実際の調査結果を入力してください。"
+      "searchLog": "形式例。実際の調査結果と、分析用JSONが指定する全非ミラー対面の個別判断を入力してください。"
     },
     "sources": [],
     "evidence": [],

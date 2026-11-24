@@ -1,5 +1,5 @@
 import { TIER_RULE } from "./assessment-v3";
-import { assessJudgments, JUDGMENT_RULE, type Judgment } from "./judgment";
+import { assessJudgments, JUDGMENT_RULE, LEGACY_JUDGMENT_RULE, type JudgmentRule, type Judgment } from "./judgment";
 import { assessV3, verifyV3 } from "./method-v3";
 import { parseResearch, type Research } from "./research-v3";
 import type { ReviewSnapshot } from "./metrics";
@@ -14,7 +14,7 @@ export const EVALUATION_SCHEMA_VERSION = 2;
 export const CONFIDENCE_RULE_VERSION = "review-confidence-v2";
 export const PROMPT_VERSION = "environment-review-prompt-v2";
 export type EvaluationV2 = {
-  judgmentRule?:typeof JUDGMENT_RULE; tierRule?:typeof TIER_RULE; reviewVersion?:3; schemaVersion:2; promptVersion:typeof PROMPT_VERSION; environmentId:string; snapshotId:string;
+  judgmentRule?:JudgmentRule; tierRule?:typeof TIER_RULE; reviewVersion?:3; schemaVersion:2; promptVersion:typeof PROMPT_VERSION; environmentId:string; snapshotId:string;
   public:v1.PublicEvaluation; internal:{judgments?:Judgment[];research?:Research;sources:SourceV2[];evidence:EvidenceV2[];limitations:string};
 };
 export type EvaluationDocument = v1.EvaluationDocument | EvaluationV2;
@@ -42,18 +42,19 @@ export function validateEvaluation(value:unknown,ctx:ReviewContext,previous?:v1.
     const rule=versioned ? TIER_RULE : undefined;
     if(root.reviewVersion!==3 || root.schemaVersion!==2 || ctx.promptVersion!==PROMPT_VERSION || root.promptVersion!==ctx.promptVersion ||
         root.environmentId!==ctx.environmentId || root.snapshotId!==ctx.snapshotId) v1.fail("v3の対象スナップショットまたは版が一致しません。");
-    if(deliberative && (!versioned || root.judgmentRule!==JUDGMENT_RULE)) v1.fail("未対応の総合判断方式です。");
+    const judgmentRule = root.judgmentRule===JUDGMENT_RULE ? JUDGMENT_RULE : root.judgmentRule===LEGACY_JUDGMENT_RULE ? LEGACY_JUDGMENT_RULE : undefined;
+    if(deliberative && (!versioned || !judgmentRule)) v1.fail("未対応の総合判断方式です。");
     const i=v1.object(root.internal,"research sources evidence limitations"+(deliberative?" judgments":""),"v3内部資料");
     if(!Array.isArray(i.sources) || i.sources.length || !Array.isArray(i.evidence) || i.evidence.length) v1.fail("v3資料はresearchに入力してください。");
     const snapshot=ctx as ReviewSnapshot;
     const research=parseResearch(i.research,snapshot);
     const base=assessV3(snapshot,deliberative?{...research,sources:[]}:research,rule);
-    const decision=deliberative?assessJudgments(snapshot,research,i.judgments,base):null;
+    const decision=deliberative?assessJudgments(snapshot,research,i.judgments,base,judgmentRule):null;
     const expected=decision?.expected??base;
     const {pub}=v1.parsePublic(root.public ?? expected,ctx,expected.pairs.length);
     validatePublicText(pub);
     verifyV3(pub,expected,!!decision);
-    return {...(decision && {judgmentRule:JUDGMENT_RULE}),...(rule && {tierRule:rule}),schemaVersion:2,promptVersion:PROMPT_VERSION,reviewVersion:3,snapshotId:ctx.snapshotId,environmentId:ctx.environmentId,
+    return {...(decision && {judgmentRule}),...(rule && {tierRule:rule}),schemaVersion:2,promptVersion:PROMPT_VERSION,reviewVersion:3,snapshotId:ctx.snapshotId,environmentId:ctx.environmentId,
       public:pub,internal:{...(decision && {judgments:decision.judgments}),research,sources:[],evidence:[],limitations:v1.string(i.limitations,"制約",1800)}};
   }
   const root=v1.object(value,"schemaVersion promptVersion environmentId snapshotId public internal","取り込みJSON v2");

@@ -1,6 +1,17 @@
 import { interval95, type ReviewDeck } from "./metrics";
 import { matchupLabel } from "./publication";
 
+export function allPairTargets(decks: ReadonlyArray<Pick<ReviewDeck,"deckId">>): string[] {
+  const ids = decks.map(d=>d.deckId).sort();
+  return ids.flatMap((a,i)=>ids.slice(i+1).map(b=>a+"/"+b));
+}
+
+/** Same encounter ordering and tie break as the member matrix. */
+export function majorPairTargets(decks: ReadonlyArray<Pick<ReviewDeck,"deckId"|"encounterRate">>): string[] {
+  const visible = [...decks].sort((a,b) => (b.encounterRate ?? -1) - (a.encounterRate ?? -1) || a.deckId.localeCompare(b.deckId)).slice(0,8);
+  return allPairTargets(visible);
+}
+
 export function encounterTier(share: number | null) {
   if (share == null || share <= 0) return null;
   return share >= 10 ? 1 : share >= 5 ? 2 : share >= 2 ? 3 : share >= 1 ? 4 : 5;

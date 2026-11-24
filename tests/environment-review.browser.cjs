@@ -91,6 +91,13 @@ async function fixture(testDb) {
             params.push(key==='is_active' ? value==='eq.true' : value.slice(3));
             const column = key==='snapshot->>schemaVersion' ? "snapshot->>'schemaVersion'" : sqlName(key);
             where.push(column + '=$' + params.length);
+          } else if (key==='or' && /^\(environment_id\.is\.null,environment_id\.eq\.[0-9a-f-]+\)$/.test(value)) {
+            params.push(value.slice(value.lastIndexOf('.')+1,-1));
+            where.push('(environment_id is null or environment_id=$'+params.length+')');
+          } else if (/^(gte|lt|gt)\./.test(value)) {
+            const split=value.indexOf('.');
+            params.push(value.slice(split+1));
+            where.push(sqlName(key)+({gte:'>=',lt:'<',gt:'>'}[value.slice(0,split)])+'$'+params.length);
           } else if (value.startsWith('in.(') && value.endsWith(')')) {
             const terms = value.slice(4,-1).split(',');
             const list = terms.map(term => { params.push(term.replace(/^"|"$/g,'')); return '$' + params.length; });
@@ -98,6 +105,10 @@ async function fixture(testDb) {
           } else throw Error('Unsupported filter ' + key);
         }
         let query = 'select ' + cols + ' from public.' + sqlName(name) + (where.length ? ' where ' + where.join(' and ') : '');
+        if (req.headers.prefer?.includes('count=exact')) {
+          const count=await db.query('select count(*) as n from ('+query+') counted',params);
+          res.setHeader('Content-Range','*/'+count.rows[0].n);
+        }
         if (url.searchParams.get('order')) {
           query += ' order by ' + url.searchParams.get('order').split(',').map(term => {
             const [key,dir,nulls] = term.split('.');
@@ -203,7 +214,10 @@ async function verify(browser) {
     tab.on('pageerror', err => errors.push(err.message));
   }
   const button = name => page.getByRole('button',{name,exact:true});
-  const notice = message => page.getByRole('status').filter({hasText:message}).waitFor();
+  const notice = async message => {
+    try { await page.getByRole('status').filter({hasText:message}).waitFor(); }
+    catch(e) { throw new Error(message+' '+(await page.getByRole('alert').allTextContents()).join(' '),{cause:e}); }
+  };
   const preview = async () => {
     await button('検証してプレビュー').click();
     await notice('検証が完了');
@@ -300,23 +314,18 @@ async function verify(browser) {
   assert.ok(Number.isFinite(Date.parse(data.published_at)) && Date.parse(data.published_at)>=Date.parse(data.as_of));
   assert.doesNotMatch(JSON.stringify(data), /example\.invalid|架空の出典|独自要約|publishedAt|limitations|sourceIds|"internal"/);
   const panel = await openReport(reportPage);
-  await panel.getByRole('heading',{name:'総合Tier表'}).waitFor();
+  await panel.getByRole('heading',{name:'Tier表'}).waitFor();
   assert.equal(await reportPage.evaluate(()=>document.documentElement.dataset.theme),'light');
   const matrix = panel.getByRole('heading',{name:'総合対面相性表'}).locator('..');
   const gaps = panel.getByText('乖離分析・統計の詳細',{exact:true});
-  assert.equal(await gaps.locator('..').getAttribute('open'),null);
-  await panel.getByRole('heading',{name:'総合Tier表'}).locator('..').getByRole('button').first().click();
+  assert.equal(await gaps.count(),0);
+  assert.equal(await matrix.getByLabel('ミラー・評価対象外',{exact:true}).first().textContent(),'－');
+  await panel.getByRole('heading',{name:'Tier表'}).locator('..').getByRole('button').first().click();
   await panel.getByRole('heading',{name:/の評価詳細$/}).waitFor();
   await panel.getByRole('button',{name:'閉じる',exact:true}).click();
-  await gaps.click();
-  const deckGap = panel.getByRole('heading',{name:'実測データと評価の乖離分析'}).locator('..');
-  const pairGap = panel.getByRole('heading',{name:'対面相性の乖離分析'}).locator('..');
-  assert.match(await deckGap.innerText(),/過小評価の可能性/);assert.match(await pairGap.innerText(),/要因の仮説/);
   await reportPage.screenshot({path:path.join(output,'member-desktop-light.png')});
-  await panel.getByRole('heading',{name:'総合Tier表'}).locator('..').evaluate(card=>card.scrollIntoView({block:'center'}));
+  await panel.getByRole('heading',{name:'Tier表'}).locator('..').evaluate(card=>card.scrollIntoView({block:'center'}));
   await reportPage.screenshot({path:path.join(output,'tier-desktop.png')});
-  await deckGap.screenshot({path:path.join(output,'deck-divergence.png')});
-  await pairGap.screenshot({path:path.join(output,'matchup-divergence.png')});
   await matrix.getByRole('button',{name:'コンボエルフ 対 ミッドレンジロイヤル 微有利',exact:true}).click();
   await matrix.getByRole('button',{name:'ミッドレンジロイヤル 対 コンボエルフ 微不利',exact:true}).click();
   assert.match(await matrix.locator('[aria-live]').innerText(),/微不利/);
@@ -329,7 +338,7 @@ async function verify(browser) {
   const dark = await contextFor(browser,ids.a,'dark',390);
   const mobile = await dark.newPage();
   const mobilePanel = await openReport(mobile);
-  await mobilePanel.getByRole('heading',{name:'総合Tier表'}).waitFor();
+  await mobilePanel.getByRole('heading',{name:'Tier表'}).waitFor();
   await mobile.waitForFunction(()=>document.documentElement.dataset.theme==='dark');
   for(const width of [390,320]){
     await mobile.setViewportSize({width,height:844});
@@ -371,8 +380,7 @@ async function verify(browser) {
   await button('確認して公開').click();await notice('公開しました');
   const revisedReport = await openReport(reportPage);
   const revisedDetails = revisedReport.getByText('乖離分析・統計の詳細',{exact:true});
-  if(await revisedDetails.locator('..').getAttribute('open')===null) await revisedDetails.click();
-  await revisedReport.getByText('大きな評価の乖離は確認されていません。',{exact:true}).first().waitFor();
+  assert.equal(await revisedDetails.count(),0);
   await page.getByLabel('修正・復元・失敗の理由').fill('初版を復元');
   await page.getByRole('button',{name:'この公開版へ復元',exact:true}).last().click();
   await notice('選択した公開版を復元');
@@ -435,7 +443,7 @@ async function verify(browser) {
   await page.getByRole('link',{name:'総合環境評価を見る'}).scrollIntoViewIfNeeded();
   await page.screenshot({path:path.join(output,'publish-complete-desktop.jpg')});
   await page.getByRole('link',{name:'総合環境評価を見る'}).click();
-  await page.getByRole('tabpanel',{name:'総合環境評価'}).getByRole('heading',{name:'総合Tier表'}).waitFor();
+  await page.getByRole('tabpanel',{name:'総合環境評価'}).getByRole('heading',{name:'Tier表'}).waitFor();
   assert.equal(new URL(page.url()).searchParams.get('environment'),ids.env);
   const privateLink = await member.newPage();
   await privateLink.goto(page.url());
@@ -449,7 +457,7 @@ async function verify(browser) {
     await tab.goto(environmentUrl);
     await tab.getByRole('tab',{name:'総合環境評価'}).click();
     const panel = tab.getByRole('tabpanel',{name:'総合環境評価'});
-    const tier = panel.getByRole('heading',{name:'総合Tier表'}).locator('..');
+    const tier = panel.getByRole('heading',{name:'Tier表'}).locator('..');
     await tier.getByRole('button',{name:/コンボエルフ/}).click();
     const detail = tier.getByRole('article');
     await detail.getByText('Tier判定対象の実測勝率',{exact:true}).waitFor();
@@ -506,6 +514,9 @@ async function verify(browser) {
   reports.add('同一締切のv1とv2、旧JSON拒否、比較表・実測母集団・公開画面を確認');
   await mobileAdmin.goto(adminUrl);
   const v3=structuredClone(modern.v3Template);
+  const holds=modern.v3Reference.researchPlan.requiredPairTargets.map(target=>({target,value:null,priority:"保留",confidence:"判断保留",sourceIds:[],
+    reason:"試験用の個別判断。構築の裏付けが不足。",counterargument:"登録者の偏りがある。",uncertainty:"別の登録者と構築を確認する。"}));
+  v3.internal.judgments=holds;
   v3.internal.limitations="ローカル試験";
   await openInput(mobileAdmin);
   await mobileAdmin.getByLabel('評価JSON（貼り付け・編集）').fill(JSON.stringify(v3));
@@ -527,7 +538,7 @@ async function verify(browser) {
     publisher:"試験用媒体",author:"fixture",dataset:"fixture",publishedAt:null,updatedAt:ai.internal.research.analyzedAt,
     retrievedAt:ai.internal.research.analyzedAt,environmentId:ids.env,channel:"攻略",outcome:"不採用",reliability:"中",
     applicability:"同環境の試験資料",reason:"内部照合のテスト",claims:[],guideCheck:{status:"本文確認",observations:[{name:subject.name,tier:1,aliasId:subject.deckId,basis:"試験用対応"}]}});
-  ai.internal.judgments=[{target:subject.deckId,value:1,priority:"外部",confidence:"低",sourceIds:["fixture-guide"],reason:"対象環境での対策価値を評価した。",counterargument:"構築依存の試験例",uncertainty:"独立確認待ち"}];
+  ai.internal.judgments=[...holds,{target:subject.deckId,value:1,priority:"外部",confidence:"低",sourceIds:["fixture-guide"],reason:"対象環境での対策価値を評価した。",counterargument:"構築依存の試験例",uncertainty:"独立確認待ち"}];
   const aiArgs={...args,revision:v3run.revision,expectedPublication:v3run.id,document:ai,reason:"AI判断のローカル試験"};
   const proposal=await (await action(aiArgs)).json();
   assert.ok(proposal.reviewKey && proposal.sourceEdition,JSON.stringify(proposal));

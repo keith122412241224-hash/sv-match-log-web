@@ -30,7 +30,7 @@ export function ReviewEditor({ document, snapshot, onApply, onDirtyChange }: {
     try {
       if(ai && ai.internal.research) {
         const measured=assessV3(snapshot,{...ai.internal.research,sources:[]},ai.tierRule);
-        const {expected}=assessJudgments(snapshot,ai.internal.research,ai.internal.judgments,measured);
+        const {expected}=assessJudgments(snapshot,ai.internal.research,ai.internal.judgments,measured,ai.judgmentRule);
         onApply(JSON.stringify({...ai,public:{...expected,overview:pub.overview,changes:pub.changes}},null,2));
       } else onApply(JSON.stringify(draft,null,2));
     } catch(cause) {setError(cause instanceof Error?cause.message:"判断根拠を確認してください。");}

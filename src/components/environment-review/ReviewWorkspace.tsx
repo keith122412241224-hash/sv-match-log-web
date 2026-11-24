@@ -181,7 +181,7 @@ export function ReviewWorkspace({environment, environmentName}: {environment: st
       {run && <p className="mt-3 text-xs text-muted">{run.snapshot.ruleVersion} ／ {run.snapshot.confidenceRuleVersion} ／ JSON v{run.snapshot.schemaVersion}</p>}
     </section>
     <details className={card} open={!run}><summary className="cursor-pointer font-semibold">STEP 1　分析用データの出力</summary>
-      <p className="my-2 text-sm text-muted">直近7日と3日の実戦データを固定します。JSONと専用プロンプトをChatGPTに渡してください。</p>
+      <p className="my-2 text-sm text-muted">対象環境の全期間と、同じ締切の直近7日・3日の戦績を固定します。JSONと専用プロンプトをChatGPTに渡してください。</p>
       <div className="flex flex-wrap items-center gap-2"><button className={primary} onClick={() => task(async () => {
         const {id} = await request<{id:string}>(api,{action:"create",environment}); await after(id,"集計を保存しました。分析用JSONをダウンロードできます。");
       })}>スナップショットを作成</button>

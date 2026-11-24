@@ -51,12 +51,12 @@ export function parseEvidence(value:unknown):EvidenceV2 {
   return {...evidence(pick(d,evidenceKeys)),reasonCodes:codes,uncertainty:string(d.uncertainty,"不確実性"),
     omissionReason:d.omissionReason === null ? null : string(d.omissionReason,"未掲載理由")};
 }
-type Dates = {asOf:string;periodStart:string;environmentStart?:string|null};
+type Dates = {asOf:string;periodStart:string;weekly?:{start:string};environmentStart?:string|null};
 export function freshness(s:SourceV2,ctx:Dates):"latest"|"applicableGuide"|"ineligible" {
   const end=Date.parse(ctx.asOf), start=Date.parse(ctx.environmentStart ?? ctx.periodStart);
   if ([s.publishedAt,s.originPublishedAt].some(d=>!d || Date.parse(d)>end || Date.parse(d)<start) ||
       Date.parse(s.versionAt ?? s.retrievedAt)>end || s.applicability!=="current" || s.method==="opinion" || s.reliability==="低") return "ineligible";
-  if (Date.parse(s.originPublishedAt!)>=Date.parse(ctx.periodStart)) return "latest";
+  if (Date.parse(s.originPublishedAt!)>=Date.parse(ctx.weekly?.start ?? ctx.periodStart)) return "latest";
   return s.topic==="guide" ? "applicableGuide" : "ineligible";
 }
 function hostKey(raw:string) {

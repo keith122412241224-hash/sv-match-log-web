@@ -57,8 +57,12 @@ export async function createSnapshot(client: Client, environment: string) {
     p_snapshot: {...snapshot, previousEvaluation: previous && Date.parse(previous.as_of) <= Date.parse(snapshot.asOf) ? previous : null}, p_mode: "manual"
   });
   if (result.error?.code === "23505") {
-    const existing = await client.from("environment_review_runs").select("id").eq("environment_id",environment).eq("as_of",snapshot.asOf).eq("snapshot->>schemaVersion",String(snapshot.schemaVersion)).single();
+    const retry = await client.from("environment_review_runs").select("id").eq("environment_id",environment).eq("id",snapshot.snapshotId).maybeSingle();
+    checkDb(retry.error);
+    if (retry.data) return retry.data.id as string;
+    const existing = await client.from("environment_review_runs").select("id,snapshot").eq("environment_id",environment).eq("as_of",snapshot.asOf).eq("snapshot->>schemaVersion",String(snapshot.schemaVersion)).single();
     checkDb(existing.error);
+    if (!existing.data?.snapshot?.weekly) throw new ReviewConflict("同じ締切に旧期間の評価があります。過去版は履歴から確認してください。");
     return existing.data!.id as string;
   }
   checkDb(result.error);

@@ -27,6 +27,7 @@ const added = new Set([
   'src/components/environment-review/ReviewReport.tsx',
   'src/components/environment-review/ReviewTab.tsx',
   'src/components/environment-review/ReviewWorkspace.tsx',
+  'src/lib/environment-review/period-source.ts',
   'src/lib/environment-review/data-model.ts',
   'src/lib/environment-review/evaluation-v1.ts',
   'src/lib/environment-review/evidence-v2.ts',

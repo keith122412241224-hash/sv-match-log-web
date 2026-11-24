@@ -10,7 +10,7 @@ import { cellLabel, encounterTier, priority } from "@/lib/environment-review/ass
 const panel = "min-w-0 rounded-md border border-slate-200 bg-white p-4 sm:p-5";
 const title = "mb-3 text-lg font-bold";
 const badge = "inline-block rounded border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold";
-const tierNames = ["環境トップ", "環境上位", "環境中堅", "環境下位", "現環境では厳しい", "判断材料不足"];
+const tierNames = ["環境トップ", "環境上位", "環境中堅", "環境下位", "環境下位・評価材料不足"];
 type Deck = Publication["payload"]["snapshot"]["decks"][number];
 type GapRow = { id: string; name: string; gap: Divergence; metrics: string; reason: string; confidence: string };
 
@@ -106,7 +106,7 @@ function Matrix({ publication }: { publication: Publication }) {
             <span className="flex items-center gap-1"><ReviewIcon deck={row} /><span className="break-all text-xs">{shortNames.get(row.deckId)}</span></span>
           </th>
           {visible.map(col => {
-            if (row.deckId === col.deckId) return <td key={col.deckId} className="border border-slate-200" aria-label="ミラー・評価対象外" title="ミラー・評価対象外" />;
+            if (row.deckId === col.deckId) return <td key={col.deckId} className="border border-slate-200 text-center text-muted" aria-label="ミラー・評価対象外" title="ミラー・評価対象外">－</td>;
             const value = detail(row, col);
             const label = row.name + " 対 " + col.name + " " + (value.judgment?.label ?? "総合判定なし");
             return <td key={col.deckId} className="border border-slate-200 p-0.5 text-center">
@@ -181,11 +181,6 @@ export function ReviewReport({ publication, preview = false }: { publication: Pu
   const d = selectedId ? names.get(selectedId) : undefined;
   const e = selectedId ? assessments.get(selectedId) : undefined;
   const rival = d && s.pairs.filter(p => p.a === d.deckId || p.b === d.deckId).sort((a,b) => b.count - a.count)[0];
-  function caveat(deck: typeof ev.decks[number]) {
-    if (deck.tier === null) return "";
-    if (deck.reason.includes("暫定評価") || deck.confidence === "低") return "暫定";
-    return "";
-  }
   return <div className="grid min-w-0 gap-4 break-words text-ink">
     <header className={panel + " grid items-start gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]"}>
       <div>
@@ -199,23 +194,22 @@ export function ReviewReport({ publication, preview = false }: { publication: Pu
         <p className="mt-2 text-xs text-muted">{ev.comparison === "unavailable" ? "実測のみ（外部資料不足）" : ev.comparison === "partial" ? "実測＋一部の外部資料" : "実測＋外部資料"}</p>
       </div>
     </header>
-    <section className={panel}><h3 className={title}>総合Tier表</h3>
-      {[1,2,3,4,5,null].map((tier, i) => {
-        const group = ranked.filter(deck => deck.tier === tier);
+    <section className={panel}><h3 className={title}>Tier表</h3>
+      {[1,2,3,4,5].map((tier, i) => {
+        const group = ranked.filter(deck => (deck.tier ?? 5) === tier);
         return <div key={i} className="grid grid-cols-[4.3rem_1fr] items-start gap-2 border-t border-slate-200 py-2 sm:grid-cols-[7rem_1fr]">
           <div className="py-1"><strong className={tier === 1 ? "text-sky-800" : ""}>{tierLabel(tier)}</strong><p className="text-xs text-muted">{tierNames[i]}</p></div>
           <div className="flex flex-wrap items-center gap-1.5">{group.map(deck => {
-            const mark = hasPrevious ? movement(prior[deck.deckId], tier) : "";
+            const mark = hasPrevious ? movement(prior[deck.deckId], deck.tier) : "";
             return <button key={deck.deckId} type="button" aria-expanded={selectedId === deck.deckId} aria-controls={detailId + i}
               className="inline-flex min-h-10 flex-wrap items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-left text-sm hover:border-sky-700 aria-expanded:border-sky-700"
               onClick={() => selectDeck(selectedId === deck.deckId ? null : deck.deckId)}>
-              <DeckName deck={names.get(deck.deckId)!} />{mark && <small aria-label={changeLabel(prior[deck.deckId],tier)}>{mark}</small>}
-              {caveat(deck) && <small className="text-muted">{caveat(deck)}</small>}
+              <DeckName deck={names.get(deck.deckId)!} />{mark && <small aria-label={changeLabel(prior[deck.deckId],deck.tier)}>{mark}</small>}
             </button>;
           })}{!group.length && <span className="py-2 text-sm text-muted">該当なし</span>}</div>
-      <div id={detailId + i} className="col-span-full empty:hidden" aria-live="polite">{d && e && e.tier === tier && <article className="mt-2 rounded-md bg-slate-50 p-3">
+      <div id={detailId + i} className="col-span-full empty:hidden" aria-live="polite">{d && e && (e.tier ?? 5) === tier && <article className="mt-2 rounded-md bg-slate-50 p-3">
         <div className="flex items-center justify-between gap-2"><h4 className="font-bold">{d.name}の評価詳細</h4><button type="button" className="min-h-10 underline" onClick={() => selectDeck(null)}>閉じる</button></div>
-        <dl className="my-3 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">{fact("クラス",d.className)}{fact("遭遇率",percent(d.encounterRate))}{fact("実測勝率（7日）",percent(d.winRate))}{fact("評価件数",d.count + "件")}{fact("使用時勝率",percent(d.useWinRate))}{fact("データ評価",tierLabel(d.dataTier))}{fact("遭遇率だけの参考帯",tierLabel(encounterTier(d.encounterRate)))}{fact("前回との差",changeLabel(prior[d.deckId],e.tier))}</dl>
+        <dl className="my-3 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">{fact("クラス",d.className)}{fact("遭遇率",percent(d.encounterRate))}{fact("実測勝率（集計期間）",percent(d.winRate))}{fact("評価件数",d.count + "件")}{fact("使用時勝率",percent(d.useWinRate))}{fact("データ評価",tierLabel(d.dataTier))}{fact("遭遇率だけの参考帯",tierLabel(encounterTier(d.encounterRate)))}{fact("前回との差",changeLabel(prior[d.deckId],e.tier))}</dl>
         {d.details && <div className="mb-3 rounded-md bg-slate-50 p-3 text-sm">
           <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">{fact("Tier判定対象の実測勝率",percent(d.details.eligibleWinRate))}
             {fact("Tier判定対象件数",d.details.eligibleCount+"件")}{fact("95% Wilson区間",intervalLabel(d.details.interval95))}
@@ -242,11 +236,11 @@ export function ReviewReport({ publication, preview = false }: { publication: Pu
         {changed.map(deck => <p className="mt-2" key={deck.deckId}><b>{names.get(deck.deckId)?.name}　{prior[deck.deckId] === undefined ? "新規 → " + tierLabel(deck.tier) : changeLabel(prior[deck.deckId], deck.tier)}</b>　{deck.reason}</p>)}
       </details>}
     </section>
-    <details className={panel}><summary className="cursor-pointer font-bold">乖離分析・統計の詳細</summary>
+    {preview && <details className={panel}><summary className="cursor-pointer font-bold">乖離分析・統計の詳細</summary>
       <p className="my-3 text-sm text-muted">対象ランク　{getRankSelectionLabel(s.ranks)} ／ 直近3日　{s.shortMatchCount.toLocaleString("ja-JP")}戦</p>
       <Gaps heading="実測データと評価の乖離分析" rows={deckGaps} comparison={ev.comparison} />
       <Gaps heading="対面相性の乖離分析" rows={pairGaps} comparison={ev.comparison} />
-    </details>
+    </details>}
   </div>;
 }
 function intervalLabel(value: [number, number] | null) {
