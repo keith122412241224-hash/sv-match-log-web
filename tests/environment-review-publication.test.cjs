@@ -43,3 +43,29 @@ test('late report retains original successful publication time',()=>{
   assert.match(renderToStaticMarkup(createElement(ReviewReport,{publication:pub})),/更新遅延/);
   assert.equal(pub.published_at,source.asOf);
 });
+
+test('matrix glyphs distinguish the stored judgment from a measured trend in both directions', () => {
+  const pub = fixture(), { snapshot, evaluation } = pub.payload;
+  const a = snapshot.decks[0].deckId, b = 'z-deck';
+  snapshot.decks.push({ ...snapshot.decks[0], deckId:b, name:'相手ロイヤル', className:'ロイヤル' });
+  const measured = { a, b, count:20, winRate:80, dataRating:null };
+  const pair = { a, b, rating:null, reason:'評価理由', confidence:'中', divergence:null };
+  snapshot.pairs.push(measured);
+  evaluation.pairs.push(pair);
+  function cells() {
+    const html = renderToStaticMarkup(createElement(ReviewReport, {publication:pub}));
+    return [...html.matchAll(/<button[^>]*aria-label="([^"]+ 対 [^"]+)"[^>]*>(.*?)<\/button>/gs)]
+      .map(m => [m[1], m[2].replace(/<[^>]*>/g,'')]);
+  }
+  for (const [rating, forward, reverse] of [[2,'◎','×'],[1,'○','▲'],[0,'△','△'],[-1,'▲','○'],[-2,'×','◎']]) {
+    pair.rating = rating;
+    assert.deepEqual(cells().map(c=>c[1]),[forward,reverse]);
+  }
+  pair.confidence='低';
+  assert.deepEqual(cells().map(c=>c[1]),['×','◎']);
+  pair.rating=null;
+  for (const [count,winRate] of [[20,80],[20,50],[3,100],[0,null]]) {
+    Object.assign(measured,{count,winRate});
+    assert.deepEqual(cells().map(c=>c[1]),['','']);
+  }
+});

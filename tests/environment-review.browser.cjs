@@ -231,6 +231,17 @@ async function verify(browser) {
   await reportPage.getByRole('tabpanel',{name:'環境サマリー'}).getByRole('heading').first().waitFor();
   await page.goto(adminUrl);
   await page.getByRole('heading',{name:'総合環境評価管理'}).waitFor();
+  await page.getByText('environment-review-v1', {exact:false}).first().waitFor();
+  async function expand(tab, label) {
+    const summary = tab.getByText(label,{exact:true});
+    if(await summary.locator('..').getAttribute('open') === null) await summary.click();
+  }
+  async function openInput(tab) {
+    await tab.locator('fieldset[aria-busy="false"]').waitFor();
+    await expand(tab,'ファイル・JSONの取り込み');
+    await expand(tab,'JSONを直接貼り付け・編集');
+  }
+  await expand(page,'STEP 1　分析用データの出力');
   for (const [name, needle] of [['専用プロンプト','実測'],['JSON Schema','schemaVersion'],['サンプルJSON','snapshotId']]) {
     const [file] = await Promise.all([page.waitForEvent('download'),page.getByRole('link',{name,exact:true}).click()]);
     assert.ok(fs.readFileSync(await file.path(),'utf8').includes(needle),name+'をダウンロード');
@@ -244,7 +255,7 @@ async function verify(browser) {
   const pasted = page.getByLabel('評価JSON（貼り付け・編集）');
   assert.equal(await button('確認して公開').isEnabled(),false);
   await page.getByText('分析結果JSONを取り込んでください。',{exact:true}).waitFor();
-  await page.getByText('JSONを直接貼り付け・編集',{exact:true}).click();
+  await openInput(page);
   await pasted.fill('{');
   await button('検証してプレビュー').click(); await page.locator('fieldset [role=alert]').waitFor();
   await page.getByLabel('分析結果ファイル').setInputFiles({name:'fixture.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(input))});
@@ -292,6 +303,12 @@ async function verify(browser) {
   await panel.getByRole('heading',{name:'総合Tier表'}).waitFor();
   assert.equal(await reportPage.evaluate(()=>document.documentElement.dataset.theme),'light');
   const matrix = panel.getByRole('heading',{name:'総合対面相性表'}).locator('..');
+  const gaps = panel.getByText('乖離分析・統計の詳細',{exact:true});
+  assert.equal(await gaps.locator('..').getAttribute('open'),null);
+  await panel.getByRole('heading',{name:'総合Tier表'}).locator('..').getByRole('button').first().click();
+  await panel.getByRole('heading',{name:/の評価詳細$/}).waitFor();
+  await panel.getByRole('button',{name:'閉じる',exact:true}).click();
+  await gaps.click();
   const deckGap = panel.getByRole('heading',{name:'実測データと評価の乖離分析'}).locator('..');
   const pairGap = panel.getByRole('heading',{name:'対面相性の乖離分析'}).locator('..');
   assert.match(await deckGap.innerText(),/過小評価の可能性/);assert.match(await pairGap.innerText(),/要因の仮説/);
@@ -300,11 +317,12 @@ async function verify(browser) {
   await reportPage.screenshot({path:path.join(output,'tier-desktop.png')});
   await deckGap.screenshot({path:path.join(output,'deck-divergence.png')});
   await pairGap.screenshot({path:path.join(output,'matchup-divergence.png')});
-  await matrix.getByRole('button',{name:'コンボエルフ 対 ミッドレンジロイヤル やや有利',exact:true}).click();
-  await matrix.getByRole('button',{name:'ミッドレンジロイヤル 対 コンボエルフ やや不利',exact:true}).click();
-  assert.match(await matrix.locator('[aria-live]').innerText(),/やや不利/);
-  await matrix.getByLabel('列の範囲').selectOption('1');
-  await matrix.getByLabel('行の範囲').selectOption('1');
+  await matrix.getByRole('button',{name:'コンボエルフ 対 ミッドレンジロイヤル 微有利',exact:true}).click();
+  await matrix.getByRole('button',{name:'ミッドレンジロイヤル 対 コンボエルフ 微不利',exact:true}).click();
+  assert.match(await matrix.locator('[aria-live]').innerText(),/微不利/);
+  assert.equal(await matrix.getByRole('rowheader').count(),8);
+  await matrix.getByRole('button',{name:/全.*デッキを表示/}).click();
+  assert.ok(await matrix.getByRole('rowheader').count()>8);
   assert.match(await matrix.innerText(),/長いデッキ名/);
   reports.add('会員APIとRLSの分離、デッキと対面の乖離、逆視点の評価、多数デッキの相性表');
 
@@ -340,7 +358,7 @@ async function verify(browser) {
   revised.public.decks.forEach(d=>{ d.divergence=null; });
   revised.public.pairs.forEach(p=>{ p.divergence=null; });
   revised.public.overview.hypothesis='追加検証を経て乖離の判定を保留しました。';
-  await pasted.fill(JSON.stringify(revised));
+  await openInput(page); await pasted.fill(JSON.stringify(revised));
   await page.getByLabel('修正・復元・失敗の理由').fill('比較資料の再確認');
   await preview();
   await page.getByText('項目別に評価を修正',{exact:true}).click();
@@ -352,6 +370,8 @@ async function verify(browser) {
   await page.getByLabel('公開内容と前回からの変更を確認しました').check();
   await button('確認して公開').click();await notice('公開しました');
   const revisedReport = await openReport(reportPage);
+  const revisedDetails = revisedReport.getByText('乖離分析・統計の詳細',{exact:true});
+  if(await revisedDetails.locator('..').getAttribute('open')===null) await revisedDetails.click();
   await revisedReport.getByText('大きな評価の乖離は確認されていません。',{exact:true}).first().waitFor();
   await page.getByLabel('修正・復元・失敗の理由').fill('初版を復元');
   await page.getByRole('button',{name:'この公開版へ復元',exact:true}).last().click();
@@ -369,9 +389,9 @@ async function verify(browser) {
   assert.ok(modern.candidates.length >= modern.snapshot.decks.length);
   const sameCutoff = await page.request.post(origin+endpoint,{headers:{Origin:origin},data:{action:'create',environment:ids.env}});
   assert.deepEqual(await sameCutoff.json(),{id:modern.snapshot.snapshotId});
-  await pasted.fill(JSON.stringify(input)); await button('検証してプレビュー').click();
+  await openInput(page); await pasted.fill(JSON.stringify(input)); await button('検証してプレビュー').click();
   await page.locator('fieldset [role=alert]').waitFor();
-  await pasted.fill(JSON.stringify(modern.template)); await preview();
+  await openInput(page); await pasted.fill(JSON.stringify(modern.template)); await preview();
   const comparison = page.getByText('新旧ルール・総合評価の比較',{exact:true}).locator('..');
   await page.getByText('新旧ルール・総合評価の比較',{exact:true}).click();
   await comparison.getByRole('columnheader',{name:'改善候補C'}).waitFor();
@@ -391,7 +411,7 @@ async function verify(browser) {
   assert.equal((await action({...command,publishedEdition:null})).status(),409);
   assert.equal((await action({...command,document:{...modern.template,public:{...modern.template.public,changes:'異なる内容を確認対象とします。'}}})).status(),409);
   assert.equal((await latestRun()).revision,snapshotRun.revision);
-  await pasted.fill(JSON.stringify(modern.template,null,2));
+  await openInput(page); await pasted.fill(JSON.stringify(modern.template,null,2));
   await page.getByText('評価内容が変更されたため、再検証が必要です。',{exact:true}).waitFor();
   assert.equal(await button('確認して公開').isEnabled(),false);
   await preview();
@@ -429,11 +449,12 @@ async function verify(browser) {
     await tab.goto(environmentUrl);
     await tab.getByRole('tab',{name:'総合環境評価'}).click();
     const panel = tab.getByRole('tabpanel',{name:'総合環境評価'});
-    const deck = panel.getByRole('heading',{name:'デッキ別総合評価'}).locator('..').locator('details > summary').filter({hasText:'コンボエルフ'}).first();
-    await deck.click();
-    await deck.locator('..').getByText('Tier判定対象の実測勝率',{exact:true}).waitFor();
-    await deck.locator('..').getByText('95% Wilson区間',{exact:true}).waitFor();
-    await deck.evaluate(el=>el.scrollIntoView({block:'start'}));
+    const tier = panel.getByRole('heading',{name:'総合Tier表'}).locator('..');
+    await tier.getByRole('button',{name:/コンボエルフ/}).click();
+    const detail = tier.getByRole('article');
+    await detail.getByText('Tier判定対象の実測勝率',{exact:true}).waitFor();
+    await detail.getByText('95% Wilson区間',{exact:true}).waitFor();
+    await detail.scrollIntoViewIfNeeded();
   }
   await openDeck(reportPage);
   await reportPage.screenshot({path:path.join(output,'v2-member-desktop-light.png')});
@@ -459,7 +480,7 @@ async function verify(browser) {
   await mobileAdmin.screenshot({path:path.join(output,'v2-admin-mobile-dark.png')});
   const mobileEdit = structuredClone(modern.template);
   mobileEdit.public.changes = '環境考察の説明を見直しました。';
-  await mobileAdmin.getByText('JSONを直接貼り付け・編集',{exact:true}).click();
+  await openInput(mobileAdmin);
   await mobileAdmin.getByLabel('評価JSON（貼り付け・編集）').fill(JSON.stringify(mobileEdit));
   await mobileAdmin.getByRole('button',{name:'検証してプレビュー'}).click();
   await mobileAdmin.getByRole('status').filter({hasText:'検証が完了'}).waitFor();
@@ -486,7 +507,7 @@ async function verify(browser) {
   await mobileAdmin.goto(adminUrl);
   const v3=structuredClone(modern.v3Template);
   v3.internal.limitations="ローカル試験";
-  await mobileAdmin.getByText('JSONを直接貼り付け・編集',{exact:true}).click();
+  await openInput(mobileAdmin);
   await mobileAdmin.getByLabel('評価JSON（貼り付け・編集）').fill(JSON.stringify(v3));
   await mobileAdmin.getByRole('button',{name:'検証してプレビュー'}).click();
   await mobileAdmin.getByRole('status').filter({hasText:'検証が完了'}).waitFor();
@@ -514,7 +535,7 @@ async function verify(browser) {
   assert(!(await action({...publishAI,sourceEdition:"incorrect"})).ok());
   assert.equal((await latestRun()).revision,v3run.revision);
   await mobileAdmin.goto(adminUrl);
-  await mobileAdmin.getByText('JSONを直接貼り付け・編集',{exact:true}).click();
+  await openInput(mobileAdmin);
   await mobileAdmin.getByLabel('評価JSON（貼り付け・編集）').fill(JSON.stringify(ai));
   await mobileAdmin.getByRole('button',{name:'検証してプレビュー'}).click();
   await mobileAdmin.getByRole('status').filter({hasText:'検証が完了'}).waitFor();

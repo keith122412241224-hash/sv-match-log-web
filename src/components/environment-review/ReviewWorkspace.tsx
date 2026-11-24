@@ -180,16 +180,17 @@ export function ReviewWorkspace({environment, environmentName}: {environment: st
       ].map(([key,value])=><div key={key}><dt className="text-muted">{key}</dt><dd className="font-semibold">{busy && !run ? "…" : value}</dd></div>)}</dl>
       {run && <p className="mt-3 text-xs text-muted">{run.snapshot.ruleVersion} ／ {run.snapshot.confidenceRuleVersion} ／ JSON v{run.snapshot.schemaVersion}</p>}
     </section>
-    <section className={card}><h2 className="text-lg font-bold">STEP 1　分析用データの出力</h2>
+    <details className={card} open={!run}><summary className="cursor-pointer font-semibold">STEP 1　分析用データの出力</summary>
       <p className="my-2 text-sm text-muted">直近7日と3日の実戦データを固定します。JSONと専用プロンプトをChatGPTに渡してください。</p>
       <div className="flex flex-wrap items-center gap-2"><button className={primary} onClick={() => task(async () => {
         const {id} = await request<{id:string}>(api,{action:"create",environment}); await after(id,"集計を保存しました。分析用JSONをダウンロードできます。");
       })}>スナップショットを作成</button>
       <button className={button} disabled={!run} onClick={() => task(async () => download("sv-environment-" + run!.id + ".json",await request(base + "&id=" + run!.id + "&export=1")))}>分析用JSONを出力</button>
       {([["prompt","専用プロンプト"],["schema","JSON Schema"],["sample","サンプルJSON"]] as const).map(([key,label]) => <a className="p-1 text-sm underline" href={api+"?resource="+key+"&version="+(run?.snapshot.schemaVersion===1 ? 1 : 3)} key={key} download>{label}</a>)}</div>
-    </section>
+    </details>
     <section className={card}><h2 className="text-lg font-bold">STEP 2　分析結果の取り込み</h2>
       {run ? <div className="mt-3 grid gap-3">
+        <details open={!run.analysis}><summary className="cursor-pointer text-sm font-semibold">ファイル・JSONの取り込み</summary><div className="mt-2 grid gap-2">
         <label className="grid gap-1 text-sm font-semibold">分析結果ファイル<input className="max-w-full" type="file" accept=".json,application/json" onChange={e=>{
           const file=e.target.files?.[0]; e.target.value="";
           if(file) void task(async()=>{edit(""); if(file.size>MAX_EVALUATION_BYTES)throw new Error("JSONは2MB以内で指定してください。");edit(await file.text(), file.name);});
@@ -199,6 +200,8 @@ export function ReviewWorkspace({environment, environmentName}: {environment: st
           <label className="mt-2 grid gap-1 text-sm">評価JSON（貼り付け・編集）<textarea className={field+" font-mono text-xs"} rows={6} value={input} onChange={e=>edit(e.target.value)} spellCheck={false} /></label>
         </details>
         {input.trim() && <p className="text-sm">{snapshotMatches ? "対象環境・スナップショットIDが一致しました。" : "対象環境・スナップショットIDを照合できません。入力内容を確認してください。"}</p>}
+        </div></details>
+        {run.analysis && !preview && !edited && input === JSON.stringify(run.analysis,null,2) && <p className="text-sm">{run.analysis.public.overview.facts}</p>}
         <div><button className={button} disabled={!input.trim() || reloadRequired} onClick={()=>task(async()=>{
           setPreview(null); setConfirmed(false); setEditorDirty(false); setReceipt(null);
           setPreview(await check()); setEdited(false); setNotice("検証が完了しました。公開前プレビューを確認してください。");
@@ -211,8 +214,8 @@ export function ReviewWorkspace({environment, environmentName}: {environment: st
         <p>{environmentName} ／ 管理者限定公開中</p><p className="text-sm">分析基準日時　{jst(receipt.asOf)} JST<br/>公開日時　{jst(receipt.publishedAt)} JST</p>
         <Link prefetch={false} className="mt-3 inline-flex min-h-11 items-center rounded-md bg-ink px-4 text-sm font-bold text-white" href={{pathname:"/environment",query:{environment,tab:"review"}}}>総合環境評価を見る</Link></div>}
       {preview && run && <>
-        <div><h3 className="font-semibold">評価変更の概要</h3><p className="whitespace-pre-line text-sm">{preview.analysis.public.changes}</p></div>
-        {preview.warnings.length > 0 && <div className="rounded-md border border-amber-500 p-3"><h3 className="font-semibold">重要な警告・管理者確認</h3><ul className="list-disc pl-5 text-sm">{preview.warnings.map(w=><li key={w}>{w}</li>)}</ul></div>}
+        <div><h3 className="font-semibold">評価結果</h3><p className="text-sm">{preview.analysis.public.overview.facts}</p></div>
+        {preview.warnings.length > 0 && <details className="rounded-md border border-amber-500 p-3"><summary className="cursor-pointer font-semibold">重要な警告・管理者確認（{preview.warnings.length}件）</summary><ul className="list-disc pl-5 text-sm">{preview.warnings.map(w=><li key={w}>{w}</li>)}</ul></details>}
         {preview.sourceEdition && preview.analysis.schemaVersion===2 && <details><summary>公開前に照合する原典</summary>
           {preview.analysis.internal.research?.sources.filter(s=>s.outcome==="採用" || s.guideCheck?.status==="本文確認").map(s=><p key={s.id}><a className="underline" href={s.url} target="_blank" rel="noreferrer">{s.publisher}</a>　{s.applicability}</p>)}</details>}
         <Comparison run={run} preview={preview}/>
