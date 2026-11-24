@@ -1,0 +1,130 @@
+{
+  "schemaVersion": 2,
+  "environmentId": "20000000-0000-4000-8000-000000000001",
+  "snapshotId": "30000000-0000-4000-8000-000000000001",
+  "public": {
+    "overview": {
+      "facts": "架空の表示例です。デッキ甲と乙は対面時の評価と環境全体での評価が異なります。",
+      "hypothesis": "採用される構築の違いが、対面の評価に影響している可能性があります。"
+    },
+    "comparison": "partial",
+    "decks": [
+      {
+        "deckId": "10000000-0000-4000-8000-000000000001",
+        "tier": 2,
+        "reason": "実測は中堅です。主要対面の選択肢を直接扱う追加資料を踏まえて総合評価を引き上げました。",
+        "confidence": "中",
+        "divergence": {
+          "status": "確認済み",
+          "direction": "過小評価の可能性",
+          "importance": 3,
+          "facts": "実測では中堅ですが、補助資料では主要対面での選択肢が多いと評価されています。",
+          "hypothesis": "習熟度による差が出ている可能性があります。"
+        }
+      },
+      {
+        "deckId": "10000000-0000-4000-8000-000000000002",
+        "tier": 2,
+        "reason": "実測評価を維持しました。対象期間の比較資料は不足しています。",
+        "confidence": "低",
+        "divergence": null
+      }
+    ],
+    "pairs": [
+      {
+        "a": "10000000-0000-4000-8000-000000000001",
+        "b": "10000000-0000-4000-8000-000000000002",
+        "rating": -2,
+        "reason": "甲に不利な実測傾向に加え、乙の現行構築の防御手段が、甲の勝ち筋をさらに狭めると評価しました。",
+        "confidence": "低",
+        "divergence": {
+          "status": "要検証",
+          "direction": "過大評価の可能性",
+          "importance": 4,
+          "facts": "実測でも甲は不利ですが、比較資料では甲が対応しにくい具体的な防御手段が示されています。",
+          "hypothesis": "乙の防御札の採用率が影響している可能性があります。"
+        }
+      }
+    ],
+    "changes": "この架空環境では初回の評価です。"
+  },
+  "internal": {
+    "sources": [
+      {
+        "id": "s1",
+        "url": "https://example.invalid/fictional-analysis",
+        "publisher": "架空の分析班",
+        "group": "架空の分析班",
+        "publishedAt": "2026-09-06T12:00:00+09:00",
+        "retrievedAt": "2026-09-07T13:00:00+09:00",
+        "environmentId": "20000000-0000-4000-8000-000000000001",
+        "summary": "スキーマ説明用の架空資料。デッキ甲の対面選択肢と対乙の防御札を論じた設定。",
+        "trend": "甲全体には強め、対乙には弱めの評価。",
+        "reliability": "中",
+        "originUrl": "https://example.invalid/fictional-analysis",
+        "originPublishedAt": "2026-09-06T12:00:00+09:00",
+        "versionAt": "2026-09-06T12:00:00+09:00",
+        "provenance": "original",
+        "topic": "guide",
+        "setting": "ranked",
+        "method": "analysis",
+        "applicability": "current",
+        "targets": [
+          {
+            "target": "10000000-0000-4000-8000-000000000001",
+            "direction": "上振れ評価"
+          },
+          {
+            "target": "10000000-0000-4000-8000-000000000001/10000000-0000-4000-8000-000000000002",
+            "direction": "下振れ評価"
+          }
+        ]
+      }
+    ],
+    "evidence": [
+      {
+        "target": "10000000-0000-4000-8000-000000000001",
+        "sourceIds": [
+          "s1"
+        ],
+        "externalTrend": "上振れ評価",
+        "rationale": "複数対面での選択肢を参考に、実測評価から1段階上方修正。",
+        "facts": "期間内データと架空資料の評価方向が異なる設定。",
+        "hypothesis": "練度が影響した可能性。",
+        "reasonCodes": [
+          "external"
+        ],
+        "uncertainty": "単独の資料に依存し、独立した追認がありません。",
+        "omissionReason": null
+      },
+      {
+        "target": "10000000-0000-4000-8000-000000000002",
+        "sourceIds": [],
+        "externalTrend": "比較不能",
+        "rationale": "補助資料がないため実測の範囲で評価。",
+        "facts": "独立した乙単体の評価は確認できない。",
+        "hypothesis": "",
+        "reasonCodes": [],
+        "uncertainty": "対象を直接扱う外部資料が不足。",
+        "omissionReason": null
+      },
+      {
+        "target": "10000000-0000-4000-8000-000000000001/10000000-0000-4000-8000-000000000002",
+        "sourceIds": [
+          "s1"
+        ],
+        "externalTrend": "下振れ評価",
+        "rationale": "対面の構築条件に依存する差が示唆される。",
+        "facts": "甲側に不利な実測に対し、資料ではさらに不利と評価された設定。",
+        "hypothesis": "主要構築が変われば結果も変わる可能性。",
+        "reasonCodes": [
+          "external"
+        ],
+        "uncertainty": "単独の資料に依存し、独立した追認がありません。",
+        "omissionReason": null
+      }
+    ],
+    "limitations": "架空資料は1系列のみ。デッキ乙単体については比較資料を取得できなかった設定。"
+  },
+  "promptVersion": "environment-review-prompt-v2"
+}

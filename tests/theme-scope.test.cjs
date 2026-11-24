@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const {test}=require('node:test'),assert=require('node:assert/strict'),cp=require('node:child_process'),fs=require('node:fs');
+const {test}=require('node:test'),assert=require('node:assert/strict'),cp=require('node:child_process');
+const {readBeforeReview}=require('./environment-review-scope.cjs');
 const base='3d9d12d';
 const allowed=new Set([
   'src/app/admin/page.tsx','src/app/admin/weekly-report/page.tsx','src/app/auth/reset-password/page.tsx',
@@ -11,5 +12,5 @@ const allowed=new Set([
 ]);
 test('theme scope leaves DB/RPC/auth/aggregation/OBS artwork/dependencies byte-identical',()=>{
   const files=cp.execFileSync('git',['ls-tree','-r','--name-only',base],{encoding:'utf8'}).trim().split('\n').filter(f=>/^(src|supabase)\//.test(f)||/^package(-lock)?\.json$/.test(f));
-  for(const file of files){if(allowed.has(file))continue;const before=cp.execFileSync('git',['show',base+':'+file],{maxBuffer:8e6}).toString().replaceAll('\r\n','\n');assert.equal(fs.readFileSync(file,'utf8').replaceAll('\r\n','\n'),before,file);}
+  for(const file of files){if(allowed.has(file))continue;const before=cp.execFileSync('git',['show',base+':'+file],{maxBuffer:8e6}).toString().replaceAll('\r\n','\n');assert.equal(readBeforeReview(file),before,file);}
 });

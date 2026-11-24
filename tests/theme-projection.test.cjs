@@ -1,16 +1,17 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 const {test}=require('node:test'),assert=require('node:assert/strict'),cp=require('node:child_process'),fs=require('node:fs');
 const theme=require('./theme-source.cjs');
+const environmentReview=require('./environment-review-scope.cjs');
 const git=(...args)=>cp.execFileSync('git',args,{encoding:'utf8',maxBuffer:32e6}).trim().split('\n').filter(Boolean);
 test('theme scope exactly reviews every changed/added file; DB/RPC/auth/aggregation/OBS artwork/dependencies and inventory remain intact',()=>{
   const product=f=>/^(src|supabase)\//.test(f)||/^(package(-lock)?\.json|tailwind.config.ts)$/.test(f);
   const files=git('ls-tree','-r','--name-only',theme.base).filter(product);
   for(const file of theme.changes.keys())theme.assertReviewed(file);
   for(const file of files){
-    const source=theme.changes.has(file)?theme.readBeforeTheme(file):fs.readFileSync(file,'utf8').replaceAll('\r\n','\n');
+    const source=theme.readBeforeTheme(file);
     assert.equal(source,theme.gitSource(theme.base,file),file);
   }
-  assert.deepEqual(git('ls-files','--cached','--others','--exclude-standard').filter(product).sort(),[...files,...theme.added].sort());
+  assert.deepEqual(git('ls-files','--cached','--others','--exclude-standard').filter(product).sort(),[...files,...theme.added,...environmentReview.added].sort());
 });
 test('historical projection rejects arbitrary edits to every reviewed theme file',()=>{
   for(const file of theme.changes.keys()){

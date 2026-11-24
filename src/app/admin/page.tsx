@@ -164,6 +164,7 @@ export default async function AdminPage({
         {section === "tools" && <div className="grid items-start gap-3">
           <div className="grid min-w-0 gap-3 lg:grid-cols-3">
             {[
+              { title: "総合環境評価管理", description: "実戦データを出力し、総合評価の取り込み・編集・公開を行います。", href: "/admin/environment-review" },
               { title: "Tier表メーカー", description: "Tier表を作成・編集し、PNG・OBSで利用できます。", href: "/admin/creator/tier" },
               { title: "相関図メーカー", description: "Tier表を作らずに、相関図を単独で作成・編集できます。", href: "/admin/creator/correlation" },
               { title: "OBS表示管理", description: "環境データ・Tier表・相関図を自由に組み合わせて表示できます。", href: "/admin/creator/obs-sets" }

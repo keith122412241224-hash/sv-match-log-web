@@ -2,6 +2,7 @@
 // Exact, reviewable theme delta. Only historical source guards use this projection;
 // runtime imports, browser tests and the current-scope test always use live files.
 const fs = require('node:fs'), cp = require('node:child_process'), assert = require('node:assert/strict');
+const environmentReview = require('./environment-review-scope.cjs');
 const base = '3d9d12dca854ddd77051362f0ad6472ba8fb7dd4';
 const normalize = text => text.replaceAll('\r\n', '\n');
 const patch = normalize(fs.readFileSync(__dirname + '/fixtures/theme-source.patch', 'utf8'));
@@ -54,11 +55,11 @@ function reviewed(file) {
   return expected.get(file);
 }
 function assertReviewed(file, source = fs.readFileSync(file, 'utf8')) {
-  assert.equal(normalize(source), reviewed(file).after, 'unreviewed theme change: ' + file);
+  assert.equal(environmentReview.readBeforeReview(file, source), reviewed(file).after, 'unreviewed theme change: ' + file);
 }
 function readBeforeTheme(file) {
   const source = normalize(fs.readFileSync(file, 'utf8'));
-  if (!changes.has(file)) return source;
+  if (!changes.has(file)) return environmentReview.readBeforeReview(file, source);
   assertReviewed(file, source);
   assert.ok(!added.has(file), 'new theme files have no historical source');
   return reviewed(file).before;
@@ -67,7 +68,7 @@ function historicalFiles(files, ref) {
   // Every theme file is verified before excluding its reviewed delta. Unknown
   // files stay in the result, so existing inventory guards still reject them.
   for (const file of changes.keys()) assertReviewed(file);
-  return files.filter(file => {
+  return environmentReview.historicalFiles(files, ref).filter(file => {
     if (added.has(file)) return false;
     if (!ref || !changes.has(file)) return true;
     // A file added by an older feature must still reach that feature's guard.
