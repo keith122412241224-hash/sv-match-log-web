@@ -419,7 +419,24 @@ async function verify(browser) {
   assert.equal((await action({...command,publishedEdition:null})).status(),409);
   assert.equal((await action({...command,document:{...modern.template,public:{...modern.template.public,changes:'異なる内容を確認対象とします。'}}})).status(),409);
   assert.equal((await latestRun()).revision,snapshotRun.revision);
-  await openInput(page); await pasted.fill(JSON.stringify(modern.template,null,2));
+  const rejected=await action({...args,action:'save'});
+  assert.equal(rejected.status(),400);
+  assert.match(JSON.stringify(await rejected.json()),/再評価/);
+  const rejectedPublish=await action(command);
+  assert.match(JSON.stringify(await rejectedPublish.json()),/再評価/);
+  assert.equal((await latestRun()).revision,snapshotRun.revision);
+  const holds=modern.v3Reference.researchPlan.requiredPairTargets.map(target=>({target,value:null,priority:"保留",confidence:"判断保留",sourceIds:[],
+    reason:"試験用の個別判断。構築の裏付けが不足。",counterargument:"登録者の偏りがある。",uncertainty:"別の登録者と構築を確認する。"}));
+  for (const pair of modern.snapshot.pairs.filter(p=>p.count>=10 && p.a!==p.b)) {
+    const decision=holds.find(j=>j.target===pair.a+"/"+pair.b);
+    Object.assign(decision,{value:1,priority:"実測",confidence:"低",reason:"模擬データに対する個別判断の保存を確認する。"});
+  }
+  const compatible={...structuredClone(modern.v3Template),judgmentRule:"evidence-judgment-v2"};
+  compatible.internal.judgments=holds;
+  const validPreview=await (await action({...args,document:compatible})).json();
+  assert.ok(validPreview.analysis,JSON.stringify(validPreview));
+  const complete=validPreview.analysis;
+  await openInput(page); await pasted.fill(JSON.stringify(complete,null,2));
   await page.getByText('評価内容が変更されたため、再検証が必要です。',{exact:true}).waitFor();
   assert.equal(await button('確認して公開').isEnabled(),false);
   await preview();
@@ -481,12 +498,14 @@ async function verify(browser) {
   await mobile.screenshot({path:path.join(output,'environment-admin-empty-mobile.png')});
   reports.add('環境画面の権限別タブ、キーボード移動、未選択時の通信、評価準備中、環境切替、v2公開版を確認');
   await mobileAdmin.goto(adminUrl);
+  await openInput(mobileAdmin);
+  await mobileAdmin.getByLabel('評価JSON（貼り付け・編集）').fill(JSON.stringify(modern.template));
   await mobileAdmin.getByRole('button',{name:'検証してプレビュー'}).click();
   await mobileAdmin.getByRole('status').filter({hasText:'検証が完了'}).waitFor();
   await mobileAdmin.getByText('新旧ルール・総合評価の比較',{exact:true}).evaluate(el=>el.scrollIntoView({block:'start'}));
   assert.ok(await mobileAdmin.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
   await mobileAdmin.screenshot({path:path.join(output,'v2-admin-mobile-dark.png')});
-  const mobileEdit = structuredClone(modern.template);
+  const mobileEdit = structuredClone(complete);
   mobileEdit.public.changes = '環境考察の説明を見直しました。';
   await openInput(mobileAdmin);
   await mobileAdmin.getByLabel('評価JSON（貼り付け・編集）').fill(JSON.stringify(mobileEdit));
@@ -514,8 +533,6 @@ async function verify(browser) {
   reports.add('同一締切のv1とv2、旧JSON拒否、比較表・実測母集団・公開画面を確認');
   await mobileAdmin.goto(adminUrl);
   const v3=structuredClone(modern.v3Template);
-  const holds=modern.v3Reference.researchPlan.requiredPairTargets.map(target=>({target,value:null,priority:"保留",confidence:"判断保留",sourceIds:[],
-    reason:"試験用の個別判断。構築の裏付けが不足。",counterargument:"登録者の偏りがある。",uncertainty:"別の登録者と構築を確認する。"}));
   v3.internal.judgments=holds;
   v3.internal.limitations="ローカル試験";
   await openInput(mobileAdmin);

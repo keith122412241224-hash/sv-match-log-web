@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import type { creatorClient } from "@/lib/creator/server";
 import { collectReviewSnapshot } from "./snapshot";
 import type { ReviewSnapshot } from "./metrics";
+import { requireRatedMatchups } from "./judgment";
 import { reviewDiagnostics, validateEvaluation, type EvaluationDocument } from "./evaluation";
 import { memberSnapshot, previousTiers, type MemberPayload, type Publication } from "./publication";
 
@@ -118,6 +119,9 @@ export async function reviewAction(client: Client, run: RunDetail, body: Record<
     await verifyMaster(client,run.snapshot);
     const frozenPrevious = run.snapshot.previousEvaluation?.payload.evaluation ?? null;
     analysis = validateEvaluation(action === "publish" ? run.analysis : body.document, run.snapshot, frozenPrevious);
+    if (action==="save" || action==="publish") {
+      requireRatedMatchups(run.snapshot,new Map(analysis.public.pairs.map(p=>[p.a+"/"+p.b,p.rating])));
+    }
     const isV3=analysis.schemaVersion===2 && analysis.reviewVersion===3;
     if (isV3 && action==="publish" && run.mode!=="manual") throw new Error("v3は管理者による手動確認が必要です。");
     if (analysis.schemaVersion===2 && analysis.reviewVersion===3) {

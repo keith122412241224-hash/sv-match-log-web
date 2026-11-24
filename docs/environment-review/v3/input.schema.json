@@ -5,7 +5,7 @@
   "type": "object",
   "if":{"required":["judgmentRule"]},"then":{"required":["tierRule"],"properties":{"internal":{"required":["judgments"]}}},"else":{"properties":{"internal":{"not":{"required":["judgments"]}}}},
   "properties": {
-    "judgmentRule": {"enum":["evidence-judgment-v1","evidence-judgment-v2"]},
+    "judgmentRule": {"enum":["evidence-judgment-v1","evidence-judgment-v2","evidence-judgment-v3"]},
     "tierRule": {"const":"encounter-v3.1","description":"新規評価の版。未指定の既存評価はv3.0で照合。"},
     "schemaVersion": {
       "const": 2

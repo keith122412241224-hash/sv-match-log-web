@@ -177,6 +177,18 @@ test("new AI rule covers every non-mirror pair, including the unobserved and the
   assert.equal(result.public.pairs.length,36);assert.equal(result.public.pairs.find(p=>p.a==="a"&&p.b==="b").rating,1);
   assert.deepEqual(validateEvaluation(result,snapshot),result);
   assert.throws(()=>validateEvaluation({...input,internal:{...input.internal,judgments:choices.slice(0,-1)}},snapshot),/不足/);
+  const modern={...input,judgmentRule:"evidence-judgment-v3"};
+  const boundary={...snapshot,pairs:[...snapshot.pairs,{a:"a",b:"i",count:9,wins:5,dataRating:null}]};
+  assert.doesNotThrow(()=>validateEvaluation(modern,boundary));
+  boundary.pairs[1]={...boundary.pairs[1],count:10};
+  assert.doesNotThrow(()=>validateEvaluation(input,boundary)); // archived v2
+  assert.throws(()=>validateEvaluation(modern,boundary),/再評価/);
+  const target=choices.find(j=>j.target==="a/i");
+  Object.assign(target,{value:-1,priority:"実測",confidence:"低"});
+  const judged=validateEvaluation(modern,boundary);
+  assert.equal(judged.public.pairs.find(p=>p.b==="i"&&p.a==="a").rating,-1);
+  assert.deepEqual(validateEvaluation(judged,boundary),judged);
+  assert.throws(()=>validateEvaluation({...modern,internal:{...modern.internal,judgments:choices.filter(j=>j!==target)}},boundary),/再評価/);
   const empty=choices.find(j=>j.target==="a/i");Object.assign(empty,{value:0,priority:"実測",confidence:"低"});
   assert.throws(()=>validateEvaluation(input,snapshot),/実測も直接資料もない/);
 });

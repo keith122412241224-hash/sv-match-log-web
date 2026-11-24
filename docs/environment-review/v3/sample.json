@@ -2,7 +2,7 @@
   "schemaVersion": 2,
   "promptVersion": "environment-review-prompt-v2",
   "reviewVersion": 3,
-  "judgmentRule": "evidence-judgment-v2",
+  "judgmentRule": "evidence-judgment-v3",
   "tierRule": "encounter-v3.1",
   "environmentId": "00000000-0000-4000-8000-000000000001",
   "snapshotId": "00000000-0000-4000-8000-000000000002",

@@ -1,5 +1,5 @@
 import { TIER_RULE } from "./assessment-v3";
-import { assessJudgments, JUDGMENT_RULE, LEGACY_JUDGMENT_RULE, type JudgmentRule, type Judgment } from "./judgment";
+import { ALL_PAIRS_JUDGMENT_RULE, assessJudgments, JUDGMENT_RULE, LEGACY_JUDGMENT_RULE, type JudgmentRule, type Judgment } from "./judgment";
 import { assessV3, verifyV3 } from "./method-v3";
 import { parseResearch, type Research } from "./research-v3";
 import type { ReviewSnapshot } from "./metrics";
@@ -42,7 +42,7 @@ export function validateEvaluation(value:unknown,ctx:ReviewContext,previous?:v1.
     const rule=versioned ? TIER_RULE : undefined;
     if(root.reviewVersion!==3 || root.schemaVersion!==2 || ctx.promptVersion!==PROMPT_VERSION || root.promptVersion!==ctx.promptVersion ||
         root.environmentId!==ctx.environmentId || root.snapshotId!==ctx.snapshotId) v1.fail("v3の対象スナップショットまたは版が一致しません。");
-    const judgmentRule = root.judgmentRule===JUDGMENT_RULE ? JUDGMENT_RULE : root.judgmentRule===LEGACY_JUDGMENT_RULE ? LEGACY_JUDGMENT_RULE : undefined;
+    const judgmentRule = root.judgmentRule===JUDGMENT_RULE ? JUDGMENT_RULE : root.judgmentRule===ALL_PAIRS_JUDGMENT_RULE ? ALL_PAIRS_JUDGMENT_RULE : root.judgmentRule===LEGACY_JUDGMENT_RULE ? LEGACY_JUDGMENT_RULE : undefined;
     if(deliberative && (!versioned || !judgmentRule)) v1.fail("未対応の総合判断方式です。");
     const i=v1.object(root.internal,"research sources evidence limitations"+(deliberative?" judgments":""),"v3内部資料");
     if(!Array.isArray(i.sources) || i.sources.length || !Array.isArray(i.evidence) || i.evidence.length) v1.fail("v3資料はresearchに入力してください。");
