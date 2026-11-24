@@ -205,6 +205,25 @@ async function verify(browser) {
   };
   const envQuery = '?environment='+ids.env;
   const adminUrl = origin+'/admin/environment-review'+envQuery;
+  const environmentUrl = origin+'/environment'+envQuery;
+  const summaryTab = reportPage.getByRole('tab',{name:'環境サマリー'});
+  const reviewPanel = reportPage.getByRole('tabpanel',{name:'総合環境評価'});
+  let reviewReads = 0;
+  reportPage.on('request', request => {
+    if (new URL(request.url()).pathname === '/api/environment/review') reviewReads++;
+  });
+  await reportPage.goto(environmentUrl);
+  await summaryTab.waitFor();
+  assert.deepEqual(await reportPage.getByRole('tab').allTextContents(),['環境サマリー','推移分析','総合環境評価']);
+  assert.equal(reviewReads,0);
+  await summaryTab.press('End');
+  await reviewPanel.getByRole('heading',{name:'評価準備中'}).waitFor();
+  assert.equal(await reportPage.getByRole('radio').count(),0);
+  await reportPage.screenshot({path:path.join(output,'environment-admin-empty-desktop.png')});
+  await reportPage.getByRole('tab',{name:'総合環境評価'}).press('ArrowLeft');
+  await reportPage.getByRole('tabpanel',{name:'推移分析'}).getByRole('heading',{name:'推移分析'}).waitFor();
+  await reportPage.getByRole('tab',{name:'推移分析'}).press('Home');
+  await reportPage.getByRole('tabpanel',{name:'環境サマリー'}).getByRole('heading').first().waitFor();
   await page.goto(adminUrl);
   await page.getByRole('heading',{name:'総合環境評価管理'}).waitFor();
   for (const [name, needle] of [['専用プロンプト','実測'],['JSON Schema','schemaVersion'],['サンプルJSON','snapshotId']]) {
@@ -235,9 +254,22 @@ async function verify(browser) {
 
   assert.equal((await member.request.get(memberApi)).status(),403);
   const deniedPage=await member.newPage();
-  await deniedPage.goto(origin+'/environment'+envQuery);
+  let memberReads = 0;
+  deniedPage.on('request', request => {
+    if (new URL(request.url()).pathname === '/api/environment/review') memberReads++;
+  });
+  await deniedPage.goto(environmentUrl);
   await deniedPage.getByRole('tab',{name:'環境サマリー'}).waitFor();
-  assert.equal(await deniedPage.getByRole('tab',{name:'総合環境評価'}).count(),0);
+  for (const width of [1440,390,320]) {
+    await deniedPage.setViewportSize({width,height:844});
+    assert.deepEqual(await deniedPage.getByRole('tab').allTextContents(),['環境サマリー','推移分析']);
+    await deniedPage.getByRole('tab',{name:'環境サマリー'}).press('End');
+    await deniedPage.getByRole('tabpanel',{name:'推移分析'}).waitFor();
+    await deniedPage.getByRole('tab',{name:'推移分析'}).press('ArrowRight');
+    await deniedPage.getByRole('tabpanel',{name:'環境サマリー'}).waitFor();
+    assert.equal(await deniedPage.locator('#environment-panel-review').count(),0);
+  }
+  assert.equal(memberReads,0);
   await deniedPage.goto(adminUrl+'&view=report');
   assert.ok(!new URL(deniedPage.url()).pathname.startsWith('/admin/environment-review'));
   await deniedPage.close();
@@ -339,7 +371,9 @@ async function verify(browser) {
   assert.equal(v2.payload.snapshot.schemaVersion,2);
   assert.doesNotMatch(JSON.stringify(v2), /previousEvaluation|omissionReason|reasonCodes|candidateTier|topContributorShare|"internal"|"sources"/);
   async function openDeck(tab) {
-    const panel = await openReport(tab);
+    await tab.goto(environmentUrl);
+    await tab.getByRole('tab',{name:'総合環境評価'}).click();
+    const panel = tab.getByRole('tabpanel',{name:'総合環境評価'});
     const deck = panel.getByRole('heading',{name:'デッキ別総合評価'}).locator('..').locator('details > summary').filter({hasText:'コンボエルフ'}).first();
     await deck.click();
     await deck.locator('..').getByText('Tier判定対象の実測勝率',{exact:true}).waitFor();
@@ -351,6 +385,17 @@ async function verify(browser) {
   await openDeck(mobile);
   assert.ok(await mobile.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
   await mobile.screenshot({path:path.join(output,'v2-member-mobile-dark.png')});
+  await mobile.getByRole('combobox',{name:'環境',exact:true}).selectOption(ids.env2);
+  await mobile.getByRole('tabpanel',{name:'総合環境評価'}).getByRole('heading',{name:'評価準備中'}).waitFor();
+  for (const width of [390,320]) {
+    await mobile.setViewportSize({width,height:844});
+    assert.ok(await mobile.evaluate(()=>document.documentElement.scrollWidth <= innerWidth));
+    const bounds = await mobile.getByRole('tab',{name:'総合環境評価'}).boundingBox();
+    assert.ok(bounds && bounds.x >= 0 && bounds.x + bounds.width <= width);
+  }
+  await mobile.setViewportSize({width:390,height:844});
+  await mobile.screenshot({path:path.join(output,'environment-admin-empty-mobile.png')});
+  reports.add('環境画面の権限別タブ、キーボード移動、未選択時の通信、評価準備中、環境切替、v2公開版を確認');
   await mobileAdmin.goto(adminUrl);
   await mobileAdmin.getByRole('button',{name:'検証してプレビュー'}).click();
   await mobileAdmin.getByText('新旧ルール・総合評価の比較',{exact:true}).evaluate(el=>el.scrollIntoView({block:'start'}));
