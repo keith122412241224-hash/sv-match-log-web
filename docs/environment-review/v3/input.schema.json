@@ -1,0 +1,521 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SV Match Log 評価方式 v3（固定スナップショット形式2）",
+  "description": "Aは凍結データTier、Bは遭遇率の帯、Cは旧v3、Dは遭遇率基礎Tierに対する実測補正、Eは外部資料を含む総合Tier。public.decks[].tierはEであり、遭遇率・実測値は入力しない。judgmentRuleがある場合の最終評価は対象別のAI判断。基礎評価との変更幅は管理者確認に使用する。",
+  "type": "object",
+  "if":{"required":["judgmentRule"]},"then":{"required":["tierRule"],"properties":{"internal":{"required":["judgments"]}}},"else":{"properties":{"internal":{"not":{"required":["judgments"]}}}},
+  "properties": {
+    "judgmentRule": {"const":"evidence-judgment-v1"},
+    "tierRule": {"const":"encounter-v3.1","description":"新規評価の版。未指定の既存評価はv3.0で照合。"},
+    "schemaVersion": {
+      "const": 2
+    },
+    "environmentId": {
+      "$ref": "#/$defs/id"
+    },
+    "snapshotId": {
+      "$ref": "#/$defs/id"
+    },
+    "public": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "overview": {
+              "type": "object",
+              "properties": {
+                "facts": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1200,
+                  "pattern": "^(?![\\s\\S]*(?:[Hh][Tt][Tt][Pp][Ss]?://|[Ww][Ww][Ww]\\.|</?[A-Za-z][^>]*>))[\\s\\S]*$"
+                },
+                "hypothesis": {
+                  "type": "string",
+                  "minLength": 0,
+                  "maxLength": 1200,
+                  "pattern": "^(?![\\s\\S]*(?:[Hh][Tt][Tt][Pp][Ss]?://|[Ww][Ww][Ww]\\.|</?[A-Za-z][^>]*>))[\\s\\S]*$"
+                }
+              },
+              "required": [
+                "facts",
+                "hypothesis"
+              ],
+              "additionalProperties": false
+            },
+            "comparison": {
+              "enum": [
+                "available",
+                "partial",
+                "unavailable"
+              ]
+            },
+            "decks": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/deck"
+              }
+            },
+            "pairs": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/pair"
+              }
+            },
+            "changes": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1200,
+              "pattern": "^(?![\\s\\S]*(?:[Hh][Tt][Tt][Pp][Ss]?://|[Ww][Ww][Ww]\\.|</?[A-Za-z][^>]*>))[\\s\\S]*$"
+            }
+          },
+          "required": [
+            "overview",
+            "comparison",
+            "decks",
+            "pairs",
+            "changes"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "internal": {
+      "type": "object",
+      "properties": {
+        "judgments": {"type":"array","items":{"type":"object","additionalProperties":false,"required":["target","value","priority","confidence","sourceIds","reason","counterargument","uncertainty"],"properties":{"target":{"type":"string","maxLength":260,"minLength":1},"value":{"type":["integer","null"],"minimum":-2,"maximum":5},"priority":{"enum":["実測","外部","総合","保留"]},"confidence":{"enum":["判断保留","低","中","高"]},"sourceIds":{"type":"array","maxItems":100,"uniqueItems":true,"items":{"$ref":"#/$defs/id"}},"reason":{"type":"string","minLength":1,"maxLength":1200},"counterargument":{"type":"string","minLength":1,"maxLength":1200},"uncertainty":{"type":"string","minLength":1,"maxLength":1200}},"if":{"properties":{"target":{"pattern":"/"}}},"then":{"properties":{"value":{"maximum":2}}},"else":{"properties":{"value":{"minimum":1}}}}},
+        "research": {
+          "type": "object",
+          "properties": {
+            "balanceChange": {"anyOf":[{"type":"null"},{"type":"object","additionalProperties":false,"required":["effectiveAt","url"],"properties":{"effectiveAt":{"type":"string","format":"date-time"},"url":{"type":"string","format":"uri","pattern":"^https://"}}}]},
+            "mode": {
+              "enum": [
+                "current",
+                "historical"
+              ]
+            },
+            "analyzedAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "searchLog": {
+              "type": "string",
+              "maxLength": 4000,
+              "minLength": 1
+            },
+            "sources": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "$ref": "#/$defs/id"
+                  },
+                  "url": {
+                    "type": "string",
+                    "format": "uri",
+                    "pattern": "^https://",
+                    "maxLength": 1400
+                  },
+                  "origin": {
+                    "type": "string",
+                    "format": "uri",
+                    "pattern": "^https://",
+                    "maxLength": 1400
+                  },
+                  "scopeStart":{"type":"string","format":"date-time"},
+                  "guideCheck": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["status"],
+                    "oneOf":[{"required":["rows"]},{"required":["observations"],"not":{"required":["candidates"]}}],
+                    "properties": {
+                      "status": {"enum": ["本文確認","検索結果のみ","旧環境","本文取得不能"]},
+                      "observations":{"type":"array","maxItems":500,"items":{"type":"object","additionalProperties":false,"required":["name","tier","aliasId","basis"],"properties":{"name":{"type":"string","minLength":1,"maxLength":120},"tier":{"type":"integer","minimum":1,"maximum":5},"aliasId":{"anyOf":[{"$ref":"#/$defs/id"},{"type":"null"}]},"basis":{"type":"string","minLength":1,"maxLength":600}}}},
+                      "candidates":{"type":"array","maxItems":500,"items":{"type":"string","minLength":1,"maxLength":120}},
+                      "rows": {"type":"array","maxItems":500,"items":{
+                        "type":"object","additionalProperties":false,"required":["deckId","relation","reason"],
+                        "if":{"properties":{"relation":{"enum":["外部が上位","外部が下位","一致","実測保留・掲載あり"]}}},"then":{"required":["offset"]},"else":{"not":{"required":["offset"]}},
+                        "properties":{"offset":{"type":"integer","minimum":-5,"maximum":4},"deckId":{"$ref":"#/$defs/id"},"relation":{"enum":["外部が上位","外部が下位","一致","実測保留・掲載あり","掲載を確認できず","対応不明"]},"reason":{"type":"string","minLength":1,"maxLength":600}}
+                      }}
+                    },
+                    "if":{"properties":{"status":{"const":"本文確認"}}},
+                    "else":{"properties":{"rows":{"maxItems":0},"observations":{"maxItems":0},"candidates":{"maxItems":0}}}
+                  },
+                  "publisher": {
+                    "type": "string",
+                    "maxLength": 120,
+                    "minLength": 1
+                  },
+                  "author": {
+                    "type": "string",
+                    "maxLength": 160,
+                    "minLength": 1
+                  },
+                  "dataset": {
+                    "type": "string",
+                    "maxLength": 160,
+                    "minLength": 1
+                  },
+                  "publishedAt": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "updatedAt": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "retrievedAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "environmentId": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/$defs/id"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "channel": {
+                    "enum": [
+                      "攻略",
+                      "X",
+                      "note",
+                      "動画",
+                      "大会",
+                      "公式",
+                      "個人記事"
+                    ]
+                  },
+                  "reliability": {
+                    "enum": [
+                      "高",
+                      "中",
+                      "低"
+                    ]
+                  },
+                  "applicability": {
+                    "type": "string",
+                    "maxLength": 600,
+                    "minLength": 1
+                  },
+                  "outcome": {
+                    "enum": [
+                      "採用",
+                      "不採用",
+                      "取得不能"
+                    ]
+                  },
+                  "reason": {
+                    "type": "string",
+                    "maxLength": 600,
+                    "minLength": 1
+                  },
+                  "claims": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "target": {
+                          "type": "string",
+                          "maxLength": 260,
+                          "minLength": 1
+                        },
+                        "topic": {
+                          "enum": [
+                            "環境評価",
+                            "対面相性",
+                            "構築",
+                            "難易度",
+                            "勝ち筋・対策",
+                            "大会採用",
+                            "実戦検証",
+                            "体感"
+                          ]
+                        },
+                        "value": {
+                          "anyOf": [
+                            {
+                              "type": "integer",
+                              "minimum": -2,
+                              "maximum": 5
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "basis": {
+                          "type": "string",
+                          "maxLength": 600,
+                          "minLength": 1
+                        },
+                        "conditions": {
+                          "type": "string",
+                          "maxLength": 600,
+                          "minLength": 1
+                        }
+                      },
+                      "required": [
+                        "target",
+                        "topic",
+                        "value",
+                        "basis",
+                        "conditions"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "maxItems": 160
+                  }
+                },
+                "required": [
+                  "id",
+                  "url",
+                  "origin",
+                  "publisher",
+                  "author",
+                  "dataset",
+                  "publishedAt",
+                  "updatedAt",
+                  "retrievedAt",
+                  "environmentId",
+                  "channel",
+                  "reliability",
+                  "applicability",
+                  "outcome",
+                  "reason",
+                  "claims"
+                ],
+                "additionalProperties": false
+              },
+              "maxItems": 100
+            }
+          },
+          "required": [
+            "mode",
+            "analyzedAt",
+            "searchLog",
+            "sources"
+          ],
+          "additionalProperties": false
+        },
+        "sources": {
+          "type": "array",
+          "maxItems": 0
+        },
+        "evidence": {
+          "type": "array",
+          "maxItems": 0
+        },
+        "limitations": {
+          "type": "string",
+          "maxLength": 1800,
+          "minLength": 1
+        }
+      },
+      "required": [
+        "research",
+        "sources",
+        "evidence",
+        "limitations"
+      ],
+      "additionalProperties": false
+    },
+    "promptVersion": {
+      "const": "environment-review-prompt-v2"
+    },
+    "reviewVersion": {
+      "const": 3
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "environmentId",
+    "snapshotId",
+    "public",
+    "internal",
+    "promptVersion",
+    "reviewVersion"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9_.-]+$"
+    },
+    "divergence": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "enum": [
+            "確認済み",
+            "要検証"
+          ]
+        },
+        "direction": {
+          "enum": [
+            "過小評価の可能性",
+            "過大評価の可能性",
+            "評価が分かれている",
+            "判断保留"
+          ]
+        },
+        "importance": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "facts": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1200,
+          "pattern": "^(?![\\s\\S]*(?:[Hh][Tt][Tt][Pp][Ss]?://|[Ww][Ww][Ww]\\.|</?[A-Za-z][^>]*>))[\\s\\S]*$"
+        },
+        "hypothesis": {
+          "type": "string",
+          "minLength": 0,
+          "maxLength": 1200,
+          "pattern": "^(?![\\s\\S]*(?:[Hh][Tt][Tt][Pp][Ss]?://|[Ww][Ww][Ww]\\.|</?[A-Za-z][^>]*>))[\\s\\S]*$"
+        }
+      },
+      "required": [
+        "status",
+        "direction",
+        "importance",
+        "facts",
+        "hypothesis"
+      ],
+      "additionalProperties": false
+    },
+    "deck": {
+      "type": "object",
+      "properties": {
+        "deckId": {
+          "$ref": "#/$defs/id"
+        },
+        "tier": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1200,
+          "pattern": "^(?![\\s\\S]*(?:[Hh][Tt][Tt][Pp][Ss]?://|[Ww][Ww][Ww]\\.|</?[A-Za-z][^>]*>))[\\s\\S]*$"
+        },
+        "confidence": {
+          "enum": [
+            "高",
+            "中",
+            "低",
+            "判断保留"
+          ]
+        },
+        "divergence": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/divergence"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "deckId",
+        "tier",
+        "reason",
+        "confidence",
+        "divergence"
+      ],
+      "additionalProperties": false
+    },
+    "pair": {
+      "type": "object",
+      "properties": {
+        "a": {
+          "$ref": "#/$defs/id"
+        },
+        "b": {
+          "$ref": "#/$defs/id"
+        },
+        "rating": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -2,
+              "maximum": 2
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1200,
+          "pattern": "^(?![\\s\\S]*(?:[Hh][Tt][Tt][Pp][Ss]?://|[Ww][Ww][Ww]\\.|</?[A-Za-z][^>]*>))[\\s\\S]*$"
+        },
+        "confidence": {
+          "enum": [
+            "高",
+            "中",
+            "低",
+            "判断保留"
+          ]
+        },
+        "divergence": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/divergence"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "a",
+        "b",
+        "rating",
+        "reason",
+        "confidence",
+        "divergence"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

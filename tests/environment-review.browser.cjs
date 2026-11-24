@@ -483,6 +483,49 @@ async function verify(browser) {
   assert.equal((await (await admin.request.get(memberApi)).json()).payload.evaluation.changes,mobileEdit.public.changes);
   reports.add('v2修正案を事前保存せず公開し、ダブルクリックでも保存・公開が各1回だけ確定');
   reports.add('同一締切のv1とv2、旧JSON拒否、比較表・実測母集団・公開画面を確認');
+  await mobileAdmin.goto(adminUrl);
+  const v3=structuredClone(modern.v3Template);
+  v3.internal.limitations="ローカル試験";
+  await mobileAdmin.getByText('JSONを直接貼り付け・編集',{exact:true}).click();
+  await mobileAdmin.getByLabel('評価JSON（貼り付け・編集）').fill(JSON.stringify(v3));
+  await mobileAdmin.getByRole('button',{name:'検証してプレビュー'}).click();
+  await mobileAdmin.getByRole('status').filter({hasText:'検証が完了'}).waitFor();
+  await mobileAdmin.getByLabel('評価の修正理由',{exact:true}).fill('v3の実測評価を試験');
+  await mobileAdmin.getByLabel('公開内容と前回からの変更を確認しました').check();
+  await mobileAdmin.getByRole('button',{name:'確認して公開',exact:true}).click();
+  await mobileAdmin.getByRole('heading',{name:'公開完了'}).waitFor();
+  const v3run=await latestRun();
+  assert.equal(v3run.analysis.reviewVersion,3);
+  assert.equal(v3run.analysis.tierRule,"encounter-v3.1");
+  const payload3=(await (await admin.request.get(memberApi)).json()).payload;
+  assert.equal(payload3.evaluation.comparison,'unavailable');
+  assert.doesNotMatch(JSON.stringify(payload3),/searchLog|analyzedAt|applicability|retrievedAt|"research"/);
+  reports.add('v3 JSONの取り込み・実測のみのプレビュー・一括保存公開・内部研究情報の除外を確認');
+  const ai=structuredClone(modern.v3Template), subject=modern.snapshot.decks.find(d=>!d.isOther);
+  ai.internal.research.sources.push({id:"fixture-guide",origin:"https://example.org/guide",url:"https://example.org/guide",
+    publisher:"試験用媒体",author:"fixture",dataset:"fixture",publishedAt:null,updatedAt:ai.internal.research.analyzedAt,
+    retrievedAt:ai.internal.research.analyzedAt,environmentId:ids.env,channel:"攻略",outcome:"不採用",reliability:"中",
+    applicability:"同環境の試験資料",reason:"内部照合のテスト",claims:[],guideCheck:{status:"本文確認",observations:[{name:subject.name,tier:1,aliasId:subject.deckId,basis:"試験用対応"}]}});
+  ai.internal.judgments=[{target:subject.deckId,value:1,priority:"外部",confidence:"低",sourceIds:["fixture-guide"],reason:"対象環境での対策価値を評価した。",counterargument:"構築依存の試験例",uncertainty:"独立確認待ち"}];
+  const aiArgs={...args,revision:v3run.revision,expectedPublication:v3run.id,document:ai,reason:"AI判断のローカル試験"};
+  const proposal=await (await action(aiArgs)).json();
+  assert.ok(proposal.reviewKey && proposal.sourceEdition,JSON.stringify(proposal));
+  const publishAI={...aiArgs,action:"confirmPublish",reviewKey:proposal.reviewKey,publishedEdition:proposal.publishedEdition,confirmChanges:true};
+  assert(!(await action({...publishAI,sourceEdition:"incorrect"})).ok());
+  assert.equal((await latestRun()).revision,v3run.revision);
+  await mobileAdmin.goto(adminUrl);
+  await mobileAdmin.getByText('JSONを直接貼り付け・編集',{exact:true}).click();
+  await mobileAdmin.getByLabel('評価JSON（貼り付け・編集）').fill(JSON.stringify(ai));
+  await mobileAdmin.getByRole('button',{name:'検証してプレビュー'}).click();
+  await mobileAdmin.getByRole('status').filter({hasText:'検証が完了'}).waitFor();
+  await mobileAdmin.getByLabel('評価の修正理由',{exact:true}).fill('原典と反対材料を確認');
+  await mobileAdmin.getByLabel('原典の本文・適用範囲、判断の反対材料、公開内容と前回からの変更を確認しました').check();
+  await mobileAdmin.getByRole('button',{name:'確認して公開',exact:true}).click();
+  await mobileAdmin.getByRole('heading',{name:'公開完了'}).waitFor();
+  const delivered=(await (await admin.request.get(memberApi)).json()).payload.evaluation;
+  assert.equal(delivered.decks.find(d=>d.deckId===subject.deckId).tier,1);
+  assert.doesNotMatch(JSON.stringify(delivered),/fixture-guide|example\.org|counterargument|sourceIds/);
+  reports.add('AI評価を管理者画面から公開、原典確認版の不一致は保存前に拒否、会員用投影に内部資料を含まないことを確認');
   assert.deepEqual(errors,[]);
 }
 

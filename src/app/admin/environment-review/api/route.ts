@@ -3,6 +3,9 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { CreatorError, creatorClient } from "@/lib/creator/server";
 import { baselineEvaluation, reviewDiagnostics, MAX_EVALUATION_BYTES } from "@/lib/environment-review/evaluation";
+import { JUDGMENT_RULE } from "@/lib/environment-review/judgment";
+import { researchPlan } from "@/lib/environment-review/research-plan";
+import { anchoredStrength, cellLabel, priority, strength, TIER_RULE } from "@/lib/environment-review/assessment-v3";
 import { checkDb, createSnapshot, publicationFor, publishReviewed, ReviewConflict, reviewAction, reviewId, runDetail, RUN_FIELDS } from "@/lib/environment-review/workflow";
 
 export const dynamic = "force-dynamic";
@@ -12,6 +15,11 @@ const resourcesV1 = {
   prompt: () => readFile(path.join(process.cwd(),"docs/environment-review/v1/prompt.md"),"utf8"),
   schema: () => readFile(path.join(process.cwd(),"docs/environment-review/v1/input.schema.json"),"utf8"),
   sample: () => readFile(path.join(process.cwd(),"docs/environment-review/v1/sample.json"),"utf8")
+};
+const resourcesV3 = {
+  prompt: () => readFile(path.join(process.cwd(),"docs/environment-review/v3/prompt.md"),"utf8"),
+  schema: () => readFile(path.join(process.cwd(),"docs/environment-review/v3/input.schema.json"),"utf8"),
+  sample: () => readFile(path.join(process.cwd(),"docs/environment-review/v3/sample.json"),"utf8")
 };
 const resources = {
   prompt: () => readFile(path.join(process.cwd(),"docs/environment-review/prompt.md"),"utf8"),
@@ -24,7 +32,7 @@ export async function GET(request: NextRequest) {
     const { client } = await creatorClient();
     const q = request.nextUrl.searchParams, resource = q.get("resource");
     if (resource && Object.hasOwn(resources,resource)) {
-      const files = q.get("version") === "1" ? resourcesV1 : resources;
+      const files = q.get("version") === "1" ? resourcesV1 : q.get("version")==="3" ? resourcesV3 : resources;
       const text = await files[resource as keyof typeof resources]();
       return new Response(text,{headers: {"Cache-Control":"private, no-store","Content-Type":"text/plain; charset=utf-8",
         "Content-Disposition": `attachment; filename="environment-review-${resource}.${resource === "prompt" ? "md" : "json"}"` }});
@@ -43,8 +51,11 @@ export async function GET(request: NextRequest) {
       const { previousEvaluation, ...snapshot } = run.snapshot;
       if (snapshot.schemaVersion === 2) {
         const previous = previousEvaluation?.payload.evaluation ?? null;
+        const researchTemplate={schemaVersion:2,promptVersion:snapshot.promptVersion,reviewVersion:3,tierRule:TIER_RULE,environmentId:snapshot.environmentId,snapshotId:snapshot.snapshotId,public:null,internal:{sources:[],evidence:[],limitations:"外部調査前",research:{mode:"current",analyzedAt:new Date().toISOString(),sources:[],searchLog:"未調査"}}};
         return reply({snapshot, previousEvaluation: previousEvaluation ?? null, candidates: reviewDiagnostics(snapshot, null, previous),
-          template: baselineEvaluation(snapshot, previous)});
+          v3Reference:{researchPlan:researchPlan(snapshot,run.analysis?.schemaVersion===2 ? run.analysis.internal.research : undefined,previousEvaluation,run.analysis?.public),decks:snapshot.decks.map(d=>({deckId:d.deckId,...anchoredStrength(d,snapshot),previousMethodTier:strength(d,snapshot).tier,priority:priority(d.encounterRate),dataTier:d.dataTier})),
+            pairs:snapshot.pairs.map(p=>({a:p.a,b:p.b,measuredLabel:cellLabel(p.dataRating,p.wins,p.count),dataRating:p.dataRating}))},
+          template: baselineEvaluation(snapshot, previous), researchTemplate, v3Template:{...researchTemplate,judgmentRule:JUDGMENT_RULE,internal:{...researchTemplate.internal,judgments:[]}}});
       }
       return reply({ snapshot, previousEvaluation: previousEvaluation ?? null });
     }

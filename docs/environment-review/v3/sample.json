@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 2,
+  "promptVersion": "environment-review-prompt-v2",
+  "reviewVersion": 3,
+  "judgmentRule": "evidence-judgment-v1",
+  "tierRule": "encounter-v3.1",
+  "environmentId": "00000000-0000-4000-8000-000000000001",
+  "snapshotId": "00000000-0000-4000-8000-000000000002",
+  "public": null,
+  "internal": {
+    "judgments": [],
+    "research": {
+      "mode": "current",
+      "analyzedAt": "2026-11-24T13:53:11.771+09:00",
+      "sources": [],
+      "searchLog": "実測のみの形式例。実際の調査結果を入力してください。"
+    },
+    "sources": [],
+    "evidence": [],
+    "limitations": "形式例。実運用ではエクスポートしたID・実際の分析日時・調査内容に置き換えてください。"
+  }
+}

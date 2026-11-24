@@ -1,3 +1,4 @@
+import { encounterTier, tierMethod } from "./assessment-v3";
 import { UUID } from "@/lib/creator/model";
 import { createHash } from "node:crypto";
 import type { creatorClient } from "@/lib/creator/server";
@@ -85,7 +86,7 @@ function evidenceFingerprint(doc: EvaluationDocument) {
     return Object.fromEntries(Object.entries(value).sort(([a],[b]) => a < b ? -1 : a > b ? 1 : 0)
       .map(([key,entry]) => [key,canonical(entry)]));
   }
-  return createHash("sha256").update(JSON.stringify(canonical(doc.internal.sources))).digest("hex");
+  return createHash("sha256").update(JSON.stringify(canonical(doc.schemaVersion===2 && doc.internal.research ? doc.internal.research.sources : doc.internal.sources))).digest("hex");
 }
 
 export function compareDraft(next: EvaluationDocument, saved: EvaluationDocument | null) {
@@ -113,7 +114,34 @@ export async function reviewAction(client: Client, run: RunDetail, body: Record<
     await verifyMaster(client,run.snapshot);
     const frozenPrevious = run.snapshot.previousEvaluation?.payload.evaluation ?? null;
     analysis = validateEvaluation(action === "publish" ? run.analysis : body.document, run.snapshot, frozenPrevious);
-    const diagnosticRows = run.snapshot.schemaVersion === 2 ? reviewDiagnostics(run.snapshot, analysis, frozenPrevious) : [];
+    const isV3=analysis.schemaVersion===2 && analysis.reviewVersion===3;
+    if (isV3 && action==="publish" && run.mode!=="manual") throw new Error("v3は管理者による手動確認が必要です。");
+    if (analysis.schemaVersion===2 && analysis.reviewVersion===3) {
+      for (const d of analysis.public.decks) {
+        const measured=run.snapshot.decks.find(x=>x.deckId===d.deckId);
+        const base=measured?.dataTier;
+        const composite=measured ? tierMethod(analysis.tierRule)(measured,run.snapshot).tier : null;
+        const anchor=encounterTier(measured?.encounterRate??null);
+        if (analysis.tierRule && anchor!==null && d.tier!==null && Math.abs(anchor-d.tier)>=2)
+          warnings.push("遭遇率の基礎Tierからの大幅変更　"+(measured?.name??d.deckId)+"　"+d.reason);
+        if(analysis.judgmentRule && composite!==null && d.tier===null) warnings.push("実測基礎から判断保留への変更　"+(measured?.name??d.deckId));
+        if(d.tier!==null && (composite===null || Math.abs(composite-d.tier)>=2)) warnings.push("外部資料による大幅補正・暫定評価　"+(measured?.name??d.deckId));
+        if(d.tier!==null && (base==null || Math.abs(base-d.tier)>=2)) warnings.push("大幅補正・暫定評価　"+(run.snapshot.decks.find(x=>x.deckId===d.deckId)?.name ?? d.deckId));
+      }
+      if(analysis.judgmentRule) {
+        const choices=analysis.internal.judgments??[];
+        const names=new Map(run.snapshot.decks.map(d=>[d.deckId,d.name]));
+        for(const choice of choices) {
+          const label=choice.target.split("/").map(id=>names.get(id)??id).join(" 対 ");
+          const pair=analysis.public.pairs.find(p=>p.a+"/"+p.b===choice.target);
+          if(choice.priority==="外部" || pair?.divergence || choice.confidence==="高" && choice.sourceIds.length)
+            warnings.push("原典・反対材料・判断の適用範囲を確認　"+label);
+        }
+        if(choices.some(c=>c.sourceIds.length)) warnings.push("参照資料の実在、本文の対象環境と独立性を原典で確認してください。");
+      }
+      if(analysis.public.pairs.some(p=>p.reason.startsWith("外部情報を中心"))) warnings.push("外部資料に基づく暫定対面を確認してください。");
+    }
+    const diagnosticRows = run.snapshot.schemaVersion === 2 && !isV3 ? reviewDiagnostics(run.snapshot, analysis, frozenPrevious) : [];
     const names = new Map(run.snapshot.decks.map(d => [d.deckId,d.name]));
     const targetName = (key: string) => key.split("/").map(id => names.get(id) ?? id).join(" 対 ");
     for (const row of diagnosticRows) {
@@ -134,10 +162,13 @@ export async function reviewAction(client: Client, run: RunDetail, body: Record<
       const previous = previousPairs.get(p.a+"/"+p.b);
       if (previous != null && p.rating != null && Math.abs(previous-p.rating) >= 2) warnings.push("前回公開評価からの大幅変動　" + targetName(p.a + "/" + p.b));
     }
+    const needsSourceReview=analysis.schemaVersion===2 && analysis.judgmentRule && analysis.internal.judgments?.some(j=>j.sourceIds.length);
+    const sourceEdition=needsSourceReview?digest({id:run.id,analysis}):null;
+    if(action==="publish" && sourceEdition && body.sourceEdition!==sourceEdition) throw new Error("この版の原典と判断根拠を確認してください。");
     if (action === "preview") {
       const publishedEdition = current?.published_at ?? null;
       const reviewKey = digest({ id: run.id, revision, expectedPublication, publishedEdition, analysis, warnings, payload });
-      return { payload, warnings: [...new Set(warnings)], diagnostics: diagnosticRows, analysis, reviewKey,
+      return { payload, warnings: [...new Set(warnings)], diagnostics: diagnosticRows, analysis, reviewKey, sourceEdition,
         matchesSaved: run.analysis !== null && digest(analysis) === digest(run.analysis),
         draftComparison: compareDraft(analysis,run.analysis), publishedEdition };
     }
@@ -170,6 +201,7 @@ export async function publishReviewed(client: Client, run: RunDetail, body: Reco
       body.publishedEdition !== checked.publishedEdition) {
     throw new ReviewConflict("評価内容または公開版が変更されました。再読み込みして再確認してください。");
   }
+  if(checked.sourceEdition && body.sourceEdition!==checked.sourceEdition) throw new Error("確認した調査資料の版が一致しません。");
   if (checked.warnings.length && run.mode !== "manual") throw new Error("大きな評価変更には手動での管理者確認が必要です。");
   let draft = run;
   if (checked.matchesSaved) {

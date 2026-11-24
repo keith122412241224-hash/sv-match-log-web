@@ -13,6 +13,13 @@ const changed = new Map([
   ['src/components/environment/EnvironmentFilters.tsx', '13708ef4981772a8da452cf040c6107f6f6aee701bd16e58b649adc5082aadda']
 ]);
 const added = new Set([
+  'src/lib/environment-review/assessment-v3.ts',
+  'src/lib/environment-review/guide-comparison.ts',
+  'src/lib/environment-review/research-plan.ts',
+  'src/lib/environment-review/judgment.ts',
+  'src/lib/environment-review/method-v3.ts',
+  'src/lib/environment-review/research-v3.ts',
+  'supabase/migrations/20261124045000_environment_review_v3_manual.sql',
   'src/app/admin/environment-review/api/route.ts',
   'src/app/admin/environment-review/page.tsx',
   'src/app/api/environment/review/route.ts',

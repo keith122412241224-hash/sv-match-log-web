@@ -87,9 +87,12 @@ for (const [envNo, environmentId, environmentName, start, exactStart, end] of en
     const futures = {};
     for (const h of [3, 7]) {
       if (midnight(start, k + h) > midnight(closedThrough, 0) || (end && Date.parse(midnight(start, k + h)) > Date.parse(end))) continue;
-      const fc = windowCells(k, k + h, k + h).filter(c => c.my && c.opp && c.my !== c.opp && !others.has(c.my) && !others.has(c.opp));
+      const nextCells=windowCells(k,k+h,k+h);
+      const encounters=new Map();
+      for(const c of nextCells) encounters.set(c.opp,(encounters.get(c.opp)??0)+c.total);
+      const fc = nextCells.filter(c => c.my && c.opp && c.my !== c.opp && !others.has(c.my) && !others.has(c.opp));
       const period = grouped(fc);
-      futures[h] = { deck: periodDeckPerspectives(period, true), pair: periodUnifiedCounts(period) };
+      futures[h] = { encounters, total:nextCells.reduce((total,c)=>total+c.total,0), deck: periodDeckPerspectives(period, true), pair: periodUnifiedCounts(period) };
     }
     function future(key, pair) {
       return Object.fromEntries(Object.entries(futures).map(([h, f]) => {
@@ -98,6 +101,8 @@ for (const [envNo, environmentId, environmentName, start, exactStart, end] of en
       }));
     }
     const deckRows = review.decks.filter(d => !d.isOther && d.registrations > 0).map(d => ({
+      encounters:d.encounters,encounterRate:d.encounterRate,recentEncounters:d.short.encounters,
+      futureEncounters:Object.fromEntries(Object.entries(futures).map(([h,f])=>[h,[f.encounters.get(d.deckId)??0,f.total]])),
       name: d.name, id: d.deckId, n: d.eligibleCount, rate: d.eligibleWinRate, effective: d.model.effectiveRate,
       coverage: d.model.coverage, bias: d.model.bias, confidence: d.model.measuredConfidence, signals: d.model.signals.map(s => s.kind),
       interval: d.interval95, direct: d.model.direct, reversed: d.model.reversed, short: d.model.short, upper: d.model.upper,
@@ -114,7 +119,7 @@ for (const [envNo, environmentId, environmentName, start, exactStart, end] of en
       return { id, a: names.get(p.a), b: names.get(p.b), n: p.count, wins: p.wins, rate: p.winRate, effective: p.model.estimatedRate, interval: p.interval95,
         A: p.model.legacyRating, B: weeklyDirection, C: p.model.candidateRating, confidence: p.model.measuredConfidence, future: future(id, true) };
     });
-    results.push({ envNo, environmentName, start, k, date, matches: review.matchCount, contributors: source.contributors, decks: deckRows, pairs: pairRows });
+    results.push({ envNo, environmentName, start, k, date, matches: review.matchCount, shortMatches:review.shortMatchCount, contributors: source.contributors, decks: deckRows, pairs: pairRows });
   }
 }
 fs.writeFileSync(output, JSON.stringify(results));

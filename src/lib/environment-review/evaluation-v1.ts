@@ -193,7 +193,7 @@ function checkAssessment(
   if (confidenceLevels.indexOf(row.confidence) > confidenceLevels.indexOf(maximum)) fail(`${basis.target} の信頼度の上限は「${maximum}」です。`);
 }
 
-export function parsePublic(value: unknown, ctx: ReviewContext) {
+export function parsePublic(value: unknown, ctx: ReviewContext, pairLimit?: number) {
   const p = object(value, "overview comparison decks pairs changes", "公開評価");
   const overview = object(p.overview, "facts hypothesis", "環境総評");
   const measuredDecks = indexed(ctx.decks, item => item.deckId, "集計デッキ");
@@ -201,7 +201,7 @@ export function parsePublic(value: unknown, ctx: ReviewContext) {
   const pub: PublicEvaluation = {
     overview: {facts: publicText(overview.facts, "環境総評の事実"), hypothesis: publicText(overview.hypothesis, "環境総評の推測", true)},
     comparison: oneOf(p.comparison, comparisons, "外部情報の充足度"),
-    decks: list(p.decks, deck, measuredDecks.size, "デッキ評価"), pairs: list(p.pairs, pair, measuredPairs.size, "対面評価"),
+    decks: list(p.decks, deck, measuredDecks.size, "デッキ評価"), pairs: list(p.pairs, pair, pairLimit ?? measuredPairs.size, "対面評価"),
     changes: publicText(p.changes, "前回からの変化")
   };
   return {pub, measuredDecks, measuredPairs};

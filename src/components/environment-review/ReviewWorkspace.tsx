@@ -2,6 +2,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { MAX_EVALUATION_BYTES, type EvaluationDocument, type reviewDiagnostics } from "@/lib/environment-review/evaluation";
+import { researchPlan } from "@/lib/environment-review/research-plan";
+import { tierMethod, strength } from "@/lib/environment-review/assessment-v3";
 import { freshness } from "@/lib/environment-review/evidence-v2";
 import { jst, matchupLabel, tierLabel, type MemberPayload } from "@/lib/environment-review/publication";
 import type { compareDraft, ReviewEvent, ReviewRun, RunDetail } from "@/lib/environment-review/workflow";
@@ -15,7 +17,7 @@ const card = "min-w-0 rounded-md border border-slate-200 bg-white p-4 sm:p-5";
 const field = "w-full min-w-0 rounded-md border border-slate-300 bg-white p-2";
 const labels: Record<string,string> = { snapshot:"集計済み", draft:"下書き", published:"公開中", archived:"公開終了",create:"集計",save:"下書き保存",publish:"公開",withdraw:"公開停止",restore:"復元",failure:"失敗" };
 type Index = { runs: ReviewRun[]; events: ReviewEvent[]; current: string | null };
-type Preview = { reviewKey: string; matchesSaved: boolean; payload: MemberPayload; warnings: string[]; analysis: EvaluationDocument; diagnostics: ReturnType<typeof reviewDiagnostics>; draftComparison: ReturnType<typeof compareDraft>; publishedEdition: string | null };
+type Preview = { sourceEdition?:string|null; reviewKey: string; matchesSaved: boolean; payload: MemberPayload; warnings: string[]; analysis: EvaluationDocument; diagnostics: ReturnType<typeof reviewDiagnostics>; draftComparison: ReturnType<typeof compareDraft>; publishedEdition: string | null };
 
 class RequestError extends Error {
   constructor(message: string, readonly status: number) { super(message); }
@@ -111,7 +113,7 @@ export function ReviewWorkspace({environment, environmentName}: {environment: st
     try {
       const result = await request<{revision:number}>(api,{
         ...payload(publish ? "confirmPublish" : "save"), document:preview.analysis,
-        reviewKey:preview.reviewKey, publishedEdition:preview.publishedEdition, confirmChanges:confirmed
+        reviewKey:preview.reviewKey, sourceEdition:confirmed?preview.sourceEdition:null, publishedEdition:preview.publishedEdition, confirmChanges:confirmed
       });
       revision = result.revision;
     } catch (e) {
@@ -184,7 +186,7 @@ export function ReviewWorkspace({environment, environmentName}: {environment: st
         const {id} = await request<{id:string}>(api,{action:"create",environment}); await after(id,"集計を保存しました。分析用JSONをダウンロードできます。");
       })}>スナップショットを作成</button>
       <button className={button} disabled={!run} onClick={() => task(async () => download("sv-environment-" + run!.id + ".json",await request(base + "&id=" + run!.id + "&export=1")))}>分析用JSONを出力</button>
-      {([["prompt","専用プロンプト"],["schema","JSON Schema"],["sample","サンプルJSON"]] as const).map(([key,label]) => <a className="p-1 text-sm underline" href={api+"?resource="+key+"&version="+(run?.snapshot.schemaVersion ?? 2)} key={key} download>{label}</a>)}</div>
+      {([["prompt","専用プロンプト"],["schema","JSON Schema"],["sample","サンプルJSON"]] as const).map(([key,label]) => <a className="p-1 text-sm underline" href={api+"?resource="+key+"&version="+(run?.snapshot.schemaVersion===1 ? 1 : 3)} key={key} download>{label}</a>)}</div>
     </section>
     <section className={card}><h2 className="text-lg font-bold">STEP 2　分析結果の取り込み</h2>
       {run ? <div className="mt-3 grid gap-3">
@@ -211,18 +213,20 @@ export function ReviewWorkspace({environment, environmentName}: {environment: st
       {preview && run && <>
         <div><h3 className="font-semibold">評価変更の概要</h3><p className="whitespace-pre-line text-sm">{preview.analysis.public.changes}</p></div>
         {preview.warnings.length > 0 && <div className="rounded-md border border-amber-500 p-3"><h3 className="font-semibold">重要な警告・管理者確認</h3><ul className="list-disc pl-5 text-sm">{preview.warnings.map(w=><li key={w}>{w}</li>)}</ul></div>}
+        {preview.sourceEdition && preview.analysis.schemaVersion===2 && <details><summary>公開前に照合する原典</summary>
+          {preview.analysis.internal.research?.sources.filter(s=>s.outcome==="採用" || s.guideCheck?.status==="本文確認").map(s=><p key={s.id}><a className="underline" href={s.url} target="_blank" rel="noreferrer">{s.publisher}</a>　{s.applicability}</p>)}</details>}
         <Comparison run={run} preview={preview}/>
         <details className="min-w-0 rounded-md border p-3"><summary className="cursor-pointer font-semibold">公開前プレビュー</summary><ReviewReport preview publication={{run_id:run.id,as_of:run.as_of,published_at:run.as_of,payload:preview.payload}} /></details>
         {needsReason && <label className="grid gap-1 text-sm font-semibold">評価の修正理由<input className={field} value={reason} maxLength={1000} onChange={e=>setReason(e.target.value)} /></label>}
       </>}
-      {!receipt && <><label className="flex items-center gap-2"><input type="checkbox" disabled={!preview || reloadRequired || editorDirty} checked={confirmed} onChange={e=>setConfirmed(e.target.checked)}/>公開内容と前回からの変更を確認しました</label>
+      {!receipt && <><label className="flex items-center gap-2"><input type="checkbox" disabled={!preview || reloadRequired || editorDirty} checked={confirmed} onChange={e=>setConfirmed(e.target.checked)}/>{preview?.sourceEdition?"原典の本文・適用範囲、判断の反対材料、公開内容と前回からの変更を確認しました":"公開内容と前回からの変更を確認しました"}</label>
       <div className="flex flex-wrap gap-2"><button className={primary} disabled={!!blocked} aria-describedby="publish-guidance" onClick={()=>task(()=>submit(true))}>確認して公開</button>
         <button className={button} disabled={!preview || preview.matchesSaved || editorDirty || reloadRequired || (needsReason && !reason.trim())} onClick={()=>task(()=>submit(false))}>下書き保存</button></div>
       <p id="publish-guidance" className="text-sm text-muted">{blocked || "確認済みの内容を管理者限定で公開できます。"}</p></>}
       {reloadRequired && <button className={button+" justify-self-start"} onClick={()=>task(reload)}>最新の状態を再読み込み</button>}
     </div></section>
     <details className={card}><summary className="cursor-pointer text-lg font-bold">評価履歴・詳細設定</summary><div className="mt-3 grid min-w-0 gap-3">
-      {preview && run && <><ReviewEditor document={preview.analysis} decks={run.snapshot.decks} onApply={edit} onDirtyChange={dirty=>{setEditorDirty(dirty);setConfirmed(false);}}/>
+      {preview && run && <><ReviewEditor document={preview.analysis} snapshot={run.snapshot} onApply={edit} onDirtyChange={dirty=>{setEditorDirty(dirty);setConfirmed(false);}}/>
         <details><summary className="cursor-pointer font-semibold">管理者用の出典・判断根拠</summary><InternalInfo analysis={preview.analysis} snapshot={run.snapshot}/></details></>}
       <label className="grid gap-1 text-sm font-semibold">修正・復元・失敗の理由<input className={field} value={reason} maxLength={1000} onChange={e=>setReason(e.target.value)} /></label>
       <div className="flex flex-wrap gap-2"><button className={button} disabled={!run || index.current!==run.id} onClick={()=>{if(window.confirm("この環境の評価を公開停止しますか？")) void task(()=>apply("withdraw"));}}>公開停止</button>
@@ -278,6 +282,32 @@ function InternalInfo({analysis,snapshot}: {analysis: EvaluationDocument; snapsh
   const names = new Map(snapshot.decks.map(d=>[d.deckId,d.name]));
   const targetName = (target:string) => target.split("/").map(id=>names.get(id) ?? id).join(" 対 ");
   const codes:Record<string,string> = {rank:"上位ランク差",trend:"推移",concentration:"登録者集中",equalWeight:"登録者均等勝率",perspective:"使用・反転差",smallSample:"少数戦績",matchup:"主要対面",turn:"先後差",difficulty:"難易度",build:"構築変化",tournament:"大会",external:"外部評価",split:"外部評価の分裂",other:"その他"};
+  if(analysis.schemaVersion===2 && analysis.internal.research) {
+    const research=analysis.internal.research, accepted=research.sources.filter(s=>s.outcome==="採用");
+    const rate=tierMethod(analysis.tierRule);
+    const plan=researchPlan(snapshot,research,snapshot.previousEvaluation,analysis.public);
+    const targets=new Set(accepted.flatMap(s=>s.claims.map(c=>c.target)));
+    return <div className="grid gap-2 text-sm"><b>評価方式　{analysis.judgmentRule ?? analysis.tierRule ?? "v3.0"}</b><details><summary>全デッキの基礎Tier・補正・前回公開版</summary>{snapshot.decks.map(d=>{const m=rate(d,snapshot), published=snapshot.previousEvaluation?.payload.evaluation.decks.find(p=>p.deckId===d.deckId);return <p key={d.deckId}><b>{d.name}</b>　遭遇 {tierLabel(m.presence)} ／ 旧方式 {tierLabel(strength(d,snapshot).tier)} ／ 実測補正後 {tierLabel(m.tier)} ／ 外部込み {tierLabel(analysis.public.decks.find(x=>x.deckId===d.deckId)?.tier??null)} ／ 集計時の前回公開 {published?tierLabel(published.tier):"比較なし"}。{m.reason}</p>})}</details><b>外部調査　{jst(research.analyzedAt)} JST</b><p>採用 {accepted.length}件 ／ 不採用 {research.sources.filter(s=>s.outcome==="不採用").length}件 ／ 取得不能 {research.sources.filter(s=>s.outcome==="取得不能").length}件</p>
+      {analysis.internal.judgments && <details><summary>AIの判断根拠・反対材料・不確実性</summary>{analysis.internal.judgments.map(j=><article key={j.target} className="my-2"><b>{targetName(j.target)} ／ {j.priority} ／ {j.confidence}</b><p>{j.reason}</p><p>反対材料・条件　{j.counterargument}</p><p>不確実性　{j.uncertainty}</p>{j.sourceIds.map(id=>{const s=research.sources.find(r=>r.id===id);return s && <a key={id} className="mr-2 underline" href={s.url} target="_blank" rel="noreferrer">{s.publisher}</a>})}</article>)}</details>}
+      <p>根拠のあるデッキ {[...targets].filter(k=>!k.includes("/")).length} ／ 対面 {[...targets].filter(k=>k.includes("/")).length}</p><p>{research.searchLog}</p>
+      <details><summary>重点調査対象 {plan.targets.length} 件 ／ マスタ照合候補 {plan.candidates.length} 件</summary>
+        <button type="button" className={button} onClick={()=>download("sv-research-plan-"+snapshot.snapshotId+".json",plan)}>追加調査用JSONを出力</button>
+        {plan.targets.map(t=><p key={t.key}><b>{t.name}</b>　{t.reasons.join("、")}</p>)}
+        {plan.candidates.map(c=><p key={c.source+c.name}>マスタ照合候補　{c.name} ／ {c.source}</p>)}</details>
+      {research.sources.filter(s=>s.guideCheck).map(s=><details key={"guide-"+s.id}><summary>{s.publisher}との内部比較 ／ {s.guideCheck!.status}</summary>
+        <p>{s.reason}　本文の版 {s.updatedAt || s.publishedAt ? jst((s.updatedAt ?? s.publishedAt)!) : "不明"} ／ 閲覧 {jst(s.retrievedAt)} JST</p>
+        {s.guideCheck!.rows.map(row=><p key={row.deckId}><b>{names.get(row.deckId)}</b>　{row.relation} ／ {row.reason}</p>)}
+      </details>)}
+      {!analysis.judgmentRule && [...targets].map(target=>{
+        const claimValues=accepted.flatMap(r=>r.claims.filter(c=>c.target===target && c.value!==null).map(c=>c.value));
+        const deck=snapshot.decks.find(d=>d.deckId===target),pair=snapshot.pairs.find(p=>p.a+"/"+p.b===target);
+        const base=deck ? rate(deck,snapshot).tier : pair?.dataRating ?? null;
+        const end=deck ? analysis.public.decks.find(d=>d.deckId===target)?.tier : analysis.public.pairs.find(p=>p.a+"/"+p.b===target)?.rating;
+        const fmt=deck ? tierLabel : matchupLabel;
+        return <p key={target}><b>{targetName(target)}</b>　{fmt(base)} → {fmt(end??null)} ／ {end!==base ? base===null?"外部根拠で暫定評価":"外部根拠で補正" : !claimValues.length?"構築・対策の補足":claimValues.every(v=>v===base)?"実測案を支持":"見解の差・要検証"}</p>;
+      })}
+      {research.sources.map(s=><details key={s.id}><summary>{s.channel}・{s.publisher} ／ {s.outcome}</summary><p>{s.reason}　{s.applicability}</p><a className="underline" href={s.origin} target="_blank" rel="noreferrer">原典</a>{s.claims.map(c=><p key={c.target}>{targetName(c.target)}　{c.basis}（{c.conditions}）</p>)}</details>)}</div>;
+  }
   return <div className="grid gap-3 py-2 text-sm">{analysis.internal.sources.map(s=><article className="rounded bg-slate-50 p-3" key={s.id}>
     <b>{s.publisher} ／ {s.group} ／ 信頼度 {s.reliability}</b><p>{s.summary}</p><p>外部評価の傾向　{s.trend}</p>
     <p>公開 {s.publishedAt?jst(s.publishedAt):"不明"} ／ 取得 {jst(s.retrievedAt)} JST</p>

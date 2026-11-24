@@ -5,6 +5,8 @@ import { ATOMIC_RANK_GROUPS, getRankSelectionLabel } from "@/lib/rank-selection"
 import type { Divergence } from "@/lib/environment-review/evaluation";
 import { changeLabel, jst, matchupLabel, percent, tierLabel, type Publication } from "@/lib/environment-review/publication";
 
+import { cellLabel, encounterTier, priority } from "@/lib/environment-review/assessment-v3";
+
 const panel = "min-w-0 rounded-md border border-slate-200 bg-white p-4 sm:p-5";
 const title = "mb-3 text-lg font-bold";
 const badge = "inline-block rounded border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold";
@@ -42,12 +44,17 @@ function Matrix({ publication }: { publication: Publication }) {
   const [selected, select] = useState<[Deck, Deck] | null>(null);
   const ratings = useMemo(() => new Map(evaluation.pairs.map(p => [p.a + "/" + p.b,p])), [evaluation]);
   const measured = useMemo(() => new Map(snapshot.pairs.map(p => [p.a + "/" + p.b,p])), [snapshot]);
-  const size = 8, decks = snapshot.decks;
+  const tiers = new Map(evaluation.decks.map(d=>[d.deckId,d.tier ?? 6]));
+  const size = 8, decks = snapshot.schemaVersion !== 2 ? snapshot.decks : [...snapshot.decks].sort((a,b)=>(tiers.get(a.deckId)??6)-(tiers.get(b.deckId)??6) || (b.encounterRate??0)-(a.encounterRate??0) || a.deckId.localeCompare(b.deckId));
   function detail(row: Deck, col: Deck) {
     const forward = row.deckId < col.deckId;
     const key = forward ? row.deckId + "/" + col.deckId : col.deckId + "/" + row.deckId;
     const pair = ratings.get(key), data = measured.get(key);
-    return { label: matchupLabel(pair?.rating == null ? null : pair.rating * (forward ? 1 : -1)),
+    const rating=pair?.rating == null ? null : pair.rating*(forward ? 1 : -1);
+    const count=data?.count ?? 0, canonicalWins=Math.round((data?.winRate ?? 0)*count/100);
+    const wins=forward ? canonicalWins : count-canonicalWins;
+    const provisional=/^(外部情報を中心とした|実測を中心とした|総合判断による)暫定評価。/.test(pair?.reason??"");
+    return { label: (provisional ? "暫定・" : "")+cellLabel(rating,wins,count), wins,
       rate: data?.winRate == null ? null : forward ? data.winRate : 100 - data.winRate,
       count: data?.count ?? 0, pair, data, forward };
   }
@@ -64,12 +71,13 @@ function Matrix({ publication }: { publication: Publication }) {
       <tbody>{decks.slice(rowPage*size,(rowPage+1)*size).map(row => <tr key={row.deckId}><th scope="row" className="sticky left-0 max-w-36 break-words border border-slate-200 bg-white p-2 text-left">{row.name}</th>
         {columns.map(col => { const mirror = row.deckId === col.deckId, value = detail(row,col);
           return <td key={col.deckId} className="border border-slate-200 p-1 text-center">{mirror ? <span className="text-muted">ミラー</span> :
-            <button className={`min-h-10 rounded px-2 ${value.label.includes("有利") ? "bg-emerald-50 text-emerald-900" : value.label.includes("不利") ? "bg-amber-50 text-amber-900" : "bg-slate-50"}`} aria-label={row.name + " 対 " + col.name + " " + value.label} onClick={() => select([row,col])}>{value.label}</button>}</td>;
+            <button className={`min-h-10 rounded px-2 ${value.label.includes("有利") ? (value.label.includes("傾向") || value.label.includes("暫定") ? "bg-emerald-50 text-emerald-900" : "bg-emerald-800 text-white") : value.label.includes("不利") ? (value.label.includes("傾向") || value.label.includes("暫定") ? "bg-amber-50 text-amber-900" : "bg-amber-800 text-white") : "bg-slate-50"}`} aria-label={row.name + " 対 " + col.name + " " + value.label} onClick={() => select([row,col])}><b className={value.label.includes("傾向") ? "font-normal" : ""}>{value.label}</b><small className="block whitespace-nowrap">{value.count ? percent(value.rate) : "—"} ／ {value.count}戦</small></button>}</td>;
         })}</tr>)}</tbody></table></div> : <p>評価対象のデッキがありません。</p>}
-    {active && selected && <div className="rounded-md bg-slate-50 p-3" aria-live="polite"><b>{selected[0].name} 対 {selected[1].name}</b><p>総合 {active.label} ／ 実測 {percent(active.rate)}（{active.count}件）</p>
+    {active && selected && <div className="rounded-md bg-slate-50 p-3" aria-live="polite"><b>{selected[0].name} 対 {selected[1].name}</b><p>総合 {active.label} ／ 実測 {percent(active.rate)}（{active.count}件）{!active.count && " ／ 対戦記録なし"}</p>
       {active.data?.details && <div className="mt-1 text-sm">
         <p>データ相性　{matchupLabel(active.data.dataRating === null ? null : active.data.dataRating * (active.forward ? 1 : -1))} ／ 実測の信頼度　{active.data.details.measuredConfidence}</p>
-        <p>判定材料（{active.forward ? selected[0].name : selected[1].name}視点）　{active.data.details.assessment} ／ 勝率の95%区間　{intervalLabel(active.data.details.interval95)}</p>
+        <p>{active.wins}勝 {active.count-active.wins}敗 ／ 勝率の95%区間　{intervalLabel(active.forward || !active.data.details.interval95 ? active.data.details.interval95 : [100-active.data.details.interval95[1],100-active.data.details.interval95[0]])}</p>
+        <p>登録者や構築による偏りは区間に含まれません。異なる登録者・構築での再現を確認してください。</p>
       </div>}
       {active.pair && <p className="mt-1 text-sm">判断理由（{active.forward ? selected[0].name : selected[1].name}視点）　{active.pair.reason} ／ 信頼度 {active.pair.confidence}</p>}</div>}
   </section>;
@@ -96,7 +104,7 @@ export function ReviewReport({ publication, preview = false }: { publication: Pu
   const fact = (label: string, value: ReactNode) => <div key={label}><dt className="text-xs text-muted">{label}</dt><dd className="mt-1 font-semibold">{value}</dd></div>;
   return <div className="grid min-w-0 gap-4 break-words text-ink">
     <section className={panel}><div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-xl font-bold">総合環境評価</h2><span className={badge}>{state}</span></div>
-      <p className="my-3 text-sm text-muted">SV Match Logの実戦データを主軸とし、外部情報も参考にした独自の評価です。総合評価と実測勝率は異なる指標です。</p>
+      <p className="my-3 text-sm text-muted">{ev.comparison==="unavailable" ? "実測データのみ。今回は有効な外部資料を確認できなかったため、SV Match Logの実測データを中心とした評価です。" : ev.comparison==="partial" ? "実測データ＋外部情報（一部）。資料が直接扱う対象で補完しています。" : "実測データ＋外部情報"}</p>
       <dl className="grid grid-cols-2 gap-3 border-t border-slate-200 pt-3 text-sm md:grid-cols-3">
         {fact("対象環境",s.environmentName)}{fact("最終正常更新（JST）",preview ? "公開前" : jst(publication.published_at))}
         {fact("対象ランク",getRankSelectionLabel(s.ranks))}{fact("分析対象期間（JST）",jst(s.periodStart) + " ～ " + jst(s.asOf))}
@@ -104,14 +112,20 @@ export function ReviewReport({ publication, preview = false }: { publication: Pu
       </dl></section>
     <section className={panel}><h3 className={title}>環境総評</h3><b className="text-sm text-sky-800">確認できた事実</b><p className="mb-3 whitespace-pre-line">{ev.overview.facts}</p>
       {ev.overview.hypothesis && <><b className="text-sm text-muted">AIによる考察</b><p className="whitespace-pre-line">{ev.overview.hypothesis}</p></>}</section>
-    <section className={panel}><h3 className={title}>総合Tier表</h3>{[1,2,3,4,5,null].map((v,i) => <div key={i} className="grid grid-cols-[6.5rem_1fr] gap-3 border-t border-slate-200 py-2">
-      <div><strong>{tierLabel(v)}</strong><p className="text-xs text-muted">{tierNames[i]}</p></div><div className="flex flex-wrap items-center gap-2">{ev.decks.filter(d => d.tier === v).map(d => <span key={d.deckId} className="grid rounded-md bg-slate-50 px-2 py-1"><DeckName deck={names.get(d.deckId)!} /><small className="text-muted">{changeLabel(prior[d.deckId],v)}</small></span>)}
+    <section className={panel}><h3 className={title}>総合Tier表</h3>{ev.decks.some(d=>d.reason.includes("中心とした評価") || d.reason.includes("外部情報も考慮")) && <p className="mb-3 text-sm">相手としての遭遇頻度を起点に、主要対面への適性と直接資料を加味した環境での立ち位置です。</p>}{[1,2,3,4,5,null].map((v,i) => <div key={i} className="grid grid-cols-[6.5rem_1fr] gap-3 border-t border-slate-200 py-2">
+      <div><strong>{tierLabel(v)}</strong><p className="text-xs text-muted">{tierNames[i]}</p></div><div className="flex flex-wrap items-center gap-2">{ev.decks.filter(d => d.tier === v).map(d => <span key={d.deckId} className="grid rounded-md bg-slate-50 px-2 py-1"><DeckName deck={names.get(d.deckId)!} /><small className="text-muted">{changeLabel(prior[d.deckId],v)}{d.reason.includes("暫定評価。") || (v !== null && d.confidence==="低") ? " ／ 暫定・信頼度"+d.confidence : ""}</small></span>)}
       {!ev.decks.some(d => d.tier === v) && <span className="text-sm text-muted">該当なし</span>}</div></div>)}</section>
+    <section className={panel}><h3 className={title}>環境の注目デッキ</h3><p className="text-sm">対策優先度は遭遇率10%以上で高、5%以上で中です。強さと別に、対策が必要になる頻度を示します。</p>
+      {[...s.decks].filter(d=>(d.encounterRate??0)>=5).sort((a,b)=>(b.encounterRate??0)-(a.encounterRate??0)).map(d=>{
+        const rival=[...s.pairs].filter(p=>[p.a,p.b].includes(d.deckId)).sort((a,b)=>b.count-a.count)[0];
+        return <article key={d.deckId} className="border-t py-2"><DeckName deck={d}/>　対策優先度 {priority(d.encounterRate)}<p>遭遇 {percent(d.encounterRate)} ／ 判定対象勝率 {percent(d.details?.eligibleWinRate??d.winRate)}（{d.details?.eligibleCount??d.count}戦）／ 信頼度 {assessments.get(d.deckId)?.confidence}</p>
+        {rival && <p className="text-sm">最多記録の対面　{names.get(rival.a===d.deckId?rival.b:rival.a)?.name} ／ 実測 {percent(rival.winRate===null?null:rival.a===d.deckId?rival.winRate:100-rival.winRate)}（{rival.count}戦）</p>}</article>;
+      })}</section>
     <section className={panel}><h3 className={title}>デッキ別総合評価</h3>{s.decks.map(d => {
       const e = assessments.get(d.deckId);
       if (!e) return null;
       return <details key={d.deckId} className="border-t border-slate-200 py-2"><summary className="cursor-pointer"><DeckName deck={d} />　{tierLabel(e.tier)} <small className="text-muted">信頼度 {e.confidence}</small></summary>
-        <dl className="my-3 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">{fact("クラス",d.className)}{fact("遭遇率",percent(d.encounterRate))}{fact("実測勝率（7日）",percent(d.winRate))}{fact("評価件数",d.count + "件")}{fact("使用時勝率",percent(d.useWinRate))}{fact("データ評価",tierLabel(d.dataTier))}{fact("前回との差",changeLabel(prior[d.deckId],e.tier))}</dl>
+        <dl className="my-3 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">{fact("クラス",d.className)}{fact("遭遇率",percent(d.encounterRate))}{fact("実測勝率（7日）",percent(d.winRate))}{fact("評価件数",d.count + "件")}{fact("使用時勝率",percent(d.useWinRate))}{fact("データ評価",tierLabel(d.dataTier))}{fact("遭遇率だけの参考帯",tierLabel(encounterTier(d.encounterRate)))}{fact("前回との差",changeLabel(prior[d.deckId],e.tier))}</dl>
         {d.details && <div className="mb-3 rounded-md bg-slate-50 p-3 text-sm">
           <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">{fact("Tier判定対象の実測勝率",percent(d.details.eligibleWinRate))}
             {fact("Tier判定対象件数",d.details.eligibleCount+"件")}{fact("95% Wilson区間",intervalLabel(d.details.interval95))}

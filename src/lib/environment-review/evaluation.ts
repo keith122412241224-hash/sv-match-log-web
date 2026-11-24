@@ -1,3 +1,8 @@
+import { TIER_RULE } from "./assessment-v3";
+import { assessJudgments, JUDGMENT_RULE, type Judgment } from "./judgment";
+import { assessV3, verifyV3 } from "./method-v3";
+import { parseResearch, type Research } from "./research-v3";
+import type { ReviewSnapshot } from "./metrics";
 import * as v1 from "./evaluation-v1";
 import { parseEvidence, parseSource, sourceSeries, targetSupport, type EvidenceV2, type SourceV2 } from "./evidence-v2";
 import { checkCorrection, reviewDiagnostics as diagnose, type ReviewContext } from "./policy-v2";
@@ -9,8 +14,8 @@ export const EVALUATION_SCHEMA_VERSION = 2;
 export const CONFIDENCE_RULE_VERSION = "review-confidence-v2";
 export const PROMPT_VERSION = "environment-review-prompt-v2";
 export type EvaluationV2 = {
-  schemaVersion:2; promptVersion:typeof PROMPT_VERSION; environmentId:string; snapshotId:string;
-  public:v1.PublicEvaluation; internal:{sources:SourceV2[];evidence:EvidenceV2[];limitations:string};
+  judgmentRule?:typeof JUDGMENT_RULE; tierRule?:typeof TIER_RULE; reviewVersion?:3; schemaVersion:2; promptVersion:typeof PROMPT_VERSION; environmentId:string; snapshotId:string;
+  public:v1.PublicEvaluation; internal:{judgments?:Judgment[];research?:Research;sources:SourceV2[];evidence:EvidenceV2[];limitations:string};
 };
 export type EvaluationDocument = v1.EvaluationDocument | EvaluationV2;
 export function reviewDiagnostics(ctx:ReviewContext,doc?:EvaluationDocument|null,previous?:v1.PublicEvaluation|null) {
@@ -29,6 +34,28 @@ function validatePublicText(pub:v1.PublicEvaluation) {
 }
 export function validateEvaluation(value:unknown,ctx:ReviewContext,previous?:v1.PublicEvaluation|null):EvaluationDocument {
   if(ctx.schemaVersion!==2) return v1.validateEvaluation(value,ctx);
+  if (value && typeof value==="object" && "reviewVersion" in value) {
+    const versioned="tierRule" in value;
+    const deliberative="judgmentRule" in value;
+    const root=v1.object(value,"schemaVersion promptVersion reviewVersion environmentId snapshotId public internal"+(versioned ? " tierRule" : "")+(deliberative?" judgmentRule":""),"取り込みJSON v3");
+    if(versioned && root.tierRule!==TIER_RULE) v1.fail("未対応のTier評価ルール版です。");
+    const rule=versioned ? TIER_RULE : undefined;
+    if(root.reviewVersion!==3 || root.schemaVersion!==2 || ctx.promptVersion!==PROMPT_VERSION || root.promptVersion!==ctx.promptVersion ||
+        root.environmentId!==ctx.environmentId || root.snapshotId!==ctx.snapshotId) v1.fail("v3の対象スナップショットまたは版が一致しません。");
+    if(deliberative && (!versioned || root.judgmentRule!==JUDGMENT_RULE)) v1.fail("未対応の総合判断方式です。");
+    const i=v1.object(root.internal,"research sources evidence limitations"+(deliberative?" judgments":""),"v3内部資料");
+    if(!Array.isArray(i.sources) || i.sources.length || !Array.isArray(i.evidence) || i.evidence.length) v1.fail("v3資料はresearchに入力してください。");
+    const snapshot=ctx as ReviewSnapshot;
+    const research=parseResearch(i.research,snapshot);
+    const base=assessV3(snapshot,deliberative?{...research,sources:[]}:research,rule);
+    const decision=deliberative?assessJudgments(snapshot,research,i.judgments,base):null;
+    const expected=decision?.expected??base;
+    const {pub}=v1.parsePublic(root.public ?? expected,ctx,expected.pairs.length);
+    validatePublicText(pub);
+    verifyV3(pub,expected,!!decision);
+    return {...(decision && {judgmentRule:JUDGMENT_RULE}),...(rule && {tierRule:rule}),schemaVersion:2,promptVersion:PROMPT_VERSION,reviewVersion:3,snapshotId:ctx.snapshotId,environmentId:ctx.environmentId,
+      public:pub,internal:{...(decision && {judgments:decision.judgments}),research,sources:[],evidence:[],limitations:v1.string(i.limitations,"制約",1800)}};
+  }
   const root=v1.object(value,"schemaVersion promptVersion environmentId snapshotId public internal","取り込みJSON v2");
   if(root.schemaVersion!==2 || root.promptVersion!==PROMPT_VERSION || ctx.promptVersion && ctx.promptVersion!==PROMPT_VERSION) v1.fail("スキーマ・プロンプト版がスナップショットと一致しません。");
   if(root.snapshotId!==ctx.snapshotId || root.environmentId!==ctx.environmentId) v1.fail("環境・スナップショットIDが一致しません。");
