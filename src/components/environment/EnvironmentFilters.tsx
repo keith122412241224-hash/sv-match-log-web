@@ -20,13 +20,14 @@ const environmentTabs = [
 ] as const;
 type EnvironmentTab = typeof environmentTabs[number][0];
 
-export function EnvironmentFilters({ canViewReview, environments, activeDeckIds, trendCatalog = [], initialSelection, initialData, initialFailed }: {
+export function EnvironmentFilters({ initialReview, canViewReview, environments, activeDeckIds, trendCatalog = [], initialSelection, initialData, initialFailed }: {
+  initialReview: boolean;
   canViewReview: boolean;
   environments: { id: string; name: string }[]; activeDeckIds: string[]; initialSelection: DashboardSelection; initialData: EnvironmentDashboard | null; initialFailed: boolean;
   trendCatalog?: TrendCatalogDeck[];
 }) {
   const tabs = environmentTabs.filter(([value]) => value !== "review" || canViewReview);
-  const [selectedTab, setTab] = useState<EnvironmentTab>("summary");
+  const [selectedTab, setTab] = useState<EnvironmentTab>(initialReview && canViewReview ? "review" : "summary");
   const tab = selectedTab === "review" && !canViewReview ? "summary" : selectedTab;
   const [trendPeriod, setTrendPeriod] = useState<TrendPeriod>("30d");
   const controller = useRef<AbortController | null>(null);
@@ -59,7 +60,7 @@ export function EnvironmentFilters({ canViewReview, environments, activeDeckIds,
   function update(next: DashboardSelection) {
     if (pending) return;
     if (environmentHref(next) === environmentHref(selection)) return;
-    window.history.replaceState(null, "", environmentHref(next));
+    window.history.replaceState(null, "", environmentHref(next) + (tab === "review" ? "&tab=review" : ""));
     if (tab === "summary") void load(next);
     else { currentSelection.current = next; setSelection(next); setData(null); setFailed(false); }
   }
@@ -68,6 +69,10 @@ export function EnvironmentFilters({ canViewReview, environments, activeDeckIds,
   }
   const ownQuery = new URLSearchParams({ environment: selection.environment, ranks: serializeRankSelection(selection.ranks), scope: "mine" });
   function switchTab(next: EnvironmentTab) {
+    const url = new URL(window.location.href);
+    if (next === "review") url.searchParams.set("tab", "review");
+    else url.searchParams.delete("tab");
+    window.history.replaceState(null, "", url);
     setTab(next);
     if (next === "summary" && !data && !pending && !failed && selection.environment) void load(selection);
   }

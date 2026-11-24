@@ -19,6 +19,7 @@ require('./register.cjs');
 globalThis.fetch = browserFetch;
 const { buildReviewSnapshot } = require('../src/lib/environment-review/metrics');
 const reports = new Set();
+let rejectNextPublish = false; // Fail only the isolated fixture's publication RPC, after save commits.
 const users = new Map([ids.a, ids.b].map(id => [id, {
   id, aud: 'authenticated', role: 'authenticated', is_anonymous: false,
   email: id + '@example.test', app_metadata: {}, user_metadata: {},
@@ -67,6 +68,10 @@ async function fixture(testDb) {
         for await (const chunk of req) input += chunk;
         const name = url.pathname.split('/').pop();
         if (url.pathname.includes('/rpc/')) {
+          if (rejectNextPublish && name === 'environment_review_publish_v2') {
+            rejectNextPublish = false;
+            json(res,400,{code:'40001',message:'review_conflict'}); return;
+          }
           assert.ok(rpc.includes(name), 'Unexpected RPC ' + name);
           const args = JSON.parse(input || '{}');
           const fields = Object.keys(args);
@@ -237,19 +242,25 @@ async function verify(browser) {
   assert.doesNotMatch(JSON.stringify(exported), /user_id|access_token|example\.test|privateSource/);
   const input = documentFor(exported.snapshot);
   const pasted = page.getByLabel('評価JSON（貼り付け・編集）');
+  assert.equal(await button('確認して公開').isEnabled(),false);
+  await page.getByText('分析結果JSONを取り込んでください。',{exact:true}).waitFor();
+  await page.getByText('JSONを直接貼り付け・編集',{exact:true}).click();
   await pasted.fill('{');
   await button('検証してプレビュー').click(); await page.locator('fieldset [role=alert]').waitFor();
   await page.getByLabel('分析結果ファイル').setInputFiles({name:'fixture.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(input))});
   await preview();
+  await page.getByText('取り込んだファイル　fixture.json',{exact:true}).waitFor();
+  assert.equal(await button('確認して公開').isEnabled(),false);
   await page.screenshot({path:path.join(output,'admin-desktop-light.png')});
   await button('下書き保存').click(); await notice('下書きを保存');
   const memberApi = origin+'/api/environment/review'+envQuery;
   assert.equal(await (await admin.request.get(memberApi)).json(),null);
   assert.equal((await member.request.get(origin+endpoint+envQuery)).status(),403);
   assert.equal((await member.request.post(origin+endpoint,{headers:{Origin:origin},data:{action:'create',environment:ids.env}})).status(),403);
-  await preview();
+  assert.equal(await button('確認して公開').isEnabled(),false);
+  assert.equal(await button('下書き保存').isEnabled(),false);
   await page.getByLabel('公開内容と前回からの変更を確認しました').check();
-  await button('確認した下書きを公開').click();await notice('公開しました');
+  await button('確認して公開').click();await notice('公開しました');
   reports.add('実スナップショットをファイル出力、壊れたJSONを拒否、ファイル取り込み、プレビュー・下書き・公開');
 
   assert.equal((await member.request.get(memberApi)).status(),403);
@@ -314,11 +325,12 @@ async function verify(browser) {
   assert.doesNotMatch(await otherPanel.innerText(), /コンボエルフ/);
   const darkAdmin = await contextFor(browser,ids.a,'dark',390);
   const mobileAdmin = await darkAdmin.newPage();
-  await mobileAdmin.goto(adminUrl);await mobileAdmin.getByLabel('評価JSON（貼り付け・編集）').waitFor();
+  await mobileAdmin.goto(adminUrl);await mobileAdmin.getByText('STEP 2　分析結果の取り込み',{exact:true}).waitFor();
   assert.ok(await mobileAdmin.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'admin mobile overflow');
   await mobileAdmin.screenshot({path:path.join(output,'admin-mobile-dark.png')});
 
   page.on('dialog',dialog=>dialog.accept());
+  await page.getByText('評価履歴・詳細設定',{exact:true}).click();
   await button('公開停止').click();await notice('公開を停止');
   assert.equal(await (await admin.request.get(memberApi)).json(),null);
   await page.getByLabel('修正・復元・失敗の理由').fill('表示内容を確認して復元');
@@ -335,10 +347,10 @@ async function verify(browser) {
   await page.locator('label').filter({hasText:/^環境考察・仮説/}).locator('textarea').fill('修正後の仮説です。構築別の対戦記録を追加で確認します。');
   await button('修正をJSONに反映').click();
   assert.match(await pasted.inputValue(),/構築別の対戦記録を追加/);
-  await preview();await button('下書き保存').click();await notice('下書きを保存');
+  await preview();
   assert.deepEqual(await (await admin.request.get(memberApi)).json(),data);
-  await preview();await page.getByLabel('公開内容と前回からの変更を確認しました').check();
-  await button('確認した下書きを公開').click();await notice('公開しました');
+  await page.getByLabel('公開内容と前回からの変更を確認しました').check();
+  await button('確認して公開').click();await notice('公開しました');
   const revisedReport = await openReport(reportPage);
   await revisedReport.getByText('大きな評価の乖離は確認されていません。',{exact:true}).first().waitFor();
   await page.getByLabel('修正・復元・失敗の理由').fill('初版を復元');
@@ -361,12 +373,55 @@ async function verify(browser) {
   await page.locator('fieldset [role=alert]').waitFor();
   await pasted.fill(JSON.stringify(modern.template)); await preview();
   const comparison = page.getByText('新旧ルール・総合評価の比較',{exact:true}).locator('..');
+  await page.getByText('新旧ルール・総合評価の比較',{exact:true}).click();
   await comparison.getByRole('columnheader',{name:'改善候補C'}).waitFor();
   await comparison.scrollIntoViewIfNeeded();
   await page.screenshot({path:path.join(output,'v2-admin-desktop-light.png')});
-  await button('下書き保存').click(); await notice('下書きを保存');
-  await preview(); await page.getByLabel('公開内容と前回からの変更を確認しました').check();
-  await button('確認した下書きを公開').click(); await notice('公開しました');
+  const latestRun = async () => (await admin.request.get(origin+endpoint+envQuery+'&id='+modern.snapshot.snapshotId)).json();
+  const snapshotRun = await latestRun();
+  assert.equal(snapshotRun.status,'snapshot');
+  const action = async body => admin.request.post(origin+endpoint,{headers:{Origin:origin},data:body});
+  const args = {action:'preview',id:snapshotRun.id,revision:snapshotRun.revision,environment:ids.env,expectedPublication:data.run_id,document:modern.template};
+  const checked = await (await action(args)).json();
+  assert.ok(checked.reviewKey);
+  const command = {...args,action:'confirmPublish',reviewKey:checked.reviewKey,publishedEdition:checked.publishedEdition,confirmChanges:true};
+  assert.equal((await action({...command,confirmChanges:false})).status(),400);
+  assert.equal((await action({...command,document:{...modern.template,snapshotId:ids.env2}})).status(),400);
+  assert.equal((await action({...command,revision:snapshotRun.revision+1})).status(),409);
+  assert.equal((await action({...command,publishedEdition:null})).status(),409);
+  assert.equal((await action({...command,document:{...modern.template,public:{...modern.template.public,changes:'異なる内容を確認対象とします。'}}})).status(),409);
+  assert.equal((await latestRun()).revision,snapshotRun.revision);
+  await pasted.fill(JSON.stringify(modern.template,null,2));
+  await page.getByText('評価内容が変更されたため、再検証が必要です。',{exact:true}).waitFor();
+  assert.equal(await button('確認して公開').isEnabled(),false);
+  await preview();
+  await page.getByLabel('公開内容と前回からの変更を確認しました').check();
+  await button('確認して公開').scrollIntoViewIfNeeded();
+  await page.screenshot({path:path.join(output,'publish-ready-desktop.jpg')});
+  rejectNextPublish = true;
+  await button('確認して公開').click();
+  await page.getByRole('alert').filter({hasText:'下書きは保存済み'}).waitFor();
+  assert.equal(await page.getByText('公開完了',{exact:true}).count(),0);
+  const savedRun = await latestRun();
+  assert.equal(savedRun.status,'draft'); assert.equal(savedRun.revision,snapshotRun.revision+1);
+  assert.deepEqual(await (await admin.request.get(memberApi)).json(),data);
+  await button('最新の状態を再読み込み').click(); await notice('最新の状態を読み込み');
+  assert.equal(await button('確認して公開').isEnabled(),false);
+  await page.getByLabel('公開内容と前回からの変更を確認しました').check();
+  const [successRequest] = await Promise.all([page.waitForRequest(req=>req.method()==='POST' && req.postDataJSON()?.action==='confirmPublish'),button('確認して公開').click()]);
+  await notice('公開しました');
+  assert.equal((await action(successRequest.postDataJSON())).status(),409);
+  assert.equal((await latestRun()).revision,savedRun.revision+1);
+  await page.getByRole('link',{name:'総合環境評価を見る'}).scrollIntoViewIfNeeded();
+  await page.screenshot({path:path.join(output,'publish-complete-desktop.jpg')});
+  await page.getByRole('link',{name:'総合環境評価を見る'}).click();
+  await page.getByRole('tabpanel',{name:'総合環境評価'}).getByRole('heading',{name:'総合Tier表'}).waitFor();
+  assert.equal(new URL(page.url()).searchParams.get('environment'),ids.env);
+  const privateLink = await member.newPage();
+  await privateLink.goto(page.url());
+  assert.equal(await privateLink.getByRole('tab',{name:'総合環境評価'}).count(),0);
+  await privateLink.close();
+  reports.add('任意保存後の自動再検証・直接公開・確認と版の照合・保存後の障害からの再開・再送拒否・公開先リンクを確認');
   const v2 = await (await admin.request.get(memberApi)).json();
   assert.equal(v2.payload.snapshot.schemaVersion,2);
   assert.doesNotMatch(JSON.stringify(v2), /previousEvaluation|omissionReason|reasonCodes|candidateTier|topContributorShare|"internal"|"sources"/);
@@ -398,9 +453,35 @@ async function verify(browser) {
   reports.add('環境画面の権限別タブ、キーボード移動、未選択時の通信、評価準備中、環境切替、v2公開版を確認');
   await mobileAdmin.goto(adminUrl);
   await mobileAdmin.getByRole('button',{name:'検証してプレビュー'}).click();
+  await mobileAdmin.getByRole('status').filter({hasText:'検証が完了'}).waitFor();
   await mobileAdmin.getByText('新旧ルール・総合評価の比較',{exact:true}).evaluate(el=>el.scrollIntoView({block:'start'}));
   assert.ok(await mobileAdmin.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
   await mobileAdmin.screenshot({path:path.join(output,'v2-admin-mobile-dark.png')});
+  const mobileEdit = structuredClone(modern.template);
+  mobileEdit.public.changes = '環境考察の説明を見直しました。';
+  await mobileAdmin.getByText('JSONを直接貼り付け・編集',{exact:true}).click();
+  await mobileAdmin.getByLabel('評価JSON（貼り付け・編集）').fill(JSON.stringify(mobileEdit));
+  await mobileAdmin.getByRole('button',{name:'検証してプレビュー'}).click();
+  await mobileAdmin.getByRole('status').filter({hasText:'検証が完了'}).waitFor();
+  await mobileAdmin.getByLabel('評価の修正理由',{exact:true}).fill('環境考察の更新');
+  await mobileAdmin.getByLabel('公開内容と前回からの変更を確認しました').check();
+  const publishButton = mobileAdmin.getByRole('button',{name:'確認して公開',exact:true});
+  await publishButton.scrollIntoViewIfNeeded();
+  await mobileAdmin.screenshot({path:path.join(output,'publish-mobile-dark.jpg')});
+  const beforePublish = await latestRun();
+  let publishClicks = 0;
+  mobileAdmin.on('request', req => {
+    if (req.method()==='POST' && req.url().endsWith(endpoint) && req.postDataJSON()?.action==='confirmPublish') publishClicks++;
+  });
+  await publishButton.dblclick();
+  await mobileAdmin.getByRole('heading',{name:'公開完了'}).waitFor();
+  assert.equal(publishClicks,1);
+  const finalRun = await latestRun();
+  assert.equal(finalRun.revision,beforePublish.revision+2);
+  assert.equal(finalRun.status,'published');
+  assert.equal(finalRun.analysis.public.changes,mobileEdit.public.changes);
+  assert.equal((await (await admin.request.get(memberApi)).json()).payload.evaluation.changes,mobileEdit.public.changes);
+  reports.add('v2修正案を事前保存せず公開し、ダブルクリックでも保存・公開が各1回だけ確定');
   reports.add('同一締切のv1とv2、旧JSON拒否、比較表・実測母集団・公開画面を確認');
   assert.deepEqual(errors,[]);
 }

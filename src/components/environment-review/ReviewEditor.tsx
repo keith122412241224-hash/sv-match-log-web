@@ -5,8 +5,8 @@ import { matchupLabel, tierLabel } from "@/lib/environment-review/publication";
 import type { ReviewSnapshot } from "@/lib/environment-review/metrics";
 
 const field = "w-full rounded-md border border-slate-300 bg-white p-2";
-export function ReviewEditor({ document, decks, onApply }: {
-  document: EvaluationDocument; decks: ReviewSnapshot["decks"]; onApply: (text:string) => void;
+export function ReviewEditor({ document, decks, onApply, onDirtyChange }: {
+  document: EvaluationDocument; decks: ReviewSnapshot["decks"]; onApply: (text:string) => void; onDirtyChange: (dirty:boolean) => void;
 }) {
   const [draft,setDraft] = useState(document);
   const [target,setTarget] = useState("overview");
@@ -14,7 +14,7 @@ export function ReviewEditor({ document, decks, onApply }: {
   const pub = draft.public;
   const deck = pub.decks.find(d => d.deckId === target), pair = pub.pairs.find(p => p.a+"/"+p.b === target);
   const row = deck ?? pair;
-  function setPublic(value: Partial<typeof pub>) { setDraft({...draft,public:{...pub,...value}}); }
+  function setPublic(value: Partial<typeof pub>) { setDraft({...draft,public:{...pub,...value}}); onDirtyChange(true); }
   function updateRow(value: {reason?:string; confidence?:Confidence; tier?:number|null; rating?:number|null; divergence?:NonNullable<typeof row>["divergence"]}) {
     if (deck) setPublic({decks:pub.decks.map(d => d === deck ? {...d,...value} : d)});
     if (pair) setPublic({pairs:pub.pairs.map(p => p === pair ? {...p,...value} : p)});
@@ -39,5 +39,6 @@ export function ReviewEditor({ document, decks, onApply }: {
         {area("乖離要因の仮説",row.divergence.hypothesis,hypothesis=>updateRow({divergence:{...row.divergence!,hypothesis}}))}</>}
     </>}
     <button className="justify-self-start rounded-md border border-slate-300 px-3 py-2 font-semibold" type="button" onClick={()=>onApply(JSON.stringify(draft,null,2))}>修正をJSONに反映</button>
+    <button type="button" className="justify-self-start text-sm underline" onClick={()=>{setDraft(document);onDirtyChange(false);}}>編集を取り消す</button>
   </div></details>;
 }

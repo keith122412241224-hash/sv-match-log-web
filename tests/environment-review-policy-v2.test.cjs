@@ -118,6 +118,40 @@ test("agreement or conflicting external direction only permits a one-step except
   assert.throws(()=>validateEvaluation(doc,ctx),/独立二系列/);
   secondSource(doc);alignMachineFields(ctx,doc);validateEvaluation(doc,ctx);
 });
+
+test("a preview with a two-step matchup reversal requires manual confirmation before publishing the saved draft", async () => {
+  const {publishReviewed, reviewAction} = require("../src/lib/environment-review/workflow.ts");
+  const snapshot = context(), document = structuredClone(sample);
+  snapshot.pairs[0] = {a,b,count:40,dataRating:1,model:model("中",[signal("rank",-1)])};
+  snapshot.decks.forEach(d => Object.assign(d,{name:d.deckId,className:"エルフ",short:{},byRank:{},byDay:{}}));
+  secondSource(document);
+  document.public.pairs[0].rating = -1;
+  document.internal.evidence[2].reasonCodes = ["external","rank"];
+  alignMachineFields(snapshot,document);
+  const run = {id:snapshot.snapshotId,environment_id:snapshot.environmentId,snapshot,analysis:document,
+    status:"draft",mode:"manual",revision:3};
+  const calls = [];
+  const client = {
+    from(table) {
+      if (table === "environment_review_publications") return {select:()=>({eq:()=>({maybeSingle:()=>({data:null,error:null})})})};
+      assert.equal(table,"deck_archetypes");
+      return {select:()=>({in:()=>({data:snapshot.decks.map(d=>({id:d.deckId,name:d.name,class_name:d.className,environment_id:null})),error:null})})};
+    },
+    rpc(name,args) { calls.push({name,args}); return {data:4,error:null}; }
+  };
+  const body = {action:"preview",revision:3,expectedPublication:null,document};
+  const preview = await reviewAction(client,run,body);
+  assert.ok(preview.warnings.some(w=>w.includes("大幅補正")));
+  const approved = {...body,reviewKey:preview.reviewKey,publishedEdition:null,confirmChanges:true};
+  await assert.rejects(publishReviewed(client,run,{...approved,confirmChanges:false}),/確認チェック/);
+  await assert.rejects(publishReviewed(client,{...run,mode:"auto"},approved),/手動/);
+  assert.equal(calls.length,0);
+  assert.equal((await publishReviewed(client,run,approved)).revision,4);
+  assert.deepEqual(calls.map(c=>c.name),["environment_review_publish_v2"]);
+  assert.equal(calls[0].args.p_revision,3);
+  assert.equal(calls[0].args.p_public.evaluation.pairs[0].rating,-1);
+  assert.ok(!Object.hasOwn(calls[0].args.p_public,"internal"));
+});
 test("data holds, one-contributor low confidence and literal measured prose cannot be overridden",()=>{
   const ctx=context(),doc=structuredClone(sample);
   ctx.decks[0].dataTier=null;alignMachineFields(ctx,doc);assert.throws(()=>validateEvaluation(doc,ctx),/保留/);

@@ -1,5 +1,6 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { MAX_EVALUATION_BYTES, type EvaluationDocument, type reviewDiagnostics } from "@/lib/environment-review/evaluation";
 import { freshness } from "@/lib/environment-review/evidence-v2";
 import { jst, matchupLabel, tierLabel, type MemberPayload } from "@/lib/environment-review/publication";
@@ -14,19 +15,23 @@ const card = "min-w-0 rounded-md border border-slate-200 bg-white p-4 sm:p-5";
 const field = "w-full min-w-0 rounded-md border border-slate-300 bg-white p-2";
 const labels: Record<string,string> = { snapshot:"集計済み", draft:"下書き", published:"公開中", archived:"公開終了",create:"集計",save:"下書き保存",publish:"公開",withdraw:"公開停止",restore:"復元",failure:"失敗" };
 type Index = { runs: ReviewRun[]; events: ReviewEvent[]; current: string | null };
-type Preview = { payload: MemberPayload; warnings: string[]; analysis: EvaluationDocument; diagnostics: ReturnType<typeof reviewDiagnostics>; draftComparison: ReturnType<typeof compareDraft>; publishedEdition: string | null };
+type Preview = { reviewKey: string; matchesSaved: boolean; payload: MemberPayload; warnings: string[]; analysis: EvaluationDocument; diagnostics: ReturnType<typeof reviewDiagnostics>; draftComparison: ReturnType<typeof compareDraft>; publishedEdition: string | null };
+
+class RequestError extends Error {
+  constructor(message: string, readonly status: number) { super(message); }
+}
 
 async function request<T>(url: string, body?: unknown): Promise<T> {
   const res = await fetch(url, body ? { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body),cache:"no-store" } : { cache:"no-store" });
   const value = await res.json();
-  if (!res.ok) throw new Error(value.error ?? "処理に失敗しました。");
+  if (!res.ok) throw new RequestError(value.error ?? "処理に失敗しました。",res.status);
   return value;
 }
 function download(name: string, value: unknown) {
   const url = URL.createObjectURL(new Blob([JSON.stringify(value,null,2)],{type:"application/json"}));
   const a = document.createElement("a"); a.href = url; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(url),1000);
 }
-export function ReviewWorkspace({environment}: {environment: string}) {
+export function ReviewWorkspace({environment, environmentName}: {environment: string; environmentName: string}) {
   const base = api + "?environment=" + encodeURIComponent(environment);
   const [index,setIndex] = useState<Index>({runs:[],events:[],current:null});
   const [page,setPage] = useState(0), [run,setRun] = useState<RunDetail | null>(null);
@@ -34,7 +39,17 @@ export function ReviewWorkspace({environment}: {environment: string}) {
   const [preview,setPreview] = useState<Preview | null>(null), [confirmed,setConfirmed] = useState(false);
   const [busy,setBusy] = useState(true), [error,setError] = useState(""), [notice,setNotice] = useState("");
   const [eventData,setEventData] = useState<unknown>();
+  const lock = useRef(false);
+  const [filename,setFilename] = useState("");
+  const [edited,setEdited] = useState(false), [editorDirty,setEditorDirty] = useState(false);
+  const [reloadRequired,setReloadRequired] = useState(false);
+  const [receipt,setReceipt] = useState<{asOf:string; publishedAt:string} | null>(null);
+  const parsed = useMemo(() => {
+    try { return JSON.parse(input); } catch { return null; }
+  }, [input]);
+  const snapshotMatches = !!run && parsed?.snapshotId === run.id && parsed?.environmentId === environment;
   function loadRun(r: RunDetail | null) {
+    setFilename(""); setEdited(false); setEditorDirty(false); setReloadRequired(false); setReceipt(null);
     setRun(r); setInput(r?.analysis ? JSON.stringify(r.analysis,null,2) : ""); setPreview(null); setConfirmed(false); setReason("");
   }
   const refresh = useCallback(async (pageNo: number) => {
@@ -56,26 +71,82 @@ export function ReviewWorkspace({environment}: {environment: string}) {
     void init(); return () => { active = false; };
   },[base]);
   async function task(fn: () => Promise<void>) {
-    if (busy) return;
+    if (busy || lock.current) return;
+    lock.current = true;
     setBusy(true); setNotice(""); setError("");
-    try { await fn(); } catch(e) { setError(e instanceof Error ? e.message : "操作に失敗しました。"); }
-    finally { setBusy(false); }
+    try { await fn(); } catch(e) {
+      setError(e instanceof Error ? e.message : "操作に失敗しました。");
+      if (e instanceof RequestError && e.status === 409) { setReloadRequired(true); setConfirmed(false); setPreview(null); }
+    }
+    finally { lock.current = false; setBusy(false); }
   }
-  function edit(text: string) { setInput(text); setPreview(null); setConfirmed(false); }
+  function edit(text: string, name = "") {
+    setEdited(Boolean(preview) || edited); setPreview(null); setConfirmed(false); setReceipt(null);
+    setFilename(name); setInput(text); setEditorDirty(false); setNotice(""); setError("");
+  }
   function payload(action: string, selected = run) {
     return {action,environment,id:selected?.id,revision:selected?.revision,expectedPublication:index.current,reason};
   }
-  async function check() {
-    const document = JSON.parse(input);
-    return request<Preview>(api,{...payload("preview"),document});
+  async function check(selected = run, current = index.current, document = parsed) {
+    if (!document) throw new Error("JSONの形式を確認して、もう一度検証してください。");
+    return request<Preview>(api,{...payload("preview",selected),expectedPublication:current,document});
+  }
+  async function reload() {
+    const current = await refresh(0);
+    const id = run?.id ?? current.runs[0]?.id;
+    if (!id) { loadRun(null); return; }
+    const latest = await request<RunDetail>(base + "&id=" + id);
+    const working = input || (latest.analysis ? JSON.stringify(latest.analysis,null,2) : "");
+    loadRun(latest); setInput(working); setReason(reason); setFilename(filename);
+    if (working) {
+      let document;
+      try { document = JSON.parse(working); } catch { throw new Error("入力中のJSONを修正して再検証してください。"); }
+      setPreview(await check(latest,current.current,document));
+    }
+    setNotice("最新の状態を読み込みました。内容を確認してください。");
+  }
+  async function submit(publish: boolean) {
+    if (!run || !preview) return;
+    let revision: number;
+    try {
+      const result = await request<{revision:number}>(api,{
+        ...payload(publish ? "confirmPublish" : "save"), document:preview.analysis,
+        reviewKey:preview.reviewKey, publishedEdition:preview.publishedEdition, confirmChanges:confirmed
+      });
+      revision = result.revision;
+    } catch (e) {
+      // A lost response is ambiguous: reconcile with the server before allowing a retry.
+      setConfirmed(false); setReloadRequired(true); setReceipt(null);
+      throw e instanceof RequestError ? e : new Error("応答を確認できませんでした。再読み込みして保存・公開状態を確認してください。");
+    }
+    setPreview(null); setConfirmed(false);
+    try {
+      const list = await refresh(0);
+      const latest = await request<RunDetail>(base + "&id=" + run.id);
+      if (latest.revision !== revision) throw new Error("別の操作によって評価が更新されました。");
+      setRun(latest);
+      if (publish) {
+        if (latest.status !== "published" || list.current !== latest.id || !latest.published_at) throw new Error("別の操作によって評価が更新されました。");
+        setReceipt({asOf:latest.as_of, publishedAt:latest.published_at});
+        setNotice("公開しました。");
+      } else {
+        setPreview(await check(latest,list.current,preview.analysis));
+        setNotice("下書きを保存しました。プレビューを確認し、チェックを入れると公開できます。");
+      }
+      setReason(""); setEdited(false); setEditorDirty(false);
+    } catch (e) {
+      setReloadRequired(true);
+      throw new Error((publish ? "公開処理の後、最新の状態を確認できませんでした。" : "下書きは保存済みです。") +
+        "再読み込みしてください。 " + (e instanceof Error ? e.message : ""));
+    }
   }
   async function after(id: string, message: string) {
     await refresh(0); loadRun(await request<RunDetail>(base + "&id=" + id)); setNotice(message);
   }
   async function apply(action: string) {
     if (!run) return;
-    await request(api,{...payload(action),document: action === "save" ? preview?.analysis : undefined,confirmChanges:confirmed,publishedEdition:preview?.publishedEdition});
-    await after(run.id,({save:"下書きを保存しました。",publish:"公開しました。",withdraw:"公開を停止しました。",failure:"分析失敗を記録しました。"} as Record<string,string>)[action]);
+    await request(api,payload(action));
+    await after(run.id,({withdraw:"公開を停止しました。",failure:"分析失敗を記録しました。"} as Record<string,string>)[action]);
   }
   async function restore(event: ReviewEvent) {
     if (!event.run_id) return;
@@ -83,8 +154,31 @@ export function ReviewWorkspace({environment}: {environment: string}) {
     await request(api,{...payload("restore",selected),restoreEvent:event.id});
     await after(selected.id,"選択した公開版を復元しました。");
   }
+  const needsReason = !!run?.analysis && !!preview && !preview.matchesSaved;
+  let blocked = "";
+  if (busy) blocked = "処理中です。";
+  else if (reloadRequired) blocked = "最新の保存・公開状態を再読み込みしてください。";
+  else if (!run) blocked = "スナップショットを作成してください。";
+  else if (!input.trim()) blocked = "分析結果JSONを取り込んでください。";
+  else if (!preview) blocked = edited ? "評価内容が変更されたため、再検証が必要です。" : "検証してプレビューを実行してください。";
+  else if (editorDirty) blocked = "詳細な評価編集の修正をJSONに反映するか、取り消してください。";
+  else if (preview.matchesSaved && run.status !== "draft") blocked = "同じ内容は公開済みです。過去版は履歴から復元できます。";
+  else if (needsReason && !reason.trim()) blocked = "評価を変更した理由を入力してください。";
+  else if (preview.warnings.length && run.mode !== "manual") blocked = "管理者による手動の評価確認が必要です。";
+  else if (!confirmed) blocked = preview.warnings.length ? "重要な警告を確認し、公開内容の確認チェックを入れてください。" : "公開内容の確認チェックを入れてください。";
+
   return <fieldset disabled={busy} aria-busy={busy} className="grid min-w-0 gap-4">
-    <section className={card}><h2 className="text-lg font-bold">分析用データの出力</h2>
+    <section className={card}><h2 className="text-lg font-bold">基本情報</h2>
+      <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-3">{[
+        ["対象環境",environmentName],["集計基準日時",run ? jst(run.as_of) + " JST" : "未集計"],
+        ["実戦データ件数",run ? run.snapshot.matchCount + "件" : "未集計"],
+        ["環境の公開状態",index.current ? "管理者限定公開中" : "未公開"],
+        ["選択中の評価",run ? labels[run.status] + " ／ 更新番号 " + run.revision : "なし"],
+        ["最終更新日時",run ? jst(run.updated_at) + " JST" : "未更新"]
+      ].map(([key,value])=><div key={key}><dt className="text-muted">{key}</dt><dd className="font-semibold">{busy && !run ? "…" : value}</dd></div>)}</dl>
+      {run && <p className="mt-3 text-xs text-muted">{run.snapshot.ruleVersion} ／ {run.snapshot.confidenceRuleVersion} ／ JSON v{run.snapshot.schemaVersion}</p>}
+    </section>
+    <section className={card}><h2 className="text-lg font-bold">STEP 1　分析用データの出力</h2>
       <p className="my-2 text-sm text-muted">直近7日と3日の実戦データを固定します。JSONと専用プロンプトをChatGPTに渡してください。</p>
       <div className="flex flex-wrap items-center gap-2"><button className={primary} onClick={() => task(async () => {
         const {id} = await request<{id:string}>(api,{action:"create",environment}); await after(id,"集計を保存しました。分析用JSONをダウンロードできます。");
@@ -92,33 +186,57 @@ export function ReviewWorkspace({environment}: {environment: string}) {
       <button className={button} disabled={!run} onClick={() => task(async () => download("sv-environment-" + run!.id + ".json",await request(base + "&id=" + run!.id + "&export=1")))}>分析用JSONを出力</button>
       {([["prompt","専用プロンプト"],["schema","JSON Schema"],["sample","サンプルJSON"]] as const).map(([key,label]) => <a className="p-1 text-sm underline" href={api+"?resource="+key+"&version="+(run?.snapshot.schemaVersion ?? 2)} key={key} download>{label}</a>)}</div>
     </section>
-    <section className={card}><h2 className="text-lg font-bold">分析結果の取り込み・編集</h2>
-      {run ? <div className="mt-3 grid gap-3"><div className="rounded-md bg-slate-50 p-3 text-sm"><b>{run.snapshot.environmentName}　{labels[run.status]}</b>　{jst(run.as_of)} JST ／ 実対戦 {run.snapshot.matchCount}件 ／ 更新番号 {run.revision}<br/>{run.snapshot.ruleVersion} ／ {run.snapshot.confidenceRuleVersion} ／ JSON v{run.snapshot.schemaVersion}</div>
-      <label className="grid gap-1 text-sm font-semibold">分析結果ファイル<input type="file" accept=".json,application/json" onChange={e => {const file=e.target.files?.[0]; if(file) void task(async()=>{ if(file.size>MAX_EVALUATION_BYTES)throw new Error("JSONは2MB以内で指定してください。");edit(await file.text()); });}} /></label>
-      <label className="grid gap-1 text-sm font-semibold">評価JSON（貼り付け・編集）<textarea className={field+" font-mono text-xs"} rows={6} value={input} onChange={e=>edit(e.target.value)} spellCheck={false} /></label>
-      <div><button className={button} disabled={!input.trim()} onClick={()=>task(async()=>{setPreview(await check());setConfirmed(false);setNotice("検証が完了しました。公開前プレビューを確認してください。");})}>検証してプレビュー</button></div>
-      <label className="grid gap-1 text-sm font-semibold">修正・復元・失敗の理由<input className={field} value={reason} maxLength={1000} onChange={e=>setReason(e.target.value)} /></label>
-      <div className="flex flex-wrap gap-2"><button className={button} disabled={!preview || (!!run.analysis && !reason.trim())} onClick={()=>task(()=>apply("save"))}>下書き保存</button>
-        <button className={primary} disabled={run.status!=="draft" || !preview || !confirmed || !sameDocument(run.analysis,preview.analysis)} onClick={()=>task(()=>apply("publish"))}>確認した下書きを公開</button>
-        <button className={button} disabled={index.current!==run.id} onClick={()=>{if(window.confirm("この環境の評価を公開停止しますか？")) void task(()=>apply("withdraw"));}}>公開停止</button>
-        <button className={button} disabled={!reason.trim()} onClick={()=>task(()=>apply("failure"))}>分析失敗を記録</button></div>
-      {preview && <><Comparison run={run} preview={preview}/><ReviewEditor document={preview.analysis} decks={run.snapshot.decks} onApply={edit} /><div className="rounded-md border border-slate-200 p-3">
-        {preview.warnings.map(w=><p className="text-amber-900" key={w}>{w}</p>)}<label className="flex items-center gap-2"><input type="checkbox" checked={confirmed} onChange={e=>setConfirmed(e.target.checked)}/>公開内容と前回からの変更を確認しました</label></div>
-        <details className="border-t pt-3"><summary className="cursor-pointer font-bold">管理者用の出典・判断根拠</summary><InternalInfo analysis={preview.analysis} snapshot={run.snapshot} /></details>
-        <details open><summary className="cursor-pointer py-2 font-bold">公開前プレビュー</summary><ReviewReport preview publication={{run_id:run.id,as_of:run.as_of,published_at:run.as_of,payload:preview.payload}} /></details></>}
-      </div> : <p className="mt-2 text-sm text-muted">スナップショットを作成すると取り込みを開始できます。</p>}
+    <section className={card}><h2 className="text-lg font-bold">STEP 2　分析結果の取り込み</h2>
+      {run ? <div className="mt-3 grid gap-3">
+        <label className="grid gap-1 text-sm font-semibold">分析結果ファイル<input className="max-w-full" type="file" accept=".json,application/json" onChange={e=>{
+          const file=e.target.files?.[0]; e.target.value="";
+          if(file) void task(async()=>{edit(""); if(file.size>MAX_EVALUATION_BYTES)throw new Error("JSONは2MB以内で指定してください。");edit(await file.text(), file.name);});
+        }} /></label>
+        {filename && <p className="break-all text-sm">取り込んだファイル　{filename}</p>}
+        <details><summary className="cursor-pointer font-semibold">JSONを直接貼り付け・編集</summary>
+          <label className="mt-2 grid gap-1 text-sm">評価JSON（貼り付け・編集）<textarea className={field+" font-mono text-xs"} rows={6} value={input} onChange={e=>edit(e.target.value)} spellCheck={false} /></label>
+        </details>
+        {input.trim() && <p className="text-sm">{snapshotMatches ? "対象環境・スナップショットIDが一致しました。" : "対象環境・スナップショットIDを照合できません。入力内容を確認してください。"}</p>}
+        <div><button className={button} disabled={!input.trim() || reloadRequired} onClick={()=>task(async()=>{
+          setPreview(null); setConfirmed(false); setEditorDirty(false); setReceipt(null);
+          setPreview(await check()); setEdited(false); setNotice("検証が完了しました。公開前プレビューを確認してください。");
+        })}>検証してプレビュー</button></div>
+      </div> : <p>スナップショットを作成すると取り込みを開始できます。</p>}
     </section>
     <div aria-live="polite">{busy && "処理中…"}{notice && <p role="status" className="rounded-md bg-emerald-50 p-3 text-emerald-900">{notice}</p>}{error && <p role="alert" className="rounded-md bg-red-50 p-3 text-red-800">{error}</p>}</div>
-    <section className={card}><h2 className="text-lg font-bold">評価履歴・更新状況</h2>
-      <p className="my-2 text-sm">公開中　{index.current ?? "なし"}</p>
+    <section className={card}><h2 className="text-lg font-bold">STEP 3　評価内容の確認・公開</h2><div className="mt-3 grid min-w-0 gap-3">
+      {receipt && <div className="rounded-md border p-3"><h3 className="font-bold">公開完了</h3>
+        <p>{environmentName} ／ 管理者限定公開中</p><p className="text-sm">分析基準日時　{jst(receipt.asOf)} JST<br/>公開日時　{jst(receipt.publishedAt)} JST</p>
+        <Link prefetch={false} className="mt-3 inline-flex min-h-11 items-center rounded-md bg-ink px-4 text-sm font-bold text-white" href={{pathname:"/environment",query:{environment,tab:"review"}}}>総合環境評価を見る</Link></div>}
+      {preview && run && <>
+        <div><h3 className="font-semibold">評価変更の概要</h3><p className="whitespace-pre-line text-sm">{preview.analysis.public.changes}</p></div>
+        {preview.warnings.length > 0 && <div className="rounded-md border border-amber-500 p-3"><h3 className="font-semibold">重要な警告・管理者確認</h3><ul className="list-disc pl-5 text-sm">{preview.warnings.map(w=><li key={w}>{w}</li>)}</ul></div>}
+        <Comparison run={run} preview={preview}/>
+        <details className="min-w-0 rounded-md border p-3"><summary className="cursor-pointer font-semibold">公開前プレビュー</summary><ReviewReport preview publication={{run_id:run.id,as_of:run.as_of,published_at:run.as_of,payload:preview.payload}} /></details>
+        {needsReason && <label className="grid gap-1 text-sm font-semibold">評価の修正理由<input className={field} value={reason} maxLength={1000} onChange={e=>setReason(e.target.value)} /></label>}
+      </>}
+      {!receipt && <><label className="flex items-center gap-2"><input type="checkbox" disabled={!preview || reloadRequired || editorDirty} checked={confirmed} onChange={e=>setConfirmed(e.target.checked)}/>公開内容と前回からの変更を確認しました</label>
+      <div className="flex flex-wrap gap-2"><button className={primary} disabled={!!blocked} aria-describedby="publish-guidance" onClick={()=>task(()=>submit(true))}>確認して公開</button>
+        <button className={button} disabled={!preview || preview.matchesSaved || editorDirty || reloadRequired || (needsReason && !reason.trim())} onClick={()=>task(()=>submit(false))}>下書き保存</button></div>
+      <p id="publish-guidance" className="text-sm text-muted">{blocked || "確認済みの内容を管理者限定で公開できます。"}</p></>}
+      {reloadRequired && <button className={button+" justify-self-start"} onClick={()=>task(reload)}>最新の状態を再読み込み</button>}
+    </div></section>
+    <details className={card}><summary className="cursor-pointer text-lg font-bold">評価履歴・詳細設定</summary><div className="mt-3 grid min-w-0 gap-3">
+      {preview && run && <><ReviewEditor document={preview.analysis} decks={run.snapshot.decks} onApply={edit} onDirtyChange={dirty=>{setEditorDirty(dirty);setConfirmed(false);}}/>
+        <details><summary className="cursor-pointer font-semibold">管理者用の出典・判断根拠</summary><InternalInfo analysis={preview.analysis} snapshot={run.snapshot}/></details></>}
+      <label className="grid gap-1 text-sm font-semibold">修正・復元・失敗の理由<input className={field} value={reason} maxLength={1000} onChange={e=>setReason(e.target.value)} /></label>
+      <div className="flex flex-wrap gap-2"><button className={button} disabled={!run || index.current!==run.id} onClick={()=>{if(window.confirm("この環境の評価を公開停止しますか？")) void task(()=>apply("withdraw"));}}>公開停止</button>
+        <button className={button} disabled={!run || !reason.trim()} onClick={()=>task(()=>apply("failure"))}>分析失敗を記録</button></div>
+      <h3 className="font-bold">過去の評価履歴</h3>
       {index.runs.map(r=><button key={r.id} aria-pressed={run?.id===r.id} className="mb-2 mr-2 rounded-md border border-slate-300 p-2 text-left text-sm aria-pressed:border-sky-700" onClick={()=>task(async()=>loadRun(await request<RunDetail>(base+"&id="+r.id)))}>{jst(r.as_of)} ／ {labels[r.status]} ／ {r.mode==="manual"?"手動":"自動"}{r.id===index.current?" ／ 管理者限定公開中":""}</button>)}
       <h3 className="mt-3 font-bold">実行・修正履歴</h3>{index.events.length===0&&<p className="text-sm text-muted">履歴はありません。</p>}
       {index.events.map(e=><div className="flex flex-wrap items-center gap-2 border-b border-slate-200 py-2 text-sm" key={e.id}><span>{jst(e.created_at)}　{labels[e.action]??e.action}　{e.reason}</span>
         <button className="underline" onClick={()=>task(async()=>setEventData(await request(base+"&event="+e.id)))}>変更内容</button>
         {e.action==="publish"&&<button className="underline" disabled={!reason.trim()} onClick={()=>{if(window.confirm("選択した公開版を復元しますか？"))void task(()=>restore(e));}}>この公開版へ復元</button>}</div>)}
       {eventData!==undefined&&<pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap break-all bg-slate-50 p-3 text-xs">{JSON.stringify(eventData,null,2)}</pre>}
-      <div className="mt-3 flex flex-wrap items-center gap-3"><button className={button} onClick={()=>task(async()=>{await refresh(page); if(run)loadRun(await request<RunDetail>(base+"&id="+run.id));})}>再読み込み</button><button className={button} disabled={page===0} onClick={()=>task(async()=>{await refresh(page-1);})}>前の20件</button><button className={button} disabled={Math.max(index.runs.length,index.events.length)<20} onClick={()=>task(async()=>{await refresh(page+1);})}>次の20件</button></div>
-    </section>
+      <div className="mt-3 flex flex-wrap items-center gap-3"><button className={button} disabled={page===0} onClick={()=>task(async()=>{await refresh(page-1);})}>前の20件</button><button className={button} disabled={Math.max(index.runs.length,index.events.length)<20} onClick={()=>task(async()=>{await refresh(page+1);})}>次の20件</button></div>
+      <button className={button+" justify-self-start"} onClick={()=>task(reload)}>再読み込み</button>
+    </div></details>
   </fieldset>;
 }
 
@@ -128,7 +246,7 @@ function Comparison({run, preview}: {run: RunDetail; preview: Preview}) {
   const pairs = new Map(run.snapshot.pairs.map(p => [p.a + "/" + p.b, p]));
   const evidence = new Map(preview.analysis.internal.evidence.map(e => [e.target, e] as const));
   const comparison = preview.draftComparison;
-  return <details open className="min-w-0 rounded-md border border-slate-200 p-3"><summary className="cursor-pointer font-semibold">新旧ルール・総合評価の比較</summary>
+  return <details className="min-w-0 rounded-md border border-slate-200 p-3"><summary className="cursor-pointer font-semibold">新旧ルール・総合評価の比較</summary>
     <p className="my-2 text-sm text-muted">前回差はスナップショット作成時の公開版との比較です。公開操作では、その時点の公開版との大幅変動も確認します。</p>
     <details className="mb-2 text-sm"><summary className="cursor-pointer">同じスナップショットの保存済み案と比較</summary>
       <p className="mt-2 break-all">外部資料の識別値（SHA-256）　{comparison.fingerprint}</p>
@@ -153,12 +271,6 @@ function Comparison({run, preview}: {run: RunDetail; preview: Preview}) {
           <td className="p-2">{d.confidence}</td><td className="max-w-80 p-2">{d.status} ／ {d.importance}{d.signals.length > 0 && <div>{d.signals.join("、")}</div>}
             {d.omissionReason && <div>未掲載理由　{d.omissionReason}</div>}</td></tr>;
       })}</tbody></table></div></details>;
-}
-function sameDocument(left: unknown, right: unknown): boolean {
-  // PostgreSQL JSONB may reorder object keys on retrieval.
-  const canonical = (v: unknown): unknown => Array.isArray(v) ? v.map(canonical) : v && typeof v==="object" ?
-    Object.fromEntries(Object.entries(v).sort(([a],[b])=>a.localeCompare(b)).map(([k,x])=>[k,canonical(x)])) : v;
-  return JSON.stringify(canonical(left))===JSON.stringify(canonical(right));
 }
 function InternalInfo({analysis,snapshot}: {analysis: EvaluationDocument; snapshot: RunDetail["snapshot"]}) {
   const sources = new Map(analysis.schemaVersion===2 ? analysis.internal.sources.map(s=>[s.id,s] as const) : []);

@@ -25,11 +25,12 @@ export default async function EnvironmentPage({ searchParams }: { searchParams: 
   ]);
   if (archetypeError) throw new Error("デッキ分類を取得できませんでした。");
   const environment = selectInitialEnvironmentId(environments ?? [], typeof params.environment === "string" ? params.environment : undefined);
+  const initialReview = isAdmin && params.tab === "review";
   let ranks;
   try { ranks = parseRankSelection(params); }
   catch { return <AppShell><div role="alert" className="rounded-md border p-4">ランクの絞り込み条件が不正です。URLのランク指定を確認してください。</div></AppShell>; }
   const selection = { environment, period: initialDashboardPeriod(params.period, environments?.find(e => e.id === environment)?.dashboard_end_at), ranks };
-  if (environment && !environmentError && ["environment", "period"].some(k => params[k] !== undefined && params[k] !== selection[k as "environment" | "period"])) redirect(environmentHrefV4(selection));
+  if (environment && !environmentError && ["environment", "period"].some(k => params[k] !== undefined && params[k] !== selection[k as "environment" | "period"])) redirect(environmentHrefV4(selection) + (initialReview ? "&tab=review" : ""));
   let dashboard: EnvironmentDashboardV4 | null = null, failed = Boolean(environmentError);
   if (environment && !failed) {
     try {
@@ -38,6 +39,6 @@ export default async function EnvironmentPage({ searchParams }: { searchParams: 
   }
   return <AppShell navigationPrefetch={false}><div className="space-y-5">
     <div><h1 className="text-2xl font-bold">環境データ</h1><p className="mt-2 text-sm leading-relaxed text-muted">SV Match Log利用者が登録した戦績の集計データです。個別ユーザーの戦績や識別情報は表示しません。集計値とあわせて件数を表示しています。</p></div>
-    <EnvironmentFilters key={environmentHrefV4(selection)} canViewReview={isAdmin} environments={(environments ?? []).map(e => ({ id: e.id, name: e.name }))} activeDeckIds={(activeArchetypes ?? []).map(a => a.id)} trendCatalog={activeArchetypes ?? []} initialSelection={selection} initialData={dashboard} initialFailed={failed} />
+    <EnvironmentFilters key={environmentHrefV4(selection) + String(initialReview)} initialReview={initialReview} canViewReview={isAdmin} environments={(environments ?? []).map(e => ({ id: e.id, name: e.name }))} activeDeckIds={(activeArchetypes ?? []).map(a => a.id)} trendCatalog={activeArchetypes ?? []} initialSelection={selection} initialData={dashboard} initialFailed={failed} />
   </div></AppShell>;
 }

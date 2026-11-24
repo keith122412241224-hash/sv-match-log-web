@@ -3,11 +3,11 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { CreatorError, creatorClient } from "@/lib/creator/server";
 import { baselineEvaluation, reviewDiagnostics, MAX_EVALUATION_BYTES } from "@/lib/environment-review/evaluation";
-import { checkDb, createSnapshot, publicationFor, reviewAction, reviewId, runDetail, RUN_FIELDS } from "@/lib/environment-review/workflow";
+import { checkDb, createSnapshot, publicationFor, publishReviewed, ReviewConflict, reviewAction, reviewId, runDetail, RUN_FIELDS } from "@/lib/environment-review/workflow";
 
 export const dynamic = "force-dynamic";
 const reply = (value: unknown, status = 200) => NextResponse.json(value, { status, headers: { "Cache-Control": "private, no-store" } });
-const failure = (e: unknown) => reply({ error: e instanceof Error ? e.message : "操作に失敗しました。" }, e instanceof CreatorError ? e.status : 400);
+const failure = (e: unknown) => reply({ error: e instanceof Error ? e.message : "操作に失敗しました。" }, e instanceof ReviewConflict ? 409 : e instanceof CreatorError ? e.status : 400);
 const resourcesV1 = {
   prompt: () => readFile(path.join(process.cwd(),"docs/environment-review/v1/prompt.md"),"utf8"),
   schema: () => readFile(path.join(process.cwd(),"docs/environment-review/v1/input.schema.json"),"utf8"),
@@ -82,6 +82,7 @@ export async function POST(request: NextRequest) {
       if (body.action === "create") return reply({ id: await createSnapshot(client,environment) });
       const run = await runDetail(client,reviewId(body.id),environment);
       id = run.id;
+      if (body.action === "confirmPublish") return reply(await publishReviewed(client,run,body));
       if (body.action === "failure") {
         if (typeof body.reason !== "string" || !body.reason.trim() || body.reason.length > 1000) throw new Error("失敗の内容を1〜1000文字で入力してください。");
         checkDb((await client.rpc("environment_review_failure",{p_environment_id:environment,p_run_id:id,p_reason:body.reason})).error);
@@ -89,7 +90,7 @@ export async function POST(request: NextRequest) {
       }
       return reply(await reviewAction(client,run,body));
     } catch(e) {
-      if (["create","save","publish","preview"].includes(body.action)) {
+      if (["create","save","publish","confirmPublish","preview"].includes(body.action)) {
         await client.rpc("environment_review_failure",{ p_environment_id:environment,p_run_id:id,p_reason:(e instanceof Error ? e.message : "処理に失敗しました。").slice(0,1000) });
       }
       throw e;

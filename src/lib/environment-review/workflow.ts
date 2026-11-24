@@ -11,6 +11,16 @@ export type ReviewRun = { id: string; environment_id: string; as_of: string; mod
 export type RunDetail = ReviewRun & { snapshot: ReviewSnapshot & { previousEvaluation?: Publication | null }; analysis: EvaluationDocument | null };
 export type ReviewEvent = { id: number; run_id: string | null; action: string; reason: string | null; created_at: string };
 export const RUN_FIELDS = "id,environment_id,as_of,mode,revision,status,created_at,updated_at,published_at";
+export class ReviewConflict extends Error {}
+
+// JSONB preserves array order but may return object keys in a different order.
+function digest(value: unknown) {
+  const json = JSON.stringify(value, (_, item) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return item;
+    return Object.fromEntries(Object.keys(item).sort().map(key => [key, item[key]]));
+  });
+  return createHash("sha256").update(json).digest("hex");
+}
 export function reviewId(value: unknown) {
   if (typeof value !== "string" || !UUID.test(value)) throw new Error("環境または評価のIDが不正です。");
   return value;
@@ -25,6 +35,7 @@ export function checkDb(error: {message: string} | null) {
     review_reason_required:"変更・復元の理由を入力してください。",
     review_not_restorable:"この公開版は既に公開中か、復元できません。"
   };
+  if (error.message === "review_conflict") throw new ReviewConflict(messages.review_conflict);
   throw new Error(messages[error.message] ?? error.message);
 }
 export async function publicationFor(client: Client, environment: string): Promise<Publication | null> {
@@ -91,11 +102,11 @@ export function compareDraft(next: EvaluationDocument, saved: EvaluationDocument
 
 export async function reviewAction(client: Client, run: RunDetail, body: Record<string,unknown>) {
   const { action, revision, reason, expectedPublication } = body;
-  if (!Number.isSafeInteger(revision) || revision !== run.revision) throw new Error("別の画面で更新されています。履歴を再読み込みしてください。");
+  if (!Number.isSafeInteger(revision) || revision !== run.revision) throw new ReviewConflict("他の操作で評価が更新されました。再読み込みして内容を確認してください。");
   if (reason != null && (typeof reason !== "string" || reason.length > 1000)) throw new Error("操作理由は1000文字以内で入力してください。");
   if (expectedPublication !== null) reviewId(expectedPublication);
   const current = await publicationFor(client,run.environment_id);
-  if ((current?.run_id ?? null) !== expectedPublication) throw new Error("公開中の評価が変更されました。再読み込みしてください。");
+  if ((current?.run_id ?? null) !== expectedPublication) throw new ReviewConflict("公開中の評価が変更されました。再読み込みして内容を確認してください。");
   let analysis: EvaluationDocument | null = null, payload: MemberPayload | null = null;
   const warnings: string[] = [];
   if (action === "preview" || action === "save" || action === "publish") {
@@ -123,13 +134,19 @@ export async function reviewAction(client: Client, run: RunDetail, body: Record<
       const previous = previousPairs.get(p.a+"/"+p.b);
       if (previous != null && p.rating != null && Math.abs(previous-p.rating) >= 2) warnings.push("前回公開評価からの大幅変動　" + targetName(p.a + "/" + p.b));
     }
-    if (action === "preview") return { payload, warnings: [...new Set(warnings)], diagnostics: diagnosticRows, analysis,
-      draftComparison: compareDraft(analysis,run.analysis), publishedEdition: current?.published_at ?? null };
+    if (action === "preview") {
+      const publishedEdition = current?.published_at ?? null;
+      const reviewKey = digest({ id: run.id, revision, expectedPublication, publishedEdition, analysis, warnings, payload });
+      return { payload, warnings: [...new Set(warnings)], diagnostics: diagnosticRows, analysis, reviewKey,
+        matchesSaved: run.analysis !== null && digest(analysis) === digest(run.analysis),
+        draftComparison: compareDraft(analysis,run.analysis), publishedEdition };
+    }
+    if (action === "publish" && body.confirmChanges !== true) throw new Error("公開内容の確認チェックを入れてください。");
     if (action === "publish" && warnings.length && (body.confirmChanges !== true || run.mode !== "manual")) throw new Error("大きな評価変更を確認してから公開してください。");
   }
   if (!["save","publish","withdraw","restore"].includes(String(action))) throw new Error("操作が不正です。");
-  if (action === "publish" && run.snapshot.schemaVersion === 2) {
-    if (body.publishedEdition !== (current?.published_at ?? null)) throw new Error("公開版が変わりました。もう一度プレビューしてください。");
+  if (action === "publish") {
+    if (body.publishedEdition !== (current?.published_at ?? null)) throw new ReviewConflict("公開版が変わりました。再読み込みしてプレビューを確認してください。");
     const result = await client.rpc("environment_review_publish_v2", {
       p_id:run.id, p_revision:revision, p_public:payload, p_reason:reason ?? "",
       p_expected_publication_id:expectedPublication, p_expected_published_at:body.publishedEdition
@@ -144,4 +161,35 @@ export async function reviewAction(client: Client, run: RunDetail, body: Record<
   });
   checkDb(result.error);
   return { revision: result.data };
+}
+
+export async function publishReviewed(client: Client, run: RunDetail, body: Record<string, unknown>) {
+  if (body.confirmChanges !== true) throw new Error("公開内容の確認チェックを入れてください。");
+  const checked = await reviewAction(client, run, {...body, action:"preview"});
+  if (!checked.analysis || !checked.reviewKey || body.reviewKey !== checked.reviewKey ||
+      body.publishedEdition !== checked.publishedEdition) {
+    throw new ReviewConflict("評価内容または公開版が変更されました。再読み込みして再確認してください。");
+  }
+  if (checked.warnings.length && run.mode !== "manual") throw new Error("大きな評価変更には手動での管理者確認が必要です。");
+  let draft = run;
+  if (checked.matchesSaved) {
+    if (run.status !== "draft") throw new Error("同じ内容は公開済みです。過去版は履歴から復元してください。");
+  } else {
+    const saved = await reviewAction(client, run, {...body, action:"save", document:checked.analysis});
+    try {
+      draft = await runDetail(client, run.id, run.environment_id);
+      if (draft.revision !== saved.revision || draft.status !== "draft" || digest(draft.analysis) !== digest(checked.analysis)) {
+        throw new ReviewConflict("保存後に評価が更新されました。");
+      }
+    } catch (error) {
+      throw new ReviewConflict("下書きを保存しました。再読み込みして保存内容を確認してください。 " + (error instanceof Error ? error.message : ""));
+    }
+  }
+  // Never adopt a newer publication or revision between saving and publishing.
+  try {
+    return await reviewAction(client, draft, {...body, action:"publish", revision:draft.revision});
+  } catch (error) {
+    throw new ReviewConflict("下書きは保存済みです。公開状態を再読み込みして再確認してください。 " +
+      (error instanceof Error ? error.message : ""));
+  }
 }

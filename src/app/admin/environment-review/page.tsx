@@ -21,6 +21,6 @@ export default async function ReviewAdminPage({ searchParams }: { searchParams: 
       <Link className="w-fit underline" href={{pathname:"/admin/environment-review",query:{environment,...(report ? {} : {view:"report"})}}}>
         {report ? "編集画面に戻る" : "公開版の表示を確認"}</Link>
       {report ? <section aria-label="管理者限定の公開版"><ReviewTab key={environment} environment={environment}/></section> :
-        <ReviewWorkspace key={environment} environment={environment}/>}</> : <p>選択できる環境がありません。</p>}
+        <ReviewWorkspace key={environment} environment={environment} environmentName={environments.find(e => e.id === environment)?.name ?? ""}/>}</> : <p>選択できる環境がありません。</p>}
   </div></main>;
 }
