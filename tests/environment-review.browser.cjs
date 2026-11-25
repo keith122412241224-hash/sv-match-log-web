@@ -321,14 +321,18 @@ async function verify(browser) {
   assert.equal(await gaps.count(),0);
   assert.equal(await matrix.getByLabel('ミラー・評価対象外',{exact:true}).first().textContent(),'－');
   await panel.getByRole('heading',{name:'Tier表'}).locator('..').getByRole('button').first().click();
-  await panel.getByRole('heading',{name:/の評価詳細$/}).waitFor();
+  await panel.getByRole('article').getByRole('heading').waitFor();
+  assert.equal(await panel.getByText('総評の全文',{exact:true}).count(),0);
   await panel.getByRole('button',{name:'閉じる',exact:true}).click();
   await reportPage.screenshot({path:path.join(output,'member-desktop-light.png')});
   await panel.getByRole('heading',{name:'Tier表'}).locator('..').evaluate(card=>card.scrollIntoView({block:'center'}));
   await reportPage.screenshot({path:path.join(output,'tier-desktop.png')});
   await matrix.getByRole('button',{name:'コンボエルフ 対 ミッドレンジロイヤル 微有利',exact:true}).click();
   await matrix.getByRole('button',{name:'ミッドレンジロイヤル 対 コンボエルフ 微不利',exact:true}).click();
-  assert.match(await matrix.locator('[aria-live]').innerText(),/微不利/);
+  const matchupDetail=matrix.locator('[aria-live]');
+  assert.match(await matchupDetail.innerText(),/微不利/);
+  assert.deepEqual(await matchupDetail.locator('dt').allTextContents(),['判定','実測勝率','対戦数']);
+  assert.doesNotMatch(await matchupDetail.innerText(),/暫定評価|95%区間|実測の信頼度/);
   assert.equal(await matrix.getByRole('rowheader').count(),8);
   await matrix.getByRole('button',{name:/全.*デッキを表示/}).click();
   assert.ok(await matrix.getByRole('rowheader').count()>8);
@@ -477,8 +481,9 @@ async function verify(browser) {
     const tier = panel.getByRole('heading',{name:'Tier表'}).locator('..');
     await tier.getByRole('button',{name:/コンボエルフ/}).click();
     const detail = tier.getByRole('article');
-    await detail.getByText('Tier判定対象の実測勝率',{exact:true}).waitFor();
-    await detail.getByText('95% Wilson区間',{exact:true}).waitFor();
+    await detail.getByText('前回との差',{exact:true}).waitFor();
+    await detail.getByText('実測勝率',{exact:true}).waitFor();
+    assert.doesNotMatch(await detail.innerText(),/Wilson|データ評価|Tier判定対象|ランク帯別成績|日別の遭遇率/);
     await detail.scrollIntoViewIfNeeded();
   }
   await openDeck(reportPage);

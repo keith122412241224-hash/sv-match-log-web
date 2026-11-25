@@ -1,11 +1,10 @@
 "use client";
 import { useId, useMemo, useState, type ReactNode } from "react";
 import { ClassIcon } from "@/components/ClassIcon";
-import { ATOMIC_RANK_GROUPS, getRankSelectionLabel } from "@/lib/rank-selection";
+import { getRankSelectionLabel } from "@/lib/rank-selection";
 import type { Divergence } from "@/lib/environment-review/evaluation";
 import { changeLabel, jst, matchupLabel, percent, tierLabel, type Publication } from "@/lib/environment-review/publication";
 
-import { cellLabel, encounterTier, priority } from "@/lib/environment-review/assessment-v3";
 
 const panel = "min-w-0 rounded-md border border-slate-200 bg-white p-4 sm:p-5";
 const title = "mb-3 text-lg font-bold";
@@ -60,8 +59,7 @@ function Matrix({ publication }: { publication: Publication }) {
   const [selected, select] = useState<[Deck, Deck] | null>(null);
   const ratings = useMemo(() => new Map(evaluation.pairs.map(p => [p.a + "/" + p.b,p])), [evaluation]);
   const measured = useMemo(() => new Map(snapshot.pairs.map(p => [p.a + "/" + p.b,p])), [snapshot]);
-  const decks = useMemo(() => [...snapshot.decks].sort((a, b) =>
-    (b.encounterRate ?? -1) - (a.encounterRate ?? -1) || a.deckId.localeCompare(b.deckId)), [snapshot]);
+  const decks = useMemo(() => [...snapshot.decks].sort(byEncounter), [snapshot]);
   const visible = showAll ? decks : decks.slice(0, 8);
   const shortNames = useMemo(() => {
     const labels = decks.map(d => d.className && d.name.endsWith(d.className) ? d.name.slice(0, -d.className.length) || d.name : d.name);
@@ -72,13 +70,11 @@ function Matrix({ publication }: { publication: Publication }) {
     const key = forward ? row.deckId + "/" + col.deckId : col.deckId + "/" + row.deckId;
     const pair = ratings.get(key), data = measured.get(key);
     const rating=pair?.rating == null ? null : pair.rating*(forward ? 1 : -1);
-    const count=data?.count ?? 0, canonicalWins=Math.round((data?.winRate ?? 0)*count/100);
-    const wins=forward ? canonicalWins : count-canonicalWins;
-    const provisional = rating !== null && (pair?.confidence === "低" || pair?.reason.includes("暫定評価"));
-    const judgment = rating === null ? undefined : judgmentByRating.get(rating);
-    return { judgment, provisional, wins,
+    return {
+      judgment: rating === null ? undefined : judgmentByRating.get(rating),
       rate: data?.winRate == null ? null : forward ? data.winRate : 100 - data.winRate,
-      count: data?.count ?? 0, pair, data, forward };
+      count: data?.count ?? 0, pair, forward
+    };
   }
   const active = selected && detail(...selected);
   return <section className={panel}><h3 className={title}>総合対面相性表</h3>
@@ -108,7 +104,7 @@ function Matrix({ publication }: { publication: Publication }) {
           {visible.map(col => {
             if (row.deckId === col.deckId) return <td key={col.deckId} className="border border-slate-200 text-center text-muted" aria-label="ミラー・評価対象外" title="ミラー・評価対象外">－</td>;
             const value = detail(row, col);
-            const label = row.name + " 対 " + col.name + " " + (value.judgment?.label ?? "総合判定なし");
+            const label = row.name + " 対 " + col.name + " " + (value.judgment?.label ?? "判定なし");
             return <td key={col.deckId} className="border border-slate-200 p-0.5 text-center">
               <button type="button" aria-label={label} title={label} aria-pressed={selected?.[0].deckId === row.deckId && selected[1].deckId === col.deckId}
                 className={"block min-h-9 w-full rounded text-lg font-bold focus-visible:outline aria-pressed:ring-2 aria-pressed:ring-inset aria-pressed:ring-sky-700 " + (value.judgment?.color ?? "hover:bg-slate-50")}
@@ -119,18 +115,46 @@ function Matrix({ publication }: { publication: Publication }) {
           })}
         </tr>)}</tbody>
       </table></div> : <p>評価対象のデッキがありません。</p>}
-    {active && selected && <div className="rounded-md bg-slate-50 p-3" aria-live="polite"><b>{selected[0].name} 対 {selected[1].name}</b><p>総合判定　{active.judgment?.label ?? "判定なし"}{active.provisional && "（暫定評価）"}</p>
-      <p>実測勝率　{percent(active.rate)}（{active.count}戦）{!active.judgment && " ／ " + cellLabel(null, active.wins, active.count)}</p>
-      {active.data?.details && <div className="mt-1 text-sm">
-        <p>データ相性　{matchupLabel(active.data.dataRating === null ? null : active.data.dataRating * (active.forward ? 1 : -1))} ／ 実測の信頼度　{active.data.details.measuredConfidence}</p>
-        <p>{active.wins}勝 {active.count-active.wins}敗 ／ 勝率の95%区間　{intervalLabel(active.forward || !active.data.details.interval95 ? active.data.details.interval95 : [100-active.data.details.interval95[1],100-active.data.details.interval95[0]])}</p>
-        <p>登録者や構築による偏りは区間に含まれません。異なる登録者・構築での再現を確認してください。</p>
-      </div>}
-      {active.pair && <p className="mt-1 text-sm">判断理由（{active.forward ? selected[0].name : selected[1].name}視点）　{active.pair.reason} ／ 信頼度 {active.pair.confidence}</p>}</div>}
+    {active && selected && <article className="mt-2 grid gap-2 rounded-md bg-slate-50 p-3 text-sm" aria-live="polite">
+      <h4 className="font-bold">{selected[0].name} 対 {selected[1].name}</h4>
+      <dl className="grid grid-cols-3 gap-2">
+        <div><dt className="text-xs text-muted">判定</dt><dd className="mt-1 font-semibold">
+          {active.judgment ? <span className={"inline-block rounded px-1.5 " + active.judgment.color}>{active.judgment.mark} {active.judgment.label}</span> : "判定なし"}
+        </dd></div>
+        <div><dt className="text-xs text-muted">実測勝率</dt><dd className="mt-1 font-semibold">{percent(active.rate)}</dd></div>
+        <div><dt className="text-xs text-muted">対戦数</dt><dd className="mt-1 font-semibold">{active.count}戦</dd></div>
+      </dl>
+      <p className="leading-relaxed">{active.pair && !active.forward && <span className="text-muted">{selected[1].name}側の理由　</span>}{brief(active.pair?.reason ?? "", 2, 130) || "この対面の理由は記録されていません。"}</p>
+    </article>}
   </section>;
 }
 
-// Keep the stored wording, including qualifiers. The full text stays available.
+// Stored assessments can begin with a version-specific label. Keep the substantive sentences.
+function brief(text: string, maxSentences: number, limit: number) {
+  const body = text.trim().replace(/^(?:実測を中心とした(?:暫定)?評価|外部情報を中心とした暫定評価|総合判断による暫定評価|外部情報も考慮した評価)。\s*/u, "");
+  const sentences = body.match(/[^。！？!?\n]+[。！？!?]?/gu) ?? [];
+  return excerpt(sentences.slice(0, maxSentences).map(s => s.trim()).join(""), limit);
+}
+
+function byEncounter(a: Deck, b: Deck) {
+  return (b.encounterRate ?? -1) - (a.encounterRate ?? -1) || a.deckId.localeCompare(b.deckId);
+}
+
+function notableMatchups(deckId: string, pairs: Publication["payload"]["evaluation"]["pairs"], decks: Map<string, Deck>) {
+  const major = new Set([...decks.values()].sort(byEncounter).slice(0, 8).map(d => d.deckId));
+  const opponents = pairs.flatMap(p => {
+    if (p.rating == null || p.rating === 0 || (p.a !== deckId && p.b !== deckId)) return [];
+    const forward = p.a === deckId;
+    const opponent = decks.get(forward ? p.b : p.a);
+    return opponent ? [{ deck: opponent, rating: forward ? p.rating : -p.rating }] : [];
+  }).sort((a,b) => Number(major.has(b.deck.deckId)) - Number(major.has(a.deck.deckId)) ||
+    Math.abs(b.rating) - Math.abs(a.rating) || byEncounter(a.deck, b.deck));
+  return {
+    favorable: opponents.filter(o => o.rating > 0).slice(0,2).map(o => o.deck.name),
+    unfavorable: opponents.filter(o => o.rating < 0).slice(0,2).map(o => o.deck.name)
+  };
+}
+
 function excerpt(text: string, limit: number) {
   const chars = Array.from(text.trim());
   if (chars.length <= limit) return text.trim();
@@ -176,11 +200,10 @@ export function ReviewReport({ publication, preview = false }: { publication: Pu
     typeof prior[id] === "number" && tier !== null ? Math.abs(prior[id] - tier) : 0;
   const changed = hasPrevious ? ranked.filter(d => d.tier !== prior[d.deckId]).sort((a, b) =>
     shiftSize(b.deckId, b.tier) - shiftSize(a.deckId, a.tier)) : [];
-  const facts = excerpt(ev.overview.facts, 86);
-  const hasMore = facts !== ev.overview.facts.trim() || Boolean(ev.overview.hypothesis);
+  const facts = brief(ev.overview.facts, 3, 150);
   const d = selectedId ? names.get(selectedId) : undefined;
   const e = selectedId ? assessments.get(selectedId) : undefined;
-  const rival = d && s.pairs.filter(p => p.a === d.deckId || p.b === d.deckId).sort((a,b) => b.count - a.count)[0];
+  const opponents = d ? notableMatchups(d.deckId, ev.pairs, names) : undefined;
   return <div className="grid min-w-0 gap-4 break-words text-ink">
     <header className={panel + " grid items-start gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]"}>
       <div>
@@ -190,8 +213,6 @@ export function ReviewReport({ publication, preview = false }: { publication: Pu
       </div>
       <div className="border-t border-slate-200 pt-3 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0"><h3 className="mb-1 font-bold">環境総評</h3>
         <p className="leading-relaxed">{facts}</p>
-        {hasMore && <details className="mt-1 text-sm"><summary className="cursor-pointer text-muted">総評の全文</summary><p>{ev.overview.facts}</p>{ev.overview.hypothesis && <p>考察　{ev.overview.hypothesis}</p>}</details>}
-        <p className="mt-2 text-xs text-muted">{ev.comparison === "unavailable" ? "実測のみ（外部資料不足）" : ev.comparison === "partial" ? "実測＋一部の外部資料" : "実測＋外部資料"}</p>
       </div>
     </header>
     <section className={panel}><h3 className={title}>Tier表</h3>
@@ -208,19 +229,21 @@ export function ReviewReport({ publication, preview = false }: { publication: Pu
             </button>;
           })}{!group.length && <span className="py-2 text-sm text-muted">該当なし</span>}</div>
       <div id={detailId + i} className="col-span-full empty:hidden" aria-live="polite">{d && e && (e.tier ?? 5) === tier && <article className="mt-2 rounded-md bg-slate-50 p-3">
-        <div className="flex items-center justify-between gap-2"><h4 className="font-bold">{d.name}の評価詳細</h4><button type="button" className="min-h-10 underline" onClick={() => selectDeck(null)}>閉じる</button></div>
-        <dl className="my-3 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">{fact("クラス",d.className)}{fact("遭遇率",percent(d.encounterRate))}{fact("実測勝率（集計期間）",percent(d.winRate))}{fact("評価件数",d.count + "件")}{fact("使用時勝率",percent(d.useWinRate))}{fact("データ評価",tierLabel(d.dataTier))}{fact("遭遇率だけの参考帯",tierLabel(encounterTier(d.encounterRate)))}{fact("前回との差",changeLabel(prior[d.deckId],e.tier))}</dl>
-        {d.details && <div className="mb-3 rounded-md bg-slate-50 p-3 text-sm">
-          <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">{fact("Tier判定対象の実測勝率",percent(d.details.eligibleWinRate))}
-            {fact("Tier判定対象件数",d.details.eligibleCount+"件")}{fact("95% Wilson区間",intervalLabel(d.details.interval95))}
-            {fact("実測の信頼度",d.details.measuredConfidence)}</dl>
-          <p className="mt-2">Tier判定ではミラー、その他・未分類を含む対戦を除き、使用側と相手側の両視点を集計します。ランクは戦績登録者のものです。</p>
-          <p>データ {tierLabel(d.dataTier)} → 総合 {tierLabel(e.tier)}</p>
-        </div>}
-        <p><b>評価理由　</b>{e.reason}</p>
-        <p className="text-sm">総合の信頼度 {e.confidence} ／ 対策優先度 {priority(d.encounterRate)}</p>
-        {rival && rival.count > 0 && <p className="text-sm">最多記録の対面　{names.get(rival.a === d.deckId ? rival.b : rival.a)?.name} ／ 実測 {percent(rival.winRate === null || rival.a === d.deckId ? rival.winRate : 100 - rival.winRate)}（{rival.count}戦）</p>}
-        <DeckMetrics deck={d} />
+        <div className="flex items-center justify-between gap-2">
+          <h4 className="font-bold">{d.name}<span className="ml-2 whitespace-nowrap text-sm">{tierLabel(e.tier ?? 5)}</span></h4>
+          <button type="button" className="min-h-9 shrink-0 text-sm underline" onClick={() => selectDeck(null)}>閉じる</button>
+        </div>
+        <p className="text-xs text-muted">{d.className}{e.tier === null && " ／ 評価材料不足"}</p>
+        <p className="my-2 text-sm leading-relaxed">{brief(e.reason, 3, 150)}</p>
+        <dl className="grid grid-cols-3 gap-2 border-t border-slate-200 pt-2 text-sm">
+          {fact("遭遇率",percent(d.encounterRate))}{fact("実測勝率",percent(d.winRate))}
+          {fact("前回との差",hasPrevious ? movement(prior[d.deckId], e.tier) || "変更なし" : "初回")}
+        </dl>
+        {opponents && (opponents.favorable.length > 0 || opponents.unfavorable.length > 0) &&
+          <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 border-t border-slate-200 pt-2 text-sm" aria-label="注目対面">
+            {opponents.favorable.length > 0 && <><dt className="font-semibold">有利寄り</dt><dd>{opponents.favorable.join("、")}</dd></>}
+            {opponents.unfavorable.length > 0 && <><dt className="font-semibold">苦手寄り</dt><dd>{opponents.unfavorable.join("、")}</dd></>}
+          </dl>}
       </article>}</div>
         </div>;
       })}
@@ -229,7 +252,7 @@ export function ReviewReport({ publication, preview = false }: { publication: Pu
     <section className={panel}><h3 className={title}>前回評価からの変更</h3>
       {changed.length ? <ul className="divide-y divide-slate-200">{changed.slice(0, 3).map(deck => <li key={deck.deckId} className="grid items-center gap-x-3 gap-y-1 py-2 sm:grid-cols-[minmax(10rem,1fr)_8rem_2fr]">
         <DeckName deck={names.get(deck.deckId)!} /><span className="text-sm font-semibold">{prior[deck.deckId] === undefined ? "新規 → " + tierLabel(deck.tier) : changeLabel(prior[deck.deckId],deck.tier)}</span>
-        <p className="text-sm">{excerpt(deck.reason.split("。")[0] + (deck.reason.includes("。") ? "。" : ""), 76)}</p>
+        <p className="text-sm">{brief(deck.reason, 1, 76)}</p>
       </li>)}</ul> : <p className="text-sm">{hasPrevious ? "総合Tierの変更はありません。" : "前回の比較対象がありません。"}</p>}
       {(ev.changes || changed.length > 0) && <details className="mt-2 text-sm"><summary className="cursor-pointer font-semibold">変更の詳細{changed.length > 0 && "（全" + changed.length + "件）"}</summary>
         {ev.changes && <p className="my-2 whitespace-pre-line">{ev.changes}</p>}
@@ -242,16 +265,4 @@ export function ReviewReport({ publication, preview = false }: { publication: Pu
       <Gaps heading="対面相性の乖離分析" rows={pairGaps} comparison={ev.comparison} />
     </details>}
   </div>;
-}
-function intervalLabel(value: [number, number] | null) {
-  return value ? percent(value[0]) + " ～ " + percent(value[1]) : "観測なし";
-}
-function DeckMetrics({ deck }: {deck: Deck}) {
-  const rankLabels = new Map<string,string>(ATOMIC_RANK_GROUPS.flatMap(g => g.options.map(o => [o.value,o.fullLabel] as const)));
-  function breakdown(label:string, rows:Deck["byDay"], names?:Map<string,string>) {
-    return <details><summary className="cursor-pointer py-2">{label}</summary><div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr>{["区分","遭遇率","実測勝率","評価件数"].map(s=><th key={s} scope="col" className="p-1">{s}</th>)}</tr></thead>
-      <tbody>{Object.entries(rows).sort(([a],[b])=>a.localeCompare(b)).map(([key,r])=><tr className="border-t" key={key}><th scope="row" className="p-1">{names?.get(key)??key}</th><td>{percent(r.encounterRate)}</td><td>{percent(r.winRate)}</td><td>{r.count}件</td></tr>)}</tbody></table></div></details>;
-  }
-  return <div className="mt-2 text-sm"><p>直近3日　実測勝率 {percent(deck.short.winRate)} ／ 遭遇率 {percent(deck.short.encounterRate)} ／ 評価 {deck.short.count}件</p>
-    {breakdown("ランク帯別成績",deck.byRank,rankLabels)}{breakdown("日別の遭遇率・勝率",deck.byDay)}</div>;
 }
