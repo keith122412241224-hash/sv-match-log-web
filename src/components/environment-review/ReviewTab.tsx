@@ -1,10 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
-import type { Publication } from "@/lib/environment-review/publication";
+import type { DisplayPublication } from "@/lib/environment-review/publication";
 import { ReviewReport } from "./ReviewReport";
 
 export function ReviewTab({ environment }: { environment: string }) {
-  const [result, setResult] = useState<Publication | null>();
+  const [result, setResult] = useState<DisplayPublication | null>();
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {

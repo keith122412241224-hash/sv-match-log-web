@@ -3,14 +3,14 @@ import { useId, useMemo, useState, type ReactNode } from "react";
 import { ClassIcon } from "@/components/ClassIcon";
 import { getRankSelectionLabel } from "@/lib/rank-selection";
 import type { Divergence } from "@/lib/environment-review/evaluation";
-import { changeLabel, jst, matchupLabel, percent, tierLabel, type Publication } from "@/lib/environment-review/publication";
+import { changeLabel, jst, matchupLabel, percent, tierLabel, type DisplayPublication, type Publication } from "@/lib/environment-review/publication";
 
 
 const panel = "min-w-0 rounded-md border border-slate-200 bg-white p-4 sm:p-5";
 const title = "mb-3 text-lg font-bold";
 const badge = "inline-block rounded border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold";
 const tierNames = ["環境トップ", "環境上位", "環境中堅", "環境下位", "環境下位・評価材料不足"];
-type Deck = Publication["payload"]["snapshot"]["decks"][number];
+type Deck = DisplayPublication["payload"]["snapshot"]["decks"][number];
 
 // Two catalog IDs for the same display name coexist in the saved report.
 // Hide only this known legacy row in the Tier table, without combining results.
@@ -58,7 +58,7 @@ function Gaps({ heading, rows, comparison }: { heading: string; rows: GapRow[]; 
   </section>;
 }
 
-function Matrix({ publication }: { publication: Publication }) {
+function Matrix({ publication }: { publication: DisplayPublication }) {
   const { snapshot, evaluation } = publication.payload;
   const [showAll, setShowAll] = useState(false);
   const [selected, select] = useState<[Deck, Deck] | null>(null);
@@ -145,7 +145,7 @@ function byEncounter(a: Deck, b: Deck) {
   return (b.encounterRate ?? -1) - (a.encounterRate ?? -1) || a.deckId.localeCompare(b.deckId);
 }
 
-function notableMatchups(deckId: string, pairs: Publication["payload"]["evaluation"]["pairs"], decks: Map<string, Deck>) {
+function notableMatchups(deckId: string, pairs: DisplayPublication["payload"]["evaluation"]["pairs"], decks: Map<string, Deck>) {
   const major = new Set([...decks.values()].sort(byEncounter).slice(0, 8).map(d => d.deckId));
   const opponents = pairs.flatMap(p => {
     if (p.rating == null || p.rating === 0 || (p.a !== deckId && p.b !== deckId)) return [];
@@ -176,15 +176,10 @@ function movement(before: number | null | undefined, after: number | null) {
   return before > after ? "↑" + (before - after) : "↓" + (after - before);
 }
 
-export function ReviewReport({ publication, preview = false }: { publication: Publication; preview?: boolean }) {
-  const { snapshot: s, evaluation: ev, previousTiers: prior } = publication.payload;
-  const [selectedId, selectDeck] = useState<string | null>(null);
-  const detailId = useId();
-  const hasPrevious = Object.keys(prior).length > 0;
+function AdminGaps({publication}: {publication: Publication}) {
+  const {snapshot:s,evaluation:ev} = publication.payload;
   const names = new Map(s.decks.map(d => [d.deckId,d]));
-  const assessments = new Map(ev.decks.map(d => [d.deckId,d]));
   const pairs = new Map(s.pairs.map(p => [p.a + "/" + p.b,p]));
-  const state = preview ? "公開前プレビュー" : Date.now() - Date.parse(s.asOf) > 36 * 3600000 ? "更新遅延" : !ev.decks.some(d => d.tier !== null) ? "評価保留" : "更新済み";
   const deckGaps: GapRow[] = ev.decks.flatMap(d => {
     const measured = names.get(d.deckId);
     if (!measured || !d.divergence) return [];
@@ -197,6 +192,22 @@ export function ReviewReport({ publication, preview = false }: { publication: Pu
     return [{ id, name: `${names.get(p.a)?.name} 対 ${names.get(p.b)?.name}`, gap:p.divergence,reason:p.reason,confidence:p.confidence,
       metrics: `実測対面勝率 ${percent(m?.winRate ?? null)} ／ ${m?.count ?? 0}件 ／ データ ${matchupLabel(m?.dataRating ?? null)} → 総合 ${matchupLabel(p.rating)}` }];
   });
+  return <details className={panel}><summary className="cursor-pointer font-bold">乖離分析・統計の詳細</summary>
+      <p className="my-3 text-sm text-muted">対象ランク　{getRankSelectionLabel(s.ranks)} ／ 直近3日　{s.shortMatchCount.toLocaleString("ja-JP")}戦</p>
+      <Gaps heading="実測データと評価の乖離分析" rows={deckGaps} comparison={ev.comparison} />
+      <Gaps heading="対面相性の乖離分析" rows={pairGaps} comparison={ev.comparison} />
+    </details>;
+}
+
+export function ReviewReport(props: { publication: Publication; preview: true } | { publication: DisplayPublication; preview?: false }) {
+  const {publication,preview} = props;
+  const { snapshot: s, evaluation: ev, previousTiers: prior } = publication.payload;
+  const [selectedId, selectDeck] = useState<string | null>(null);
+  const detailId = useId();
+  const hasPrevious = Object.keys(prior).length > 0;
+  const names = new Map(s.decks.map(d => [d.deckId,d]));
+  const assessments = new Map(ev.decks.map(d => [d.deckId,d]));
+  const state = preview ? "公開前プレビュー" : Date.now() - Date.parse(s.asOf) > 36 * 3600000 ? "更新遅延" : !ev.decks.some(d => d.tier !== null) ? "評価保留" : "更新済み";
   const fact = (label: string, value: ReactNode) => <div key={label}><dt className="text-xs text-muted">{label}</dt><dd className="mt-1 font-semibold">{value}</dd></div>;
   const ranked = [...ev.decks].filter(d => names.has(d.deckId)).sort((a, b) =>
     (a.tier ?? 6) - (b.tier ?? 6) ||
@@ -270,10 +281,6 @@ export function ReviewReport({ publication, preview = false }: { publication: Pu
         {changed.map(deck => <p className="mt-2" key={deck.deckId}><b>{names.get(deck.deckId)?.name}　{prior[deck.deckId] === undefined ? "新規 → " + tierLabel(deck.tier) : changeLabel(prior[deck.deckId], deck.tier)}</b>　{deck.reason}</p>)}
       </details>}
     </section>
-    {preview && <details className={panel}><summary className="cursor-pointer font-bold">乖離分析・統計の詳細</summary>
-      <p className="my-3 text-sm text-muted">対象ランク　{getRankSelectionLabel(s.ranks)} ／ 直近3日　{s.shortMatchCount.toLocaleString("ja-JP")}戦</p>
-      <Gaps heading="実測データと評価の乖離分析" rows={deckGaps} comparison={ev.comparison} />
-      <Gaps heading="対面相性の乖離分析" rows={pairGaps} comparison={ev.comparison} />
-    </details>}
+    {props.preview && <AdminGaps publication={props.publication}/>}
   </div>;
 }

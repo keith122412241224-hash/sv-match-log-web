@@ -9,10 +9,12 @@ const {createHash} = require('node:crypto');
 const base = 'c9a2d3481405aca3f6b844ee23018cc22f263fbe';
 const changed = new Map([
   ['src/app/admin/page.tsx', 'f75dbca474940e1186c411caae0d949d5922eb94fbde88df1742f9d3b47e785d'],
-  ['src/app/environment/page.tsx', '5c339cdeabd3d4788d8867e8b551cba76de6fc4ed39c233d5f3362d779035d62'],
+  ['src/app/environment/page.tsx', '01e9ce716945f976a3d2f04ef5676a52b98d3ddacae0d031b23d7dafc12e340e'],
   ['src/components/environment/EnvironmentFilters.tsx', '13708ef4981772a8da452cf040c6107f6f6aee701bd16e58b649adc5082aadda']
 ]);
 const added = new Set([
+  'supabase/migrations/20261126015443_environment_review_member_release.sql',
+  'src/components/environment-review/MemberReleaseControls.tsx',
   'src/lib/environment-review/assessment-v3.ts',
   'src/lib/environment-review/guide-comparison.ts',
   'src/lib/environment-review/research-plan.ts',

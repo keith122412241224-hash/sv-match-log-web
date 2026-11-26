@@ -24,6 +24,8 @@ const users = new Map([ids.a, ids.b].map(id => [id, {
   id, aud: 'authenticated', role: 'authenticated', is_anonymous: false,
   email: id + '@example.test', app_metadata: {}, user_metadata: {},
 }]));
+const guestId = '10000000-0000-4000-8000-999999999999';
+users.set(guestId,{...users.get(ids.b),id:guestId,is_anonymous:true});
 const tokenFor = id => ['eyJhbGciOiJIUzI1NiJ9', Buffer.from(JSON.stringify({ sub:id, exp:Math.floor(Date.now()/1000)+3600 })).toString('base64url'), 'fixture'].join('.');
 const sqlName = name => {
   assert.match(name, /^[a-z_][a-z_0-9]*$/);
@@ -53,8 +55,8 @@ async function seed(db) {
 async function fixture(testDb) {
   let queue = Promise.resolve();
   const { db, claim } = testDb;
-  const tables = ['admin_users','environments','deck_archetypes','matches','environment_review_runs','environment_review_publications','environment_review_events'];
-  const rpc = ['get_environment_review_source_v1','get_environment_review_source_v2','environment_review_create','environment_review_transition','environment_review_publish_v2','environment_review_failure','get_environment_dashboard_aggregates_v4'];
+  const tables = ['admin_users','environments','deck_archetypes','matches','environment_review_runs','environment_review_publications','environment_review_events','environment_review_member_releases'];
+  const rpc = ['get_environment_review_source_v1','get_environment_review_source_v2','environment_review_create','environment_review_transition','environment_review_publish_v2','environment_review_failure','environment_review_member_action','get_environment_dashboard_aggregates_v4'];
   const server = http.createServer((req,res) => {
     queue = queue.then(async () => {
       const url = new URL(req.url, 'http://127.0.0.1');
@@ -63,6 +65,7 @@ async function fixture(testDb) {
         const payload = auth.split('.')[1];
         const user = payload ? users.get(JSON.parse(Buffer.from(payload,'base64url')).sub) : undefined;
         await claim(user?.id || null);
+        if (user?.is_anonymous) await db.query("select set_config('request.jwt.claims',$1,false)",[JSON.stringify({sub:user.id,is_anonymous:true})]);
         if (url.pathname === '/auth/v1/user') { json(res,user ? 200 : 401,user || {message:'no session'}); return; }
         let input = '';
         for await (const chunk of req) input += chunk;
@@ -88,7 +91,7 @@ async function fixture(testDb) {
         for (const [key,value] of url.searchParams) {
           if (['select','order','offset','limit'].includes(key)) continue;
           if (value.startsWith('eq.')) {
-            params.push(key==='is_active' ? value==='eq.true' : value.slice(3));
+            params.push(['is_active','active'].includes(key) ? value==='eq.true' : value.slice(3));
             const column = key==='snapshot->>schemaVersion' ? "snapshot->>'schemaVersion'" : sqlName(key);
             where.push(column + '=$' + params.length);
           } else if (key==='or' && /^\(environment_id\.is\.null,environment_id\.eq\.[0-9a-f-]+\)$/.test(value)) {
@@ -288,27 +291,40 @@ async function verify(browser) {
   await button('確認して公開').click();await notice('公開しました');
   reports.add('実スナップショットをファイル出力、壊れたJSONを拒否、ファイル取り込み、プレビュー・下書き・公開');
 
-  assert.equal((await member.request.get(memberApi)).status(),403);
-  const deniedPage=await member.newPage();
-  let memberReads = 0;
-  deniedPage.on('request', request => {
-    if (new URL(request.url()).pathname === '/api/environment/review') memberReads++;
-  });
-  await deniedPage.goto(environmentUrl);
-  await deniedPage.getByRole('tab',{name:'環境サマリー'}).waitFor();
-  for (const width of [1440,390,320]) {
-    await deniedPage.setViewportSize({width,height:844});
-    assert.deepEqual(await deniedPage.getByRole('tab').allTextContents(),['環境サマリー','推移分析']);
-    await deniedPage.getByRole('tab',{name:'環境サマリー'}).press('End');
-    await deniedPage.getByRole('tabpanel',{name:'推移分析'}).waitFor();
-    await deniedPage.getByRole('tab',{name:'推移分析'}).press('ArrowRight');
-    await deniedPage.getByRole('tabpanel',{name:'環境サマリー'}).waitFor();
-    assert.equal(await deniedPage.locator('#environment-panel-review').count(),0);
-  }
-  assert.equal(memberReads,0);
-  await deniedPage.goto(adminUrl+'&view=report');
-  assert.ok(!new URL(deniedPage.url()).pathname.startsWith('/admin/environment-review'));
-  await deniedPage.close();
+  const memberPage = await member.newPage();
+  const memberRead = async () => (await member.request.get(memberApi)).json();
+  assert.equal(await memberRead(),null);
+  await memberPage.goto(environmentUrl+'&tab=review');
+  await memberPage.getByRole('heading',{name:'評価準備中'}).waitFor();
+  assert.deepEqual(await memberPage.getByRole('tab').allTextContents(),['環境サマリー','推移分析','総合環境評価']);
+  const approval = await admin.newPage();
+  approval.on('dialog',dialog=>dialog.accept());
+  await openReport(approval);
+  await approval.getByRole('button',{name:'この確定版を会員に公開'}).click();
+  await approval.getByRole('button',{name:'この版は会員公開済み'}).waitFor();
+  const initialMember = await memberRead();
+  const trial = await (await admin.request.get(memberApi)).json();
+  const approvalRequest = {action:'member_publish',environment:ids.env,id:trial.run_id,sourceAt:trial.published_at,edition:null,confirmed:true};
+  const releaseRequest = (session,body) => session.request.post(origin+endpoint,{headers:{Origin:origin},data:body});
+  assert.equal((await releaseRequest(member,approvalRequest)).status(),403);
+  assert.equal((await releaseRequest(admin,{...approvalRequest,confirmed:false})).status(),400);
+  assert.equal((await releaseRequest(admin,approvalRequest)).status(),409);
+  assert.deepEqual(await memberRead(),initialMember);
+  assert.equal(initialMember.payload.snapshot.matchCount,62);
+  assert.doesNotMatch(JSON.stringify(initialMember),/example\.invalid|独自要約|sourceIds|internal|confidence|divergence|hypothesis|byRank|byDay/);
+  await memberPage.reload();
+  const memberPanel = memberPage.getByRole('tabpanel',{name:'総合環境評価'});
+  await memberPanel.getByRole('heading',{name:'Tier表'}).waitFor();
+  await memberPanel.getByRole('button',{name:'コンボエルフ',exact:true}).click();
+  await memberPanel.getByText('有利寄り',{exact:true}).waitFor();
+  await memberPanel.getByRole('button',{name:'コンボエルフ 対 ミッドレンジロイヤル 微有利'}).click();
+  await memberPanel.getByText('対戦数',{exact:true}).waitFor();
+  await memberPage.getByRole('combobox',{name:'環境',exact:true}).selectOption(ids.env2);
+  await memberPanel.getByRole('heading',{name:'評価準備中'}).waitFor();
+  assert.equal(await memberPanel.getByRole('heading',{name:'Tier表'}).count(),0);
+  await memberPage.goto(adminUrl+'&view=report');
+  assert.ok(!new URL(memberPage.url()).pathname.startsWith('/admin/environment-review'));
+  await memberPage.close();
   const data = await (await admin.request.get(memberApi)).json();
   assert.equal(data.payload.snapshot.matchCount,62);
   assert.ok(Number.isFinite(Date.parse(data.published_at)) && Date.parse(data.published_at)>=Date.parse(data.as_of));
@@ -391,6 +407,15 @@ async function verify(browser) {
   assert.deepEqual(await (await admin.request.get(memberApi)).json(),data);
   const unauthenticated = await contextFor(browser,null);
   assert.equal((await unauthenticated.request.get(memberApi)).status(),401);
+  const guest = await contextFor(browser,guestId);
+  for (const session of [unauthenticated,guest]) {
+    assert.equal((await session.request.get(memberApi)).status(),401);
+    assert.equal((await session.request.get(origin+endpoint+envQuery)).status(),401);
+    const restricted = await session.newPage();
+    await restricted.goto(environmentUrl+'&tab=review');
+    assert.equal(new URL(restricted.url()).pathname,'/login');
+    await restricted.close();
+  }
   reports.add('新旧環境の分離、公開停止と履歴復元、未認証アクセス拒否、PC・スマホ・ライト・ダーク表示');
   await button('スナップショットを作成').click(); await notice('集計を保存');
   const [modernFile] = await Promise.all([page.waitForEvent('download'),button('分析用JSONを出力').click()]);
@@ -468,7 +493,15 @@ async function verify(browser) {
   assert.equal(new URL(page.url()).searchParams.get('environment'),ids.env);
   const privateLink = await member.newPage();
   await privateLink.goto(page.url());
-  assert.equal(await privateLink.getByRole('tab',{name:'総合環境評価'}).count(),0);
+  assert.deepEqual(await memberRead(),initialMember);
+  await privateLink.getByRole('heading',{name:'Tier表'}).waitFor();
+  await approval.reload();
+  await approval.getByRole('button',{name:'会員公開を停止'}).click();
+  await approval.getByText(/会員未公開/).waitFor();
+  assert.equal(await memberRead(),null);
+  await privateLink.reload();
+  await privateLink.getByRole('heading',{name:'評価準備中'}).waitFor();
+  await approval.close();
   await privateLink.close();
   reports.add('任意保存後の自動再検証・直接公開・確認と版の照合・保存後の障害からの再開・再送拒否・公開先リンクを確認');
   const v2 = await (await admin.request.get(memberApi)).json();

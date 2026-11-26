@@ -15,7 +15,7 @@ const button = "min-h-11 rounded-md border border-slate-300 bg-white px-3 text-s
 const primary = "min-h-11 rounded-md bg-ink px-4 text-sm font-bold text-white disabled:opacity-50";
 const card = "min-w-0 rounded-md border border-slate-200 bg-white p-4 sm:p-5";
 const field = "w-full min-w-0 rounded-md border border-slate-300 bg-white p-2";
-const labels: Record<string,string> = { snapshot:"集計済み", draft:"下書き", published:"公開中", archived:"公開終了",create:"集計",save:"下書き保存",publish:"公開",withdraw:"公開停止",restore:"復元",failure:"失敗" };
+const labels: Record<string,string> = { snapshot:"集計済み", draft:"下書き", published:"公開中", archived:"公開終了",create:"集計",save:"下書き保存",publish:"公開",withdraw:"公開停止",restore:"復元",failure:"失敗",member_publish:"会員公開",member_stop:"会員公開停止" };
 type Index = { runs: ReviewRun[]; events: ReviewEvent[]; current: string | null };
 type Preview = { sourceEdition?:string|null; reviewKey: string; matchesSaved: boolean; payload: MemberPayload; warnings: string[]; analysis: EvaluationDocument; diagnostics: ReturnType<typeof reviewDiagnostics>; draftComparison: ReturnType<typeof compareDraft>; publishedEdition: string | null };
 
@@ -174,7 +174,7 @@ export function ReviewWorkspace({environment, environmentName}: {environment: st
       <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-3">{[
         ["対象環境",environmentName],["集計基準日時",run ? jst(run.as_of) + " JST" : "未集計"],
         ["実戦データ件数",run ? run.snapshot.matchCount + "件" : "未集計"],
-        ["環境の公開状態",index.current ? "管理者限定公開中" : "未公開"],
+        ["管理者版の状態",index.current ? "管理者限定公開中" : "未公開"],
         ["選択中の評価",run ? labels[run.status] + " ／ 更新番号 " + run.revision : "なし"],
         ["最終更新日時",run ? jst(run.updated_at) + " JST" : "未更新"]
       ].map(([key,value])=><div key={key}><dt className="text-muted">{key}</dt><dd className="font-semibold">{busy && !run ? "…" : value}</dd></div>)}</dl>

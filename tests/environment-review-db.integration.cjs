@@ -98,6 +98,24 @@ test('environment review permissions, history and transactional publication', as
   await assert.rejects(db.exec("update public.environment_review_runs set status = 'published'"), /permission denied/);
   await identity(admin);
   await step(old,1,'publish',null,projection(first,a),null,null);
+  // Upgrade a populated pilot: the historical publication must remain private.
+  await db.exec('reset role');
+  const memberMigration = fs.readdirSync(migrationDir).find(name => name.endsWith('_environment_review_member_release.sql'));
+  await db.exec(fs.readFileSync(path.join(migrationDir,memberMigration),'utf8'));
+  await identity(admin);
+  const memberAction = (action,envId,id,sourceAt,expected) => rows(
+    'select public.environment_review_member_action($1,$2,$3,$4,$5)',[envId,id,sourceAt,expected,action]);
+  const sourceTime = async () => (await rows('select published_at::text as ts from public.environment_review_publications where environment_id=$1',[env]))[0].ts;
+  const memberRow = async () => (await rows('select * from public.environment_review_member_releases where environment_id=$1',[env]))[0];
+  const oldTime = await sourceTime();
+  assert.equal(await count('member_releases'),0);
+  await assert.rejects(memberAction('member_publish',otherEnv,old,oldTime,null),/review_conflict/);
+  await memberAction('member_publish',env,old,oldTime,null);
+  const approved = await memberRow();
+  assert.deepEqual(approved.payload.previousTiers,{});
+  assert.deepEqual(approved.payload.evaluation.decks,[{deckId:deck,tier:null,reason:'評価保留'}]);
+  assert.doesNotMatch(JSON.stringify(approved.payload),/sourceIds|confidence|divergence|internal|privateSource|byDay|evidence/);
+  await assert.rejects(memberAction('member_publish',env,old,oldTime,null),/review_conflict/);
   const originalDate = (await publication()).published_at.toISOString();
   assert.deepEqual((await publication()).payload, projection(first,a));
   await step(old,2,'save',doc(first,'未公開の修正'),null,'修正理由',old);
@@ -106,17 +124,22 @@ test('environment review permissions, history and transactional publication', as
   await identity(member);
   assert.equal(await count('publications'), 0);
   assert.equal(await publication(),undefined);
+  assert.deepEqual(await memberRow(),approved);
+  await assert.rejects(memberAction('member_stop',env,old,oldTime,approved.edition), /admin_required/);
+  await assert.rejects(db.exec('delete from public.environment_review_member_releases'), /permission denied/);
   assert.equal(await count('runs'), 0);
   assert.equal(await count('events'), 0);
   for (const claim of [{ is_anonymous: true }, {}, { is_anonymous: 'false' }]) {
     await identity(admin, claim);
     assert.equal(await count('publications'), 0);
     assert.equal(await count('runs'), 0);
+    assert.equal(await count('member_releases'),0);
     await assert.rejects(create(first), /admin_required/);
   }
   for (const role of ['anon', 'service_role']) {
     await identity('', {}, role);
     await assert.rejects(count('publications'), /permission denied/);
+    await assert.rejects(count('member_releases'), /permission denied/);
     await assert.rejects(create(first), /permission denied/);
   }
 
@@ -127,12 +150,27 @@ test('environment review permissions, history and transactional publication', as
   await step(fresh,1,'publish',null,projection(last,b),null,old);
   assert.equal((await publication()).run_id, fresh);
   const firstEdition = (await rows("select id from public.environment_review_events where run_id=$1 and action='publish'", [fresh]))[0].id;
+  const firstTime = await sourceTime();
+  assert.deepEqual(await memberRow(),approved);
+  await assert.rejects(memberAction('member_publish',env,old,oldTime,approved.edition),/review_conflict/);
   const bEdit = doc(last, '訂正');
   await step(fresh,2,'save',bEdit,null,'記述の訂正',fresh);
   await step(fresh,3,'publish',null,projection(last,bEdit),null,fresh);
+  await assert.rejects(memberAction('member_publish',env,fresh,firstTime,approved.edition),/review_conflict/);
+  const editedTime = await sourceTime();
+  await memberAction('member_publish',env,fresh,editedTime,approved.edition);
+  const editedRelease = await memberRow();
+  assert.deepEqual(editedRelease.payload.previousTiers,{[deck]:null});
   await step(fresh,4,'restore',null,null,'公開時点の初版に戻す',fresh,firstEdition);
   assert.deepEqual((await publication()).payload.evaluation, b.public);
   await assert.rejects(step(old,await revision(old),'restore',null,null,'別スナップショットの履歴',fresh,firstEdition), /review_not_restorable/);
+  assert.deepEqual(await memberRow(),editedRelease);
+  await assert.rejects(memberAction('member_stop',env,old,oldTime,approved.edition),/review_conflict/);
+  await memberAction('member_stop',env,fresh,editedTime,editedRelease.edition);
+  await assert.rejects(memberAction('member_publish',env,fresh,firstTime,null),/review_conflict/);
+  await identity(member);
+  assert.equal(await count('member_releases'),0);
+  await identity(admin);
   const lastSuccess = (await publication()).published_at.toISOString();
   await rows('select public.environment_review_failure($1,$2,$3)', [env, fresh, '入力に問題があります']);
   assert.equal((await publication()).published_at.toISOString(), lastSuccess);

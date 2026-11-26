@@ -90,6 +90,17 @@ export async function POST(request: NextRequest) {
     const environment = reviewId(body.environment);
     let id: string | null = null;
     try {
+      if (body.action === "member_publish" || body.action === "member_stop") {
+        if (body.confirmed !== true || typeof body.sourceAt !== "string" || !Number.isFinite(Date.parse(body.sourceAt))) {
+          throw new Error("対象環境と版を確認してください。");
+        }
+        const result = await client.rpc("environment_review_member_action", {
+          p_environment:environment, p_run:reviewId(body.id), p_source_at:body.sourceAt,
+          p_expected_edition:body.edition === null ? null : reviewId(body.edition), p_action:body.action
+        });
+        checkDb(result.error);
+        return reply({updated:true});
+      }
       if (body.action === "create") return reply({ id: await createSnapshot(client,environment) });
       const run = await runDetail(client,reviewId(body.id),environment);
       id = run.id;

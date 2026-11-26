@@ -41,6 +41,20 @@ export type MemberPayload = {
   previousTiers: Record<string, number | null>;
 };
 export type Publication = { run_id: string; as_of: string; published_at: string; payload: MemberPayload };
+// The member release includes only the fields consumed by the report.
+export type DisplayPublication = Omit<Publication, "payload"> & { payload: {
+  previousTiers: MemberPayload["previousTiers"];
+  snapshot: Pick<MemberPayload["snapshot"], "environmentId" | "environmentName" | "asOf" | "periodStart" | "matchCount"> & {
+    decks: Pick<MemberPayload["snapshot"]["decks"][number], "deckId" | "className" | "name" | "encounterRate" | "winRate">[];
+    pairs: Pick<MemberPayload["snapshot"]["pairs"][number], "a" | "b" | "count" | "winRate">[];
+  };
+  evaluation: {
+    overview: { facts: string };
+    changes?: string;
+    decks: Pick<MemberPayload["evaluation"]["decks"][number], "deckId" | "tier" | "reason">[];
+    pairs: Pick<MemberPayload["evaluation"]["pairs"][number], "a" | "b" | "rating" | "reason">[];
+  };
+} };
 export const tierLabel = (value: number | null) => value === null ? "評価保留" : `Tier ${value}`;
 export function matchupLabel(value: number | null) {
   return value === null ? "評価保留" : ["かなり不利", "やや不利", "五分", "やや有利", "かなり有利"][value + 2];
