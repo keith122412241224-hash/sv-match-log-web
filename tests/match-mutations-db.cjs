@@ -5,7 +5,7 @@ const { PGlite } = require(process.env.PGLITE_MODULE || '@electric-sql/pglite');
 const uuid = n => '00000000-0000-4000-8000-' + String(n).padStart(12, '0');
 const ids = { a: uuid(1), b: uuid(2), env: uuid(10), env2: uuid(11), deck: uuid(20), deck2: uuid(21), bdeck: uuid(22), arch: uuid(30), arch2: uuid(31), match: uuid(40), other: uuid(41) };
 const quote = name => '"' + name.trim().replaceAll('"', '""') + '"';
-async function setup({ beforeMigration, afterMigration, seed = true } = {}) {
+async function setup({ beforeMigration, afterMigration, stopBeforeMigration, seed = true } = {}) {
   const db = await PGlite.create();
   await db.exec(`create role anon; create role authenticated; create role service_role bypassrls; create schema auth;
     create table auth.users(id uuid primary key, email text, raw_user_meta_data jsonb);
@@ -19,7 +19,13 @@ async function setup({ beforeMigration, afterMigration, seed = true } = {}) {
     alter table storage.objects enable row level security;
     grant usage on schema storage to anon,authenticated,service_role;
     grant select,insert,update,delete on storage.objects to anon,authenticated,service_role;`);
-  for (const file of fs.readdirSync('supabase/migrations').filter(f => f.endsWith('.sql')).sort()) {
+  const migrations = fs.readdirSync('supabase/migrations').filter(f => f.endsWith('.sql')).sort();
+  if (stopBeforeMigration && !migrations.includes(stopBeforeMigration)) {
+    await db.close();
+    throw new Error('Unknown migration boundary: ' + stopBeforeMigration);
+  }
+  for (const file of migrations) {
+    if (file === stopBeforeMigration) break;
     await beforeMigration?.(db, file);
     // PGlite is single-session. Real concurrent index execution is covered by release-local.
     await db.exec(fs.readFileSync(path.join('supabase/migrations', file), 'utf8').replace(/create index concurrently/gi, 'create index'));

@@ -72,6 +72,7 @@ async function catalog(){return {
   // The retained v1 SQL fixture must execute the installed migration's function,
   // not silently replace it with an obsolete oracle.
   analysis:(await db.query('select pg_get_functiondef(oid) definition,proacl::text acl from pg_proc where oid=$1::regprocedure',[signature])).rows
+    .map(row => ({ ...row, definition: row.definition.replaceAll('\r\n', '\n') }))
 };}
 before(async()=>{
   db=(await setup({seed:false})).db;
