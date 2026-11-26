@@ -1,0 +1,91 @@
+.card {
+  --gold: #89682c;
+  overflow: hidden;
+  border: 1px solid rgb(var(--border));
+  border-radius: .625rem;
+  background: rgb(var(--panel));
+  box-shadow: 0 4px 16px rgb(14 26 45 / .06);
+}
+:global([data-theme="dark"]) .card { --gold: #d7bb83; }
+.header {
+  position: relative;
+  overflow: hidden;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 2px solid #ac9058;
+  background: linear-gradient(105deg, #182a43, #243b55);
+  color: #f4f6fa;
+}
+.header::before, .header::after {
+  content: "";
+  position: absolute;
+  top: -2.25rem;
+  right: -1rem;
+  width: 6rem;
+  height: 9rem;
+  transform: rotate(32deg);
+  border: 1px solid rgb(215 188 132 / .28);
+  border-radius: .5rem;
+}
+.header::after { right: -2.25rem; transform: rotate(43deg); }
+.kicker {
+  display: flex;
+  align-items: center;
+  gap: .65rem;
+  font-size: .75rem;
+  font-weight: 700;
+  letter-spacing: .12em;
+  color: #ead2a0;
+}
+.kicker::before {
+  content: "";
+  width: .45rem;
+  height: .45rem;
+  background: currentColor;
+  transform: rotate(45deg);
+}
+.top { color: #ead2a0; }
+.row {
+  display: grid;
+  grid-template-columns: 1.7rem minmax(0, 1fr) auto;
+  align-items: baseline;
+  column-gap: .6rem;
+  padding: .75rem 0;
+}
+.rank {
+  color: var(--gold);
+  font: italic 600 1.5rem/1 Georgia, serif;
+  text-align: center;
+}
+.details {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: .2rem .75rem;
+  padding: .75rem 0;
+  border-top: 1px solid rgb(var(--border));
+  color: rgb(var(--text-secondary));
+  font-size: .75rem;
+  line-height: 1.6;
+}
+.details time { display: inline-block; }
+.pending {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .75rem;
+  min-height: 7rem;
+  font-weight: 600;
+}
+.pending svg { color: var(--gold); }
+.link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+  min-height: 3.25rem;
+  padding: .5rem 0;
+  border-top: 1px solid rgb(var(--border));
+  font-size: .875rem;
+  font-weight: 700;
+}
+.link:hover span { text-decoration: underline; text-underline-offset: .2em; }
+.link:focus-visible { outline: 2px solid rgb(var(--focus)); outline-offset: -2px; }

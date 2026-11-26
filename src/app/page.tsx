@@ -155,7 +155,8 @@ export default async function HomePage({
   );
 }
 
-function LandingPage() {
+async function LandingPage() {
+  const { PublicEncounterCard } = await import("@/components/environment/PublicEncounterCard");
   const features = [
     {
       icon: ListPlus,
@@ -222,24 +223,7 @@ function LandingPage() {
           </div>
         </div>
 
-        <div className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
-            <BrandMark className="size-12" />
-            <div>
-              <h2 className="font-bold">できること</h2>
-              <p className="text-sm text-muted">自分の戦績と、利用者全体の環境データを分析できます。</p>
-            </div>
-          </div>
-          <div className="mt-4 grid gap-3">
-            {["戦績入力", "勝率分析", "相性表", "環境分析"].map((item) => (
-              <div className="flex items-center justify-between rounded-md bg-slate-50 px-3 py-2 text-sm" key={item}>
-                <span className="font-semibold">{item}</span>
-                <span className="rounded-md bg-emerald-100 px-2 py-1 text-xs font-bold text-emerald-800">無料</span>
-              </div>
-            ))}
-          </div>
-          <p className="mt-3 text-xs leading-5 text-muted">環境分析の利用には、無料のアカウント登録・ログインが必要です。</p>
-        </div>
+        <PublicEncounterCard />
       </section>
 
       <section className="border-y border-slate-200 bg-white">
