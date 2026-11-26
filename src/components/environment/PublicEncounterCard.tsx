@@ -3,7 +3,7 @@ import { getInputEnabledEnvironments } from "@/lib/data";
 import Link from "next/link";
 import { ArrowRight, Hourglass } from "lucide-react";
 import { formatEnvironmentPercent } from "@/lib/environment-dashboard";
-import { currentEncounterSnapshot } from "@/lib/public-encounter-snapshot";
+import { getPublicEncounterSnapshot, type PublicEncounterSnapshot } from "@/lib/public-encounter-snapshot";
 import { formatJstDateTime, getMostRecentlyCreatedId } from "@/lib/utils";
 import styles from "./PublicEncounterCard.module.css";
 
@@ -12,13 +12,14 @@ export function PublicEncounterCard() {
 }
 
 async function CurrentEncounterCard() {
-  const environments = await getInputEnabledEnvironments();
+  const environments = await getInputEnabledEnvironments().catch(() => []);
   const id = getMostRecentlyCreatedId(environments);
-  return <EncounterCard environment={environments.find(environment => environment.id === id)} />;
+  const environment = environments.find(item => item.id === id);
+  const snapshot = environment ? await getPublicEncounterSnapshot(environment) : null;
+  return <EncounterCard environment={environment} snapshot={snapshot} />;
 }
 
-function EncounterCard({ environment }: { environment?: { id: string; name: string } }) {
-  const snapshot = currentEncounterSnapshot(environment?.id);
+function EncounterCard({ environment, snapshot }: { environment?: { name: string }; snapshot?: PublicEncounterSnapshot | null }) {
   return (
     <section aria-label="今の環境｜遭遇率 TOP3" className={styles.card}>
       <header className={styles.header}>
@@ -40,7 +41,7 @@ function EncounterCard({ environment }: { environment?: { id: string; name: stri
             ))}
           </ol>
           <dl className={styles.details}>
-            <dt>集計期間</dt><dd><time dateTime={snapshot.periodStart}>{formatJstDateTime(snapshot.periodStart)}</time> ～ <time dateTime={snapshot.periodEnd}>{formatJstDateTime(snapshot.periodEnd)}</time>（JST）</dd>
+            <dt>集計期間</dt><dd>{snapshot.periodStart ? <time dateTime={snapshot.periodStart}>{formatJstDateTime(snapshot.periodStart)}</time> : "環境全期間"} ～ <time dateTime={snapshot.periodEnd}>{formatJstDateTime(snapshot.periodEnd)}</time>（JST）</dd>
             <dt>対戦数</dt><dd>{snapshot.totalMatches.toLocaleString("ja-JP")} 戦</dd>
             <dt>更新日時</dt><dd><time dateTime={snapshot.updatedAt}>{formatJstDateTime(snapshot.updatedAt)}</time>（JST）</dd>
           </dl>

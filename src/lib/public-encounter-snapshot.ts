@@ -1,27 +1,39 @@
-// Publish only a reviewed, all-ranks member summary. Copy its current period,
-// registered match total, aggregation time, and first 1–3 encounter rows in order
-// from buildEnvironmentViewV4(...).encounters. Rates are percentages (0–100).
-// Use ISO timestamps with an offset. Leave null until these fields are approved
-// for anonymous display, including when the sample is too small to publish.
-type PublicEncounterSnapshot = {
-  environmentId: string;
-  periodStart: string;
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+
+type Deck = { name: string; encounterRate: number };
+export type PublicEncounterSnapshot = {
+  periodStart: string | null;
   periodEnd: string;
   updatedAt: string;
   totalMatches: number;
-  decks: { name: string; encounterRate: number }[];
+  decks: Deck[];
 };
 
-export const approvedEncounterSnapshot: PublicEncounterSnapshot | null = null;
+function record(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
 
-export function currentEncounterSnapshot(environmentId: string | undefined, snapshot = approvedEncounterSnapshot) {
-  if (!snapshot || snapshot.environmentId !== environmentId) return null;
-  const start = Date.parse(snapshot.periodStart);
-  const end = Date.parse(snapshot.periodEnd);
-  const updated = Date.parse(snapshot.updatedAt);
-  if (!(start < end && end <= updated) || !Number.isSafeInteger(snapshot.totalMatches) || snapshot.totalMatches < 1) return null;
-  if (!snapshot.decks.length || snapshot.decks.length > 3 || !snapshot.decks.every(
-    row => row.name.trim() && Number.isFinite(row.encounterRate) && row.encounterRate > 0 && row.encounterRate <= 100
-  )) return null;
-  return snapshot;
+function timestamp(value: unknown): value is string {
+  return typeof value === "string" && Number.isFinite(Date.parse(value));
+}
+
+function deck(value: unknown): value is Deck {
+  return record(value) && typeof value.name === "string" && Boolean(value.name.trim()) &&
+    typeof value.encounterRate === "number" && value.encounterRate > 0 && value.encounterRate <= 100;
+}
+
+export async function getPublicEncounterSnapshot(environment: { id: string; name: string }): Promise<PublicEncounterSnapshot | null> {
+  try {
+    const client = await createSupabaseServerClient();
+    const { data, error } = await client.rpc("get_current_public_encounters", { p_expected_environment_id: environment.id });
+    if (error || !record(data) || data.environmentName !== environment.name) return null;
+    const { periodStart, periodEnd, updatedAt, totalMatches, decks } = data;
+    if (!timestamp(periodEnd) || !timestamp(updatedAt) || Date.parse(updatedAt) < Date.parse(periodEnd) ||
+      !(periodStart === null || (timestamp(periodStart) && Date.parse(periodStart) < Date.parse(periodEnd))) ||
+      typeof totalMatches !== "number" || !Number.isSafeInteger(totalMatches) || totalMatches < 1 ||
+      !Array.isArray(decks) || !decks.length || decks.length > 3 || !decks.every(deck)) return null;
+    return { periodStart, periodEnd, updatedAt, totalMatches, decks: decks.map(({ name, encounterRate }) => ({ name, encounterRate })) };
+  } catch {
+    return null;
+  }
 }
