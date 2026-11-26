@@ -7,22 +7,28 @@ test('theme scope exactly reviews every changed/added file; DB/RPC/auth/aggregat
   const product=f=>/^(src|supabase)\//.test(f)||/^(package(-lock)?\.json|tailwind.config.ts)$/.test(f);
   const files=git('ls-tree','-r','--name-only',theme.base).filter(product);
   for(const file of theme.changes.keys())theme.assertReviewed(file);
+  for(const file of theme.publicEncounterAdded)theme.assertPublicEncounterSource(file);
   for(const file of files){
     const source=theme.readBeforeTheme(file);
     assert.equal(source,theme.gitSource(theme.base,file),file);
   }
-  assert.deepEqual(git('ls-files','--cached','--others','--exclude-standard').filter(product).sort(),[...files,...theme.added,...environmentReview.added].sort());
+  assert.deepEqual(git('ls-files','--cached','--others','--exclude-standard').filter(product).sort(),[...files,...theme.added,...environmentReview.added,...theme.publicEncounterAdded].sort());
 });
 test('historical projection rejects arbitrary edits to every reviewed theme file',()=>{
   for(const file of theme.changes.keys()){
     const source=fs.readFileSync(file,'utf8');
-    assert.throws(()=>theme.assertReviewed(file,source+'\n/* unexpected edit */\n'),/unreviewed theme change/);
-    assert.throws(()=>theme.assertReviewed(file,source.slice(1)),/unreviewed theme change/);
+    assert.throws(()=>theme.assertReviewed(file,source+'\n/* unexpected edit */\n'),/unreviewed (?:theme|public encounter) change/);
+    assert.throws(()=>theme.assertReviewed(file,source.slice(1)),/unreviewed (?:theme|public encounter) change/);
+  }
+  for(const file of theme.publicEncounterAdded){
+    const source=fs.readFileSync(file,'utf8');
+    assert.throws(()=>theme.assertPublicEncounterSource(file,source+'\n/* unexpected edit */\n'),/unreviewed public encounter change/);
+    assert.throws(()=>theme.assertPublicEncounterSource(file,source.slice(1)),/unreviewed public encounter change/);
   }
 });
 test('historical inventory excludes only exact reviewed additions and keeps unexpected files',()=>{
   const unexpected='src/lib/unreviewed.ts';
-  assert.deepEqual(theme.historicalFiles([...theme.added,unexpected,'src/lib/utils.ts']),[unexpected,'src/lib/utils.ts']);
+  assert.deepEqual(theme.historicalFiles([...theme.added,...theme.publicEncounterAdded,unexpected,'src/lib/utils.ts']),[unexpected,'src/lib/utils.ts']);
   assert.deepEqual(theme.historicalFiles(['src/components/AppShell.tsx',unexpected],theme.base),[unexpected]);
   assert.deepEqual(theme.historicalFiles(['src/components/AppShell.tsx'],'938514fd94f05767aafcace87bd94c047e275973'),['src/components/AppShell.tsx']);
   assert.deepEqual(theme.historicalFiles(['src/components/environment/EnvironmentTrendChart.tsx'],'504a05ed275e3c78ccd326b3a58596b978d77c88'),['src/components/environment/EnvironmentTrendChart.tsx']);

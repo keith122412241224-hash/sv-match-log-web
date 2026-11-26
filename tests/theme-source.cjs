@@ -13,6 +13,32 @@ const changes = new Map(patch.split('diff --git ').slice(1).map(section => {
 const added = new Set([...changes].filter(([, change]) => change.added).map(([file]) => file));
 const gitSource = (ref, file) => normalize(cp.execFileSync('git', ['show', ref + ':' + file], { encoding: 'utf8', maxBuffer: 16e6, windowsHide: true }));
 
+// The landing card was introduced by 724d4d9 and its public data path was
+// updated by 2c5f621. Verify both boundaries before projecting historical source.
+const landingPage = 'src/app/page.tsx';
+const beforePublicEncounter = '105dfae6cb3bf5b537c2031d071281478b3cde32';
+const publicEncounterLanding = '724d4d9112964e9d23a681ad800c861fc508a205';
+const publicEncounterRefresh = '2c5f62151bd68e658660255b46fd2dff996e38c3';
+const publicEncounterAdded = new Set([
+  'src/components/environment/PublicEncounterCard.module.css',
+  'src/components/environment/PublicEncounterCard.tsx',
+  'src/lib/public-encounter-snapshot.ts',
+  'supabase/migrations/20261126105932_public_encounter_top3.sql'
+]);
+const publicEncounterSources = new Map();
+function assertPublicEncounterSource(file, source = fs.readFileSync(file, 'utf8')) {
+  assert.ok(file === landingPage || publicEncounterAdded.has(file), 'not a reviewed public encounter file: ' + file);
+  if (!publicEncounterSources.has(file)) {
+    const revision = file === landingPage ? publicEncounterLanding : publicEncounterRefresh;
+    const expected = file.endsWith('.sql')
+      ? cp.execFileSync('git', ['show', revision + ':' + file], {encoding:'utf8', windowsHide:true})
+      : gitSource(revision, file);
+    publicEncounterSources.set(file, expected);
+  }
+  assert.equal(file.endsWith('.sql') ? source : normalize(source), publicEncounterSources.get(file),
+    'unreviewed public encounter change: ' + file);
+}
+
 // No fuzzy patching: every removed/context line and hunk count must match.
 function applyExact(before, section) {
   const input = before ? before.split('\n').slice(0, -1) : [], output = [];
@@ -55,6 +81,10 @@ function reviewed(file) {
   return expected.get(file);
 }
 function assertReviewed(file, source = fs.readFileSync(file, 'utf8')) {
+  if (file === landingPage) {
+    assertPublicEncounterSource(file, source);
+    source = gitSource(beforePublicEncounter, file);
+  }
   assert.equal(environmentReview.readBeforeReview(file, source), reviewed(file).after, 'unreviewed theme change: ' + file);
 }
 function readBeforeTheme(file) {
@@ -68,12 +98,13 @@ function historicalFiles(files, ref) {
   // Every theme file is verified before excluding its reviewed delta. Unknown
   // files stay in the result, so existing inventory guards still reject them.
   for (const file of changes.keys()) assertReviewed(file);
+  for (const file of publicEncounterAdded) assertPublicEncounterSource(file);
   return environmentReview.historicalFiles(files, ref).filter(file => {
-    if (added.has(file)) return false;
+    if (added.has(file) || publicEncounterAdded.has(file)) return false;
     if (!ref || !changes.has(file)) return true;
     // A file added by an older feature must still reach that feature's guard.
     if (!existsAt(ref, file)) return true;
     return reviewed(file).before !== gitSource(ref, file);
   });
 }
-module.exports = { base, changes, added, gitSource, applyExact, reviewed, assertReviewed, readBeforeTheme, historicalFiles };
+module.exports = { base, changes, added, gitSource, applyExact, reviewed, assertReviewed, readBeforeTheme, historicalFiles, publicEncounterAdded, assertPublicEncounterSource };
