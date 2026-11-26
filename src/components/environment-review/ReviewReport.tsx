@@ -11,6 +11,11 @@ const title = "mb-3 text-lg font-bold";
 const badge = "inline-block rounded border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold";
 const tierNames = ["環境トップ", "環境上位", "環境中堅", "環境下位", "環境下位・評価材料不足"];
 type Deck = Publication["payload"]["snapshot"]["decks"][number];
+
+// Two catalog IDs for the same display name coexist in the saved report.
+// Hide only this known legacy row in the Tier table, without combining results.
+const CURRENT_RALLY_SWORD_ID = "45ac59ea-037c-4b2f-8334-9bdd3839f4c3";
+const LEGACY_RALLY_SWORD_ID = "5fa97cd2-2607-4d66-bfb2-d8db0cd85914";
 type GapRow = { id: string; name: string; gap: Divergence; metrics: string; reason: string; confidence: string };
 
 function ReviewIcon({ deck }: { deck: Deck }) {
@@ -196,6 +201,12 @@ export function ReviewReport({ publication, preview = false }: { publication: Pu
   const ranked = [...ev.decks].filter(d => names.has(d.deckId)).sort((a, b) =>
     (a.tier ?? 6) - (b.tier ?? 6) ||
     (names.get(b.deckId)?.encounterRate ?? 0) - (names.get(a.deckId)?.encounterRate ?? 0));
+  const currentRallySword = names.get(CURRENT_RALLY_SWORD_ID);
+  const legacyRallySword = names.get(LEGACY_RALLY_SWORD_ID);
+  const hideLegacyRallySword = currentRallySword !== undefined && legacyRallySword !== undefined &&
+    currentRallySword.name === legacyRallySword.name && currentRallySword.className === legacyRallySword.className &&
+    assessments.has(CURRENT_RALLY_SWORD_ID) && assessments.get(LEGACY_RALLY_SWORD_ID)?.tier === null;
+  const tierRows = hideLegacyRallySword ? ranked.filter(d => d.deckId !== LEGACY_RALLY_SWORD_ID) : ranked;
   const shiftSize = (id: string, tier: number | null) =>
     typeof prior[id] === "number" && tier !== null ? Math.abs(prior[id] - tier) : 0;
   const changed = hasPrevious ? ranked.filter(d => d.tier !== prior[d.deckId]).sort((a, b) =>
@@ -217,7 +228,7 @@ export function ReviewReport({ publication, preview = false }: { publication: Pu
     </header>
     <section className={panel}><h3 className={title}>Tier表</h3>
       {[1,2,3,4,5].map((tier, i) => {
-        const group = ranked.filter(deck => (deck.tier ?? 5) === tier);
+        const group = tierRows.filter(deck => (deck.tier ?? 5) === tier);
         return <div key={i} className="grid grid-cols-[4.3rem_1fr] items-start gap-2 border-t border-slate-200 py-2 sm:grid-cols-[7rem_1fr]">
           <div className="py-1"><strong className={tier === 1 ? "text-sky-800" : ""}>{tierLabel(tier)}</strong><p className="text-xs text-muted">{tierNames[i]}</p></div>
           <div className="flex flex-wrap items-center gap-1.5">{group.map(deck => {
@@ -228,7 +239,7 @@ export function ReviewReport({ publication, preview = false }: { publication: Pu
               <DeckName deck={names.get(deck.deckId)!} />{mark && <small aria-label={changeLabel(prior[deck.deckId],deck.tier)}>{mark}</small>}
             </button>;
           })}{!group.length && <span className="py-2 text-sm text-muted">該当なし</span>}</div>
-      <div id={detailId + i} className="col-span-full empty:hidden" aria-live="polite">{d && e && (e.tier ?? 5) === tier && <article className="mt-2 rounded-md bg-slate-50 p-3">
+      <div id={detailId + i} className="col-span-full empty:hidden" aria-live="polite">{d && e && group.includes(e) && <article className="mt-2 rounded-md bg-slate-50 p-3">
         <div className="flex items-center justify-between gap-2">
           <h4 className="font-bold">{d.name}<span className="ml-2 whitespace-nowrap text-sm">{tierLabel(e.tier ?? 5)}</span></h4>
           <button type="button" className="min-h-9 shrink-0 text-sm underline" onClick={() => selectDeck(null)}>閉じる</button>

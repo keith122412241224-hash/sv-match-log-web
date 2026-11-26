@@ -46,6 +46,47 @@ test('member overview shows the opening conclusions without expanding the analys
   assert.match(html,/中心のデッキです。対策が必要です。短期では変化があります。/);
   assert.doesNotMatch(html,/長い経緯です|詳しい仮説です|総評の全文|実測＋一部の外部資料/);
 });
+test('Tier table hides only the held legacy Rally Royal when the current ID is displayed', () => {
+  const current = '45ac59ea-037c-4b2f-8334-9bdd3839f4c3';
+  const legacy = '5fa97cd2-2607-4d66-bfb2-d8db0cd85914';
+  const name = '連携ロイヤル';
+  const pub = fixture();
+  const { snapshot, evaluation } = pub.payload;
+  const rows = [
+    ['other-held', '別の保留', null, 6],
+    [legacy, name, null, 3],
+    ['other-fourth', '別のTier 4', 4, 8],
+    [current, name, 4, 5],
+    ['other-fifth', '別のTier 5', 5, 1],
+  ];
+  snapshot.decks = rows.map(([deckId, name, , encounterRate]) => ({
+    ...snapshot.decks[0], deckId, name, encounterRate, className: name === '連携ロイヤル' ? 'ロイヤル' : 'エルフ',
+  }));
+  evaluation.decks = rows.map(([deckId, , tier]) => ({ ...evaluation.decks[0], deckId, tier }));
+
+  function table() {
+    const html = renderToStaticMarkup(createElement(ReviewReport, { publication: pub }));
+    const section = html.split('>Tier表</h3>')[1].split('</section>')[0];
+    return section.split(/>Tier [1-5]<\/strong>/).slice(1).map(group =>
+      [...group.matchAll(/<button\b[^>]*>(.*?)<\/button>/gs)].map(match => match[1].replace(/<[^>]*>/g, ''))
+    );
+  }
+
+  const original = JSON.stringify(pub);
+  assert.deepEqual(table(), [[], [], [], ['別のTier 4', name], ['別のTier 5', '別の保留']]);
+  assert.equal(JSON.stringify(pub), original);
+
+  evaluation.decks.find(row => row.deckId === legacy).tier = 5;
+  assert.deepEqual(table()[4], [name, '別のTier 5', '別の保留']);
+  evaluation.decks.find(row => row.deckId === legacy).tier = null;
+  const oldDeck = snapshot.decks.find(row => row.deckId === legacy);
+  const originalClass = oldDeck.className;
+  oldDeck.className = 'エルフ';
+  assert.deepEqual(table()[4], ['別のTier 5', '別の保留', name]);
+  oldDeck.className = originalClass;
+  evaluation.decks = evaluation.decks.filter(row => row.deckId !== current);
+  assert.deepEqual(table(), [[], [], [], ['別のTier 4'], ['別のTier 5', '別の保留', name]]);
+});
 test('late report retains original successful publication time',()=>{
   const pub=fixture();
   pub.payload.snapshot.asOf = new Date(now - 48*3600000).toISOString();
