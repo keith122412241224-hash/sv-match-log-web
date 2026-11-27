@@ -48,14 +48,14 @@ test('member matrix: exact legacy/admin parity and actual member loader for ever
   save('parity',{passed:true,comparisons,legacy,exactSparse:true});
 });
 
-test('member matrix: full migrations preserve existing policies, table grants, functions and source rows; direct RPC role boundaries', {timeout:180000}, async t=>{
-  const {setup,ids}=require('./match-mutations-db.cjs');let before;
-  const catalog=async database=>({
+const catalog=async database=>({
     policies:(await database.query("select * from pg_policies order by schemaname,tablename,policyname")).rows,
     tables:(await database.query("select n.nspname,c.relname,c.relacl::text,c.relrowsecurity,c.relforcerowsecurity from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname in ('public','private') and c.relkind='r' order by 1,2")).rows,
-    functions:(await database.query("select n.nspname,p.proname,pg_get_functiondef(p.oid) def,p.proacl::text acl from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname in ('public','private') and p.proname<>'get_member_matchup_aggregates_v1' order by 1,2,p.oid")).rows
+    functions:(await database.query("select n.nspname,p.proname,pg_get_function_identity_arguments(p.oid) args,pg_get_functiondef(p.oid) def,p.proacl::text acl from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname in ('public','private') and p.proname<>'get_member_matchup_aggregates_v1' order by 1,2,3")).rows
   });
-  const setupResult=await setup({beforeMigration:async(database,file)=>{if(file===h.migration.split('/').at(-1))before=await catalog(database);},afterMigration:async(database,file)=>{
+test('member matrix: introduction and later migrations preserve existing policies, table grants and functions', {timeout:180000}, async t=>{
+  const {setup}=require('./match-mutations-db.cjs');let before;
+  const {db}=await setup({seed:false,beforeMigration:async(database,file)=>{if(file===h.migration.split('/').at(-1))before=await catalog(database);},afterMigration:async(database,file)=>{
     if(file===h.migration.split('/').at(-1))assert.deepEqual(await catalog(database),before);
     if(file==='20261022050000_analysis_deck_sets.sql'){
       require('./analysis-deck-multi-scope.cjs').assertReviewed('supabase/migrations/'+file);
@@ -93,11 +93,35 @@ test('member matrix: full migrations preserve existing policies, table grants, f
       before=current;
     }
   }});
-  const database=setupResult.db;t.after(()=>database.close());assert.deepEqual(await catalog(database),before);
+  t.after(()=>db.close());
+  const latest=await catalog(db);
+  const keys={
+    policies: p=>[p.schemaname,p.tablename,p.policyname],
+    tables: t=>[t.nspname,t.relname],
+    functions: f=>[f.nspname,f.proname,f.args]
+  };
+  for(const [kind,key] of Object.entries(keys)){
+    const expected=new Set(before[kind].map(row=>JSON.stringify(key(row))));
+    assert.deepEqual(latest[kind].filter(row=>expected.has(JSON.stringify(key(row)))),before[kind],
+      'later migrations preserve every reviewed '+kind+' entry');
+  }
+});
+
+test('member matrix: current schema preserves source rows and enforces direct RPC role boundaries', {timeout:180000}, async t=>{
+  const {setup,ids}=require('./match-mutations-db.cjs');
+  const setupResult=await setup();
+  const database=setupResult.db;t.after(()=>database.close());
+  const before=await catalog(database);
+  const matches=before.tables.find(t=>t.nspname==='public'&&t.relname==='matches');
+  assert.equal(matches.relrowsecurity,true);
+  const policy=before.policies.find(p=>p.schemaname==='public'&&p.tablename==='matches'&&p.policyname==='matches_select_own_or_admin');
+  assert.equal(policy.cmd,'SELECT');
+  assert.deepEqual(policy.roles,['authenticated']);
   const direct=(schema='public',ranks=RANK_ATOMS,env=ids.env)=>database.query(`select ${schema}.get_member_matchup_aggregates_v1($1::uuid,$2::text[]) as data`,[env,ranks]);
   const sourceBefore=(await database.query('select * from public.matches order by id')).rows;
   for(const id of [ids.a,ids.b]){
     await setupResult.claim(id);const p=(await direct()).rows[0].data;parseMatchupAggregates(p);assert.equal(p.totalMatches,2);
+    assert.equal(p.groups.reduce((sum,g)=>sum+g.wins,0),2);
     assert.deepEqual(Object.keys(p).sort(),['groups','totalMatches','version']);
     for(const g of p.groups)assert.deepEqual(Object.keys(g).sort(),['myDeckId','opponentDeckId','total','wins']);
     for(const secret of [ids.a,ids.b,ids.match,ids.other,'@example.test','非公開B'])assert.ok(!JSON.stringify(p).includes(secret));
@@ -114,8 +138,10 @@ test('member matrix: full migrations preserve existing policies, table grants, f
     for(const schema of ['public','private'])await assert.rejects(()=>direct(schema),e=>e.code==='42501');
     const own=(await database.query('select public.get_analysis_aggregates_v3(p_include_all_users=>true) as data')).rows[0].data;
     assert.equal(own.registeredMatches,1,'Guest/claim changes cannot open analysis');
+    assert.deepEqual((await database.query('select user_id from public.matches')).rows,[{user_id:ids.b}]);
   }
   await setupResult.claim(null);
+  assert.deepEqual((await database.query('select user_id from public.matches')).rows,[]);
   for(const schema of ['public','private'])await assert.rejects(()=>direct(schema),e=>e.code==='42501');
   await assert.rejects(()=>database.query('select public.get_analysis_aggregates_v3(p_include_all_users=>true)'),e=>e.code==='42501');
   // Missing subject fails even with an authenticated DB role and boolean false.
@@ -123,6 +149,7 @@ test('member matrix: full migrations preserve existing policies, table grants, f
   await assert.rejects(()=>direct(),e=>e.code==='42501');
   await database.exec('reset role');
   const acl=(await database.query("select n.nspname,p.prosecdef,p.provolatile,p.proconfig,p.proowner::regrole::text owner,p.proacl::text acl,has_function_privilege('anon',p.oid,'execute') anon,has_function_privilege('authenticated',p.oid,'execute') member,has_function_privilege('service_role',p.oid,'execute') service from pg_proc p join pg_namespace n on n.oid=p.pronamespace where p.proname='get_member_matchup_aggregates_v1' order by 1")).rows;
+  assert.deepEqual(acl.map(entry=>entry.nspname),['private','public']);
   for(const entry of acl){assert.equal(entry.prosecdef,entry.nspname==='private');assert.equal(entry.provolatile,'s');assert.equal(entry.owner,'postgres');assert.deepEqual(entry.proconfig,['search_path=""']);assert.equal(entry.anon,false);assert.equal(entry.member,true);assert.equal(entry.service,false);assert.ok(!entry.acl.includes('{=')&&!entry.acl.includes(',='));}
   assert.deepEqual((await database.query('select * from public.matches order by id')).rows,sourceBefore);
   assert.deepEqual(await catalog(database),before);
