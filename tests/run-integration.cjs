@@ -13,6 +13,11 @@ const files = [
   'period-report-rpc', 'rank-save', 'match-mutations', 'environment-dashboard-v4-admin',
   'environment-permissions', 'analysis-date', 'admin-batch', 'suggestion-approval', 'matrix-multi-rank', 'member-matrix', 'analysis-deck-multi', 'environment-trends', 'environment-trends-preflight'
 ].map(name => path.join(__dirname, name + '.integration.cjs'));
+// Share the existing in-memory suite inventory with the Linux full-suite runner.
+if (process.argv.includes('--list')) {
+  console.log(JSON.stringify(files.map(file => path.basename(file))));
+  process.exit(0);
+}
 const env = {};
 for (const [key, value] of Object.entries(process.env)) {
   if (/^(PATH|PATHEXT|SystemRoot|WINDIR|COMSPEC|TEMP|TMP|APPDATA|LOCALAPPDATA|USERPROFILE|HOMEDRIVE|HOMEPATH|ProgramFiles|ProgramFiles\(x86\)|ProgramW6432|NUMBER_OF_PROCESSORS|PROCESSOR_ARCHITECTURE)$/i.test(key)) env[key] = value;
