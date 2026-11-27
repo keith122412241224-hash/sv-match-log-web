@@ -9,8 +9,14 @@ test('QA2-008 validates the exact dependency patch and preserves every applicati
  for(const file of files)assert.equal(read(file),git(['show',base+':'+file]),file);
  assert.deepEqual(git(['ls-files','--cached','--others','--exclude-standard','--','src','supabase']).trim().split('\n').sort(),[...files,...require('./analysis-date-scope.cjs').added,...require('./creator-pagination-scope.cjs').added].sort());
  const before=JSON.parse(git(['show',base+':package.json'])),after=JSON.parse(read('package.json'));
- for(const name of ['fflate','next','sharp'])delete before.dependencies[name],delete after.dependencies[name];
- for(const name of ['eslint-config-next','postcss'])delete before.devDependencies[name],delete after.devDependencies[name];
+ for(const name of ['fflate','next','sharp']) {
+  delete before.dependencies[name];
+  delete after.dependencies[name];
+ }
+ for(const name of ['eslint-config-next','postcss']) {
+  delete before.devDependencies[name];
+  delete after.devDependencies[name];
+ }
  assert.deepEqual(after,before,'scripts, other dependencies and package settings remain identical');
 });
 test('security update resolves one patched sharp for both Creator and Next image processing',()=>{
