@@ -73,15 +73,18 @@ function applyExact(before, section) {
 const signupBase = '7acfb8c8178f7f1095f977c33ada3c6b76032fcf';
 const signupChanges = readPatch('landing-signup.patch');
 const signupSources = new Map();
-function readBeforeSignup(file, source) {
-  const change = signupChanges.get(file);
+const authScreenBase = '2002869e537f5d059a823f40641bfbf9a844d72e';
+const authScreenChanges = readPatch('auth-screen-modes.patch');
+const authScreenSources = new Map();
+function readBeforePatch(file, source, base, patch, sources) {
+  const change = patch.get(file);
   if (!change) return source;
-  if (!signupSources.has(file)) {
-    const before = gitSource(signupBase, file);
-    signupSources.set(file, { before, after: applyExact(before, change.section) });
+  if (!sources.has(file)) {
+    const before = gitSource(base, file);
+    sources.set(file, { before, after: applyExact(before, change.section) });
   }
-  const { before, after } = signupSources.get(file);
-  assert.equal(normalize(source), after, 'unreviewed theme change after signup: ' + file);
+  const { before, after } = sources.get(file);
+  assert.equal(normalize(source), after, 'unreviewed theme change: ' + file);
   return before;
 }
 const expected = new Map();
@@ -99,7 +102,8 @@ function reviewed(file) {
   return expected.get(file);
 }
 function assertReviewed(file, source = fs.readFileSync(file, 'utf8')) {
-  source = readBeforeSignup(file, source);
+  source = readBeforePatch(file, source, authScreenBase, authScreenChanges, authScreenSources);
+  source = readBeforePatch(file, source, signupBase, signupChanges, signupSources);
   if (file === landingPage) {
     assertPublicEncounterSource(file, source);
     source = gitSource(beforePublicEncounter, file);
@@ -108,7 +112,9 @@ function assertReviewed(file, source = fs.readFileSync(file, 'utf8')) {
 }
 function readBeforeTheme(file) {
   const source = normalize(fs.readFileSync(file, 'utf8'));
-  if (!changes.has(file)) return environmentReview.readBeforeReview(file, source);
+  if (!changes.has(file)) {
+    return environmentReview.readBeforeReview(file, readBeforePatch(file, source, authScreenBase, authScreenChanges, authScreenSources));
+  }
   assertReviewed(file, source);
   assert.ok(!added.has(file), 'new theme files have no historical source');
   return reviewed(file).before;
@@ -117,9 +123,15 @@ function historicalFiles(files, ref) {
   // Every theme file is verified before excluding its reviewed delta. Unknown
   // files stay in the result, so existing inventory guards still reject them.
   for (const file of changes.keys()) assertReviewed(file);
+  for (const file of authScreenChanges.keys()) {
+    if (!changes.has(file)) readBeforeTheme(file);
+  }
   for (const file of publicEncounterAdded) assertPublicEncounterSource(file);
   return environmentReview.historicalFiles(files, ref).filter(file => {
     if (added.has(file) || publicEncounterAdded.has(file)) return false;
+    if (ref && authScreenChanges.has(file) && !changes.has(file) && existsAt(ref, file)) {
+      return readBeforeTheme(file) !== gitSource(ref, file);
+    }
     if (!ref || !changes.has(file)) return true;
     // A file added by an older feature must still reach that feature's guard.
     if (!existsAt(ref, file)) return true;
