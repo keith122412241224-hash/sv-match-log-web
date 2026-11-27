@@ -1,6 +1,5 @@
 // Standalone assertion scripts report completion on stdout. Node emits a file-level
 // pass for these (also for an empty script), but no per-file test:summary.
-const path = require('node:path');
 const standalone = new Map([
   ['environment-dashboard-v4-admin', /PASS: all migrations; actual admin action/],
   ['environment-dashboard-v4', /"status"\s*:\s*"passed"/],
@@ -16,6 +15,7 @@ function summary(file, success, counts) {
 }
 
 module.exports = async function* report(events) {
+  const path = await import('node:path');
   const completed = new Set();
   const tails = new Map();
   for await (const { type, data } of events) {
