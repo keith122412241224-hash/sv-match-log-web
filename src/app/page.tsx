@@ -214,7 +214,7 @@ async function LandingPage() {
             SV Match Log Webは、シャドバWBの対戦結果を記録・分析できる無料の戦績管理ツールです。自分の勝率やデッキ相性だけでなく、利用者全体の対戦データから、デッキの遭遇率・勝率・環境の変化を確認できます。
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
-            <Link className="inline-flex min-h-11 items-center gap-2 rounded-md bg-ink px-5 text-sm font-bold text-white" href="/login#signup">
+            <Link className="inline-flex min-h-11 items-center gap-2 rounded-md bg-ink px-5 text-sm font-bold text-white" href="/login?mode=signup">
               無料で新規登録
             </Link>
             <Link className="inline-flex min-h-11 items-center rounded-md border border-slate-300 bg-white px-5 text-sm font-bold text-ink" href="/guest">

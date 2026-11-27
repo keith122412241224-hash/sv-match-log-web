@@ -41,7 +41,7 @@ export async function signUpWithPassword(formData: FormData) {
   const siteUrl = await getSiteUrl();
 
   if (!email || password.length < 6) {
-    redirect(`/login?message=${encodeURIComponent("メールアドレスと6文字以上のパスワードを入力してください")}`);
+    redirect(`/login?mode=signup&message=${encodeURIComponent("メールアドレスと6文字以上のパスワードを入力してください")}`);
   }
 
   const { error } = await supabase.auth.signUp({
@@ -53,7 +53,7 @@ export async function signUpWithPassword(formData: FormData) {
   });
 
   if (error) {
-    redirect(`/login?message=${encodeURIComponent(error.message)}`);
+    redirect(`/login?mode=signup&message=${encodeURIComponent(error.message)}`);
   }
 
   redirect(`/login?message=${encodeURIComponent("登録しました。確認メールが必要な設定の場合はメールを確認してください")}`);
@@ -65,7 +65,7 @@ export async function sendPasswordReset(formData: FormData) {
   const siteUrl = await getSiteUrl();
 
   if (!email) {
-    redirect(`/login?message=${encodeURIComponent("メールアドレスを入力してください")}`);
+    redirect(`/login?mode=reset&message=${encodeURIComponent("メールアドレスを入力してください")}`);
   }
 
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
@@ -73,7 +73,7 @@ export async function sendPasswordReset(formData: FormData) {
   });
 
   if (error) {
-    redirect(`/login?message=${encodeURIComponent(error.message)}`);
+    redirect(`/login?mode=reset&message=${encodeURIComponent(error.message)}`);
   }
 
   redirect(`/login?message=${encodeURIComponent("パスワード再設定メールを送信しました")}`);
