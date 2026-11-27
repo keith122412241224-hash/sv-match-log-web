@@ -5,11 +5,14 @@ const fs = require('node:fs'), cp = require('node:child_process'), assert = requ
 const environmentReview = require('./environment-review-scope.cjs');
 const base = '3d9d12dca854ddd77051362f0ad6472ba8fb7dd4';
 const normalize = text => text.replaceAll('\r\n', '\n');
-const patch = normalize(fs.readFileSync(__dirname + '/fixtures/theme-source.patch', 'utf8'));
-const changes = new Map(patch.split('diff --git ').slice(1).map(section => {
-  const file = section.match(/^a\/(.*?) b\//)[1];
-  return [file, { added: section.includes('\n--- /dev/null\n'), section }];
-}));
+function readPatch(name) {
+  const patch = normalize(fs.readFileSync(__dirname + '/fixtures/' + name, 'utf8'));
+  return new Map(patch.split('diff --git ').slice(1).map(section => {
+    const file = section.match(/^a\/(.*?) b\//)[1];
+    return [file, { added: section.includes('\n--- /dev/null\n'), section }];
+  }));
+}
+const changes = readPatch('theme-source.patch');
 const added = new Set([...changes].filter(([, change]) => change.added).map(([file]) => file));
 const gitSource = (ref, file) => normalize(cp.execFileSync('git', ['show', ref + ':' + file], { encoding: 'utf8', maxBuffer: 16e6, windowsHide: true }));
 
@@ -66,6 +69,21 @@ function applyExact(before, section) {
   output.push(...input.slice(cursor));
   return output.join('\n') + '\n';
 }
+// Historical guards still check all source bytes after validating the exact signup delta.
+const signupBase = '7acfb8c8178f7f1095f977c33ada3c6b76032fcf';
+const signupChanges = readPatch('landing-signup.patch');
+const signupSources = new Map();
+function readBeforeSignup(file, source) {
+  const change = signupChanges.get(file);
+  if (!change) return source;
+  if (!signupSources.has(file)) {
+    const before = gitSource(signupBase, file);
+    signupSources.set(file, { before, after: applyExact(before, change.section) });
+  }
+  const { before, after } = signupSources.get(file);
+  assert.equal(normalize(source), after, 'unreviewed theme change after signup: ' + file);
+  return before;
+}
 const expected = new Map();
 const inventories = new Map();
 function existsAt(ref, file) {
@@ -81,6 +99,7 @@ function reviewed(file) {
   return expected.get(file);
 }
 function assertReviewed(file, source = fs.readFileSync(file, 'utf8')) {
+  source = readBeforeSignup(file, source);
   if (file === landingPage) {
     assertPublicEncounterSource(file, source);
     source = gitSource(beforePublicEncounter, file);

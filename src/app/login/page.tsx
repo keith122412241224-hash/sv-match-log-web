@@ -42,7 +42,8 @@ export default async function LoginPage({
           <SubmitButton type="submit" pendingLabel="ログイン中...">ログイン</SubmitButton>
         </form>
 
-        <form action={signUpWithPassword} className="mt-4 grid gap-4 rounded-md bg-slate-50 p-3">
+        <form action={signUpWithPassword} aria-labelledby="signup" className="mt-4 grid gap-4 rounded-md bg-slate-50 p-3">
+          <h2 id="signup" tabIndex={-1} className="scroll-mt-4 text-base font-bold text-ink">新規登録</h2>
           <FieldLabel>
             メールアドレス
             <Input name="email" type="email" autoComplete="email" required placeholder="you@example.com" />
