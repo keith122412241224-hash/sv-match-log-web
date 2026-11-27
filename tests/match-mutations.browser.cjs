@@ -198,6 +198,8 @@ async function until(fn) { for (let i = 0; i < 100; i++) { if (await fn()) retur
     await page.goto(origin + '/matches', { waitUntil: 'networkidle' }); assert.equal(await page.locator('[name=environment_id]').inputValue(), ids.env);
     await page.getByRole('button', { name: '保存してホームへ' }).click(); await page.waitForURL(origin + '/');
     checks.push('authenticated new registration');
+    await require('./match-actions-refresh.browser.cjs').verifyMatchActionsRefresh(context, origin);
+    checks.push('editing: refresh disables row actions, restores keyboard operation after success or HTTP failure at both widths');
     // Guest edits/cancels/deletes and real import action, with no Guest DB mutations.
     await page.goto(origin + '/guest', { waitUntil: 'networkidle' });
     await page.getByRole('button', { name: '戦績入力', exact: true }).click();

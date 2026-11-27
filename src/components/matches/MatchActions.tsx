@@ -3,15 +3,18 @@
 import { createContext, useCallback, useContext, useEffect, useId, useRef, useState, useTransition, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { MoreHorizontal } from "lucide-react";
+import { LoaderCircle, MoreHorizontal } from "lucide-react";
 import { deleteMatchInline, getMatchForEdit, updateMatchInline } from "@/app/actions";
 import { Button } from "@/components/Button";
 import { SaveToast, type SaveNotification } from "@/components/SaveToast";
 import { QuickMatchForm, type GuestMatchDraft } from "@/components/matches/QuickMatchForm";
-import { formatJstDateTime } from "@/lib/utils";
+import { cn, formatJstDateTime } from "@/lib/utils";
 import type { MatchEditData, MatchMutationResult } from "@/lib/match-edit";
 
-const ActionsContext = createContext<((id: string, guestData?: MatchEditData) => void) | null>(null);
+const ActionsContext = createContext<{
+  open: (id: string, guestData?: MatchEditData) => void;
+  refreshing: boolean;
+} | null>(null);
 
 export function MatchActionsProvider({ children, onGuestMutation }: {
   children: ReactNode;
@@ -83,7 +86,7 @@ export function MatchActionsProvider({ children, onGuestMutation }: {
     } catch { setError("削除できませんでした。再度お試しください。"); }
     finally { setBusy(false); }
   }
-  return <ActionsContext.Provider value={open}>
+  return <ActionsContext.Provider value={{ open, refreshing }}>
     {children}
     <SaveToast notification={notification} onDismiss={dismiss} />
     {mode && createPortal(<dialog ref={dialog} aria-labelledby={id + "-title"}
@@ -115,9 +118,12 @@ export function MatchActionsProvider({ children, onGuestMutation }: {
 }
 
 export function MatchActions({ matchId, guestData }: { matchId: string; guestData?: MatchEditData }) {
-  const open = useContext(ActionsContext);
-  return <button type="button" aria-label="戦績の操作" aria-haspopup="dialog" onClick={() => open?.(matchId, guestData)}
-    className="inline-flex size-11 shrink-0 items-center justify-center rounded-md text-muted hover:bg-slate-200 focus-visible:ring-2">
-    <MoreHorizontal aria-hidden="true" size={20} />
+  const actions = useContext(ActionsContext);
+  const refreshing = actions?.refreshing;
+  return <button type="button" aria-label={refreshing ? "戦績の操作（一覧を更新中）" : "戦績の操作"}
+    aria-disabled={refreshing || undefined} aria-haspopup="dialog" onClick={() => actions?.open(matchId, guestData)}
+    className={cn("inline-flex size-11 shrink-0 items-center justify-center rounded-md text-muted focus-visible:ring-2",
+      refreshing ? "cursor-wait opacity-60" : "hover:bg-slate-200")}>
+    {refreshing ? <LoaderCircle aria-hidden="true" size={20} className="motion-safe:animate-spin" /> : <MoreHorizontal aria-hidden="true" size={20} />}
   </button>;
 }
