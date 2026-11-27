@@ -1,0 +1,11 @@
+{
+  "name": "sv-match-log-cloud-tools",
+  "private": true,
+  "dependencies": {
+    "supabase": "2.118.0"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.8",
+    "pg": "8.16.3"
+  }
+}
