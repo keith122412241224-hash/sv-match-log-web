@@ -2,7 +2,7 @@
 
 スマートフォンからは「この手順書に従って最新 main を確認し、〈依頼内容〉をローカルで実施。GitHub・本番への反映は承認待ち」と依頼する。普段は §1–3 で始め、変更に応じて §4 の検証を選ぶ。Windows＋VS Code で引き継ぐ場合も同じ GitHub ブランチと SHA を照合する。
 
-**確認範囲**　2026-11-27 の C-02 では専用環境 `sv-match-log-web` の既存チェックアウトとコンテナを再利用し、最新化、API 応答、2画面の表示、型チェックまで確認した。テスト全体の実績は §4 の PR 記録に基づく。GitHub・本番・復旧の操作は今後の承認後に使う手順であり、C-07 では文書の整合性を検証した。
+**確認範囲**　2026-11-27 の C-02 では、既存のクラウド環境のチェックアウトとコンテナを再利用し、最新 main に更新して開発環境を手動で起動した。ローカル API の応答、ゲスト・ログイン画面の表示、型チェックを確認した。この実行環境と公開済みの専用環境 `sv-match-log-web` revision 3 との対応は未確認。テスト全体の実績は §4 の PR 記録に基づく。GitHub・本番・復旧の操作は今後の承認後に使う手順であり、C-07 では文書の整合性を検証した。
 
 ## 1. 最新 main から作業を始める
 
@@ -120,12 +120,12 @@ PR #1 は標準 **618/618**、統合 **81/81（36ファイル）**、失敗・�
 ### Linux の統合テストと補助ファイル
 
 1. リポジトリ直下で `git ls-files 'tests/*.integration.cjs'` を実行し、対象ファイルとそこで読み込む helper を確認する。履歴検査は過去の Git オブジェクトと [theme-source.cjs](../tests/theme-source.cjs)・[レビュー済みパッチ](../tests/fixtures/theme-source.patch) を使う。浅い取得や補助ファイル欠落をテスト失敗と混同しない。
-2. キャッシュ済みの `@electric-sql/pglite` と `pg` を優先し、以下の2変数に各パッケージの絶対パスを設定する。なければ、テストを必要とする場合だけ、リポジトリ外に一時依存を準備する。次は Linux の例。PGlite 0.5.8 は既存の検証記録にある版、pg 8 系は例示で、使用した正確な版を記録する。[PGlite の既存記録](phase2c-verification.md)
+2. キャッシュ済みの `@electric-sql/pglite` と `pg` を優先し、以下の2変数に各パッケージの絶対パスを設定する。なければ、テストを必要とする場合だけ、リポジトリ外に一時依存を準備する。次の Linux の例では、検証実績のある PGlite 0.5.8 と pg 8.16.3 を指定する。キャッシュを使う場合も実際に使用した版を記録する。[PGlite の既存記録](phase2c-verification.md)
 
 ```bash
 qa_tools=$(mktemp -d)
 npm install --prefix "$qa_tools" --no-save --package-lock=false --prefer-offline \
-  --cache /workspace/.svml-tools/npm-cache @electric-sql/pglite@0.5.8 pg@8
+  --cache /workspace/.svml-tools/npm-cache @electric-sql/pglite@0.5.8 pg@8.16.3
 export PGLITE_MODULE="$qa_tools/node_modules/@electric-sql/pglite"
 export PG_MODULE="$qa_tools/node_modules/pg"
 node -e 'for (const k of ["PGLITE_MODULE","PG_MODULE"]) console.log(k, require.resolve(process.env[k]))'
