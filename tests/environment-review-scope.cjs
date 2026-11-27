@@ -8,6 +8,8 @@ const assert = require('node:assert/strict');
 const {createHash} = require('node:crypto');
 const base = 'c9a2d3481405aca3f6b844ee23018cc22f263fbe';
 const changed = new Map([
+  // The trigger was identical at this baseline and immediately before E-05.
+  ['src/components/matches/MatchActions.tsx', 'cd1b8f2a68e9f3131d643b55acbf60fb48513ce5443f70e19697f8964a354706'],
   ['src/app/admin/page.tsx', 'f75dbca474940e1186c411caae0d949d5922eb94fbde88df1742f9d3b47e785d'],
   ['src/app/environment/page.tsx', '01e9ce716945f976a3d2f04ef5676a52b98d3ddacae0d031b23d7dafc12e340e'],
   ['src/components/environment/EnvironmentFilters.tsx', '13708ef4981772a8da452cf040c6107f6f6aee701bd16e58b649adc5082aadda']
