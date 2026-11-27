@@ -1,0 +1,17 @@
+diff --git a/src/app/login/page.tsx b/src/app/login/page.tsx
+index a54833b..93e6b3b 100644
+--- a/src/app/login/page.tsx
++++ b/src/app/login/page.tsx
+@@ -45 +45,2 @@ export default async function LoginPage({
+-        <form action={signUpWithPassword} className="mt-4 grid gap-4 rounded-md bg-slate-50 p-3">
++        <form action={signUpWithPassword} aria-labelledby="signup" className="mt-4 grid gap-4 rounded-md bg-slate-50 p-3">
++          <h2 id="signup" tabIndex={-1} className="scroll-mt-4 text-base font-bold text-ink">新規登録</h2>
+diff --git a/src/app/page.tsx b/src/app/page.tsx
+index af8a59b..ed840a0 100644
+--- a/src/app/page.tsx
++++ b/src/app/page.tsx
+@@ -217,2 +217,2 @@ async function LandingPage() {
+-            <Link className="inline-flex min-h-11 items-center gap-2 rounded-md bg-ink px-5 text-sm font-bold text-white" href="/login">
+-              無料で始める
++            <Link className="inline-flex min-h-11 items-center gap-2 rounded-md bg-ink px-5 text-sm font-bold text-white" href="/login#signup">
++              無料で新規登録
