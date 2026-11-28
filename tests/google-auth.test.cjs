@@ -42,6 +42,23 @@ async function googleForm(mode = 'login') {
   return google;
 }
 
+test('only the signup notice on the login screen shows the mail instructions', async () => {
+  const title = '確認メールをご確認ください';
+  for (const [params, expected] of [
+    [{ notice: 'confirm-email' }, true],
+    [{}, false],
+    [{ notice: 'other' }, false],
+    [{ mode: 'signup', notice: 'confirm-email' }, false],
+    [{ mode: 'reset', notice: 'confirm-email' }, false],
+    [{ notice: 'confirm-email', message: 'other status' }, false]
+  ]) {
+    const nodes = flatten(await page({ searchParams: Promise.resolve(params) }));
+    const status = nodes.find(node => node?.props?.role === 'status');
+    assert.equal(flatten(status).includes(title), expected);
+    if (params.message) assert.ok(flatten(status).includes(params.message));
+  }
+});
+
 test('production pair, server-only flag and server action stay in agreement', async t => {
   const site = 'https://sv-match-log-web.vercel.app';
   const api = 'https://xbwxapwaadsrtckxewvx.supabase.co';
