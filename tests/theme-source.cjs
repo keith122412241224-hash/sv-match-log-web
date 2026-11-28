@@ -80,7 +80,10 @@ const googleLoginChanges = readPatch('local-google-login.patch');
 const googleLoginSources = new Map();
 const signupNoticeChanges = readPatch('signup-email-notice.patch');
 const signupNoticeSources = new Map();
+const pkceConfirmChanges = readPatch('pkce-confirm-middleware.patch');
+const pkceConfirmSources = new Map();
 function readBeforeGoogleLogin(file, source) {
+  source = readBeforePatch(file, source, '1b93054c4c0c09b63c3393fdb6df024ef3fa8f98', pkceConfirmChanges, pkceConfirmSources);
   source = readBeforePatch(file, source, '00a91b06fc7561a6e4b74975a94a031b1a6d2ed2', signupNoticeChanges, signupNoticeSources);
   return readBeforePatch(file, source, '7a14e7e73a1374765bccd8a04af86a3cd15a60b2', googleLoginChanges, googleLoginSources);
 }

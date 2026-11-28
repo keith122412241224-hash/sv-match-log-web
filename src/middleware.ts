@@ -12,6 +12,9 @@ type CookieToSet = {
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
 
+  // The callback needs its PKCE verifier even if the previous session was revoked.
+  if (request.nextUrl.pathname === "/auth/confirm") return response;
+
   if (request.headers.has("next-action") || request.headers.get("purpose") === "prefetch") {
     return response;
   }
