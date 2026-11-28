@@ -1,0 +1,242 @@
+diff --git a/src/app/actions.ts b/src/app/actions.ts
+index 03f99ce..cd3ef8a 100644
+--- a/src/app/actions.ts
++++ b/src/app/actions.ts
+@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
+ import { MATCH_REQUEST_ID, matchesRequest } from "@/lib/match-request";
+ import { redirect } from "next/navigation";
+ import { createSupabaseServerClient } from "@/lib/supabase/server";
++import { authSiteOrigin } from "@/lib/auth-config";
+ import { isEnvironmentInputEnabled as isInputOpen } from "@/lib/environment-input";
+ import { validateMatchRank } from "@/lib/match-rank";
+ import type { GuestImportResult, StoredGuestMatch } from "@/lib/guest-storage";
+@@ -38,7 +39,7 @@ export async function signUpWithPassword(formData: FormData) {
+   const email = String(formData.get("email") ?? "").trim();
+   const password = String(formData.get("password") ?? "");
+   const supabase = await createSupabaseServerClient();
+-  const siteUrl = await getSiteUrl();
++  const siteUrl = authSiteOrigin();
+ 
+   if (!email || password.length < 6) {
+     redirect(`/login?mode=signup&message=${encodeURIComponent("メールアドレスと6文字以上のパスワードを入力してください")}`);
+@@ -62,7 +63,7 @@ export async function signUpWithPassword(formData: FormData) {
+ export async function sendPasswordReset(formData: FormData) {
+   const email = String(formData.get("email") ?? "").trim();
+   const supabase = await createSupabaseServerClient();
+-  const siteUrl = await getSiteUrl();
++  const siteUrl = authSiteOrigin();
+ 
+   if (!email) {
+     redirect(`/login?mode=reset&message=${encodeURIComponent("メールアドレスを入力してください")}`);
+@@ -663,17 +664,6 @@ function revalidateDeckPaths() {
+   revalidatePath("/matrix");
+ }
+ 
+-async function getSiteUrl() {
+-  // Email links must not trust Host / X-Forwarded-* from the request.
+-  const url = new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://sv-match-log-web.vercel.app");
+-  const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+-  if ((url.protocol !== "https:" && !(url.protocol === "http:" && loopback))
+-    || url.username || url.password || url.pathname !== "/" || url.search || url.hash) {
+-    throw new Error("NEXT_PUBLIC_SITE_URL must be a trusted site origin");
+-  }
+-  return url.origin;
+-}
+-
+ async function ensureCompatDecksForGuestImport(
+   supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+   userId: string,
+diff --git a/src/app/auth/confirm/route.ts b/src/app/auth/confirm/route.ts
+index 15e208f..e7e1889 100644
+--- a/src/app/auth/confirm/route.ts
++++ b/src/app/auth/confirm/route.ts
+@@ -1,20 +1,28 @@
+ import { type EmailOtpType } from "@supabase/supabase-js";
+ import { type NextRequest, NextResponse } from "next/server";
+ import { createSupabaseServerClient } from "@/lib/supabase/server";
++import { authSiteOrigin } from "@/lib/auth-config";
+ 
+ export async function GET(request: NextRequest) {
+-  const { searchParams, origin } = new URL(request.url);
++  const requestUrl = new URL(request.url);
++  const { searchParams } = requestUrl;
++  const origin = authSiteOrigin();
+   const code = searchParams.get("code");
+   const tokenHash = searchParams.get("token_hash");
+   const type = searchParams.get("type") as EmailOtpType | null;
+-  const next = normalizeNextPath(searchParams.get("next"));
++  const next = searchParams.get("next") === "/auth/reset-password" ? "/auth/reset-password" : "/";
++  const failure = () => {
++    console.info("auth.confirm rejected");
++    return finish(`${origin}/login?message=${encodeURIComponent("ログインリンクを確認できませんでした")}`);
++  };
++  if (searchParams.has("error") || searchParams.has("error_code") || (code && tokenHash)) return failure();
+   const supabase = await createSupabaseServerClient();
+ 
+   if (code) {
+     const { error } = await supabase.auth.exchangeCodeForSession(code);
+ 
+     if (!error) {
+-      return NextResponse.redirect(`${origin}${next}`);
++      return finish(`${origin}${next}`);
+     }
+   }
+ 
+@@ -25,17 +33,16 @@ export async function GET(request: NextRequest) {
+     });
+ 
+     if (!error) {
+-      return NextResponse.redirect(`${origin}${next}`);
++      return finish(`${origin}${next}`);
+     }
+   }
+ 
+-  return NextResponse.redirect(`${origin}/login?message=${encodeURIComponent("ログインリンクを確認できませんでした")}`);
++  return failure();
+ }
+ 
+-function normalizeNextPath(next: string | null) {
+-  if (!next || !next.startsWith("/") || next.startsWith("//")) {
+-    return "/";
+-  }
+-
+-  return next;
++function finish(location: string) {
++  const response = NextResponse.redirect(location);
++  response.headers.set("Cache-Control", "private, no-store");
++  response.headers.set("Referrer-Policy", "no-referrer");
++  return response;
+ }
+diff --git a/src/app/login/page.tsx b/src/app/login/page.tsx
+index 017fc1f..d0ad420 100644
+--- a/src/app/login/page.tsx
++++ b/src/app/login/page.tsx
+@@ -2,7 +2,10 @@ import { ThemeSelect } from "@/components/ThemeProvider";
+ import Link from "next/link";
+ import Script from "next/script";
+ import { PlayCircle } from "lucide-react";
++import { redirect } from "next/navigation";
+ import { sendPasswordReset, signInWithPassword, signUpWithPassword } from "@/app/actions";
++import { createSupabaseServerClient } from "@/lib/supabase/server";
++import { authSiteOrigin, googleAuthEnabled, isGoogleAuthorizeUrl } from "@/lib/auth-config";
+ import { BrandMark } from "@/components/BrandMark";
+ import { FieldLabel, Input } from "@/components/Field";
+ import { SubmitButton } from "@/components/SubmitButton";
+@@ -30,6 +33,23 @@ const forms = {
+ 
+ const secondaryLink = "inline-flex min-h-11 w-full items-center justify-center rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-ink";
+ 
++async function signInWithGoogle() {
++  "use server";
++  if (!googleAuthEnabled()) redirect("/login");
++  const supabase = await createSupabaseServerClient();
++  const { data, error } = await supabase.auth.signInWithOAuth({
++    provider: "google",
++    options: {
++      redirectTo: `${authSiteOrigin()}/auth/confirm`,
++      queryParams: { prompt: "select_account" }
++    }
++  });
++  if (error || !data.url || !isGoogleAuthorizeUrl(data.url)) {
++    redirect(`/login?message=${encodeURIComponent("Googleログインを開始できませんでした")}`);
++  }
++  redirect(data.url);
++}
++
+ export default async function LoginPage({
+   searchParams
+ }: {
+@@ -75,6 +95,14 @@ export default async function LoginPage({
+             <SubmitButton type="submit" pendingLabel={form.pending}>{form.submit}</SubmitButton>
+           </form>
+ 
++          {formMode !== "reset" && googleAuthEnabled() && (
++            <form action={signInWithGoogle} className="mt-3">
++              <button type="submit" className={secondaryLink}>
++                {formMode === "signup" ? "Googleで登録" : "Googleでログイン"}
++              </button>
++            </form>
++          )}
++
+           {formMode === "login" && (
+             <>
+               <Link className="mt-2 inline-flex min-h-11 items-center text-sm font-semibold text-ink underline" href="/login?mode=reset">
+diff --git a/src/app/privacy/page.tsx b/src/app/privacy/page.tsx
+index 36fb78d..e8b4a33 100644
+--- a/src/app/privacy/page.tsx
++++ b/src/app/privacy/page.tsx
+@@ -20,6 +20,7 @@ const policySections = [
+         <p>本サービスでは、サービスの提供・運営に必要な範囲で、以下の情報を取得する場合があります。</p>
+         <ul>
+           <li>アカウント登録・ログインに必要なメールアドレス等のアカウント情報</li>
++          <li>Googleでログインする場合、Googleアカウントの識別子、メールアドレスとその確認状態、およびGoogleから提供される名前・プロフィール画像URLなどの基本プロフィール情報</li>
+           <li>使用デッキ</li>
+           <li>対戦相手のデッキ</li>
+           <li>先攻・後攻</li>
+@@ -39,6 +40,7 @@ const policySections = [
+         <p>取得した情報は、以下の目的で利用します。</p>
+         <ol>
+           <li>本サービスの提供、運営および機能改善のため</li>
++          <li>Googleでログインする場合、Supabase Authを通じて本人を認証し、既存アカウントとの照合およびログイン状態の維持を行うため</li>
+           <li>ユーザーの戦績の保存、集計および表示のため</li>
+           <li>不具合調査、セキュリティ対策および不正利用防止のため</li>
+           <li>本サービス全体の利用状況やゲーム環境の分析のため</li>
+@@ -48,6 +50,7 @@ const policySections = [
+           <li>お問い合わせへの対応のため</li>
+           <li>その他、本サービスの提供に付随する目的のため</li>
+         </ol>
++        <p>Googleでの本人確認後、本サービスはブラウザーのCookieを使ってログイン状態を維持します。ログインに失敗した場合などは、障害の調査や不正利用の監視のために認証処理の結果を記録します。</p>
+       </>
+     )
+   },
+@@ -254,7 +257,7 @@ export default function PrivacyPage() {
+         </div>
+ 
+         <p className="text-sm font-semibold text-muted">制定日：2026年9月2日</p>
+-        <p className="text-sm font-semibold text-muted">最終更新日：2026年11月10日</p>
++        <p className="text-sm font-semibold text-muted">最終更新日：2026年11月28日</p>
+       </div>
+     </main>
+   );
+diff --git a/src/lib/auth-config.ts b/src/lib/auth-config.ts
+new file mode 100644
+index 0000000..5ffbf0f
+--- /dev/null
++++ b/src/lib/auth-config.ts
+@@ -0,0 +1,36 @@
++const productionSite = "https://sv-match-log-web.vercel.app";
++const productionApi = "https://xbwxapwaadsrtckxewvx.supabase.co";
++
++export function authSiteOrigin() {
++  // Use the same deployment configuration for email creation and callback completion.
++  const url = new URL(process.env.NEXT_PUBLIC_SITE_URL ?? productionSite);
++  const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
++  if ((url.protocol !== "https:" && !(url.protocol === "http:" && loopback))
++    || url.username || url.password || url.pathname !== "/" || url.search || url.hash) {
++    throw new Error("NEXT_PUBLIC_SITE_URL must be a trusted site origin");
++  }
++  return url.origin;
++}
++
++export function googleAuthEnabled() {
++  if (process.env.SUPABASE_GOOGLE_AUTH_ENABLED !== "true") return false;
++  const site = authSiteOrigin();
++  const api = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "");
++  if (site === productionSite && api === productionApi) {
++    return process.env.VERCEL_ENV === "production";
++  }
++  return !process.env.VERCEL_ENV && site === "http://127.0.0.1:3100"
++    && api === "http://127.0.0.1:55321";
++}
++
++export function isGoogleAuthorizeUrl(value: string) {
++  try {
++    const target = new URL(value);
++    return !target.username && !target.password && !target.hash
++      && target.origin === new URL(process.env.NEXT_PUBLIC_SUPABASE_URL!).origin
++      && target.pathname === "/auth/v1/authorize" && target.searchParams.get("provider") === "google"
++      && target.searchParams.get("redirect_to") === `${authSiteOrigin()}/auth/confirm`;
++  } catch {
++    return false;
++  }
++}

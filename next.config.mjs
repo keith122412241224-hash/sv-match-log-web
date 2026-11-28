@@ -1,4 +1,6 @@
 /** @type {import('next').NextConfig} */
-const nextConfig = {};
+const nextConfig = {
+  logging: { incomingRequests: { ignore: [/^\/auth\/confirm(?:[/?]|$)/i] } }
+};
 
 export default nextConfig;

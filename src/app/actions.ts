@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { MATCH_REQUEST_ID, matchesRequest } from "@/lib/match-request";
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { authSiteOrigin } from "@/lib/auth-config";
 import { isEnvironmentInputEnabled as isInputOpen } from "@/lib/environment-input";
 import { validateMatchRank } from "@/lib/match-rank";
 import type { GuestImportResult, StoredGuestMatch } from "@/lib/guest-storage";
@@ -38,7 +39,7 @@ export async function signUpWithPassword(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
   const supabase = await createSupabaseServerClient();
-  const siteUrl = await getSiteUrl();
+  const siteUrl = authSiteOrigin();
 
   if (!email || password.length < 6) {
     redirect(`/login?mode=signup&message=${encodeURIComponent("メールアドレスと6文字以上のパスワードを入力してください")}`);
@@ -62,7 +63,7 @@ export async function signUpWithPassword(formData: FormData) {
 export async function sendPasswordReset(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim();
   const supabase = await createSupabaseServerClient();
-  const siteUrl = await getSiteUrl();
+  const siteUrl = authSiteOrigin();
 
   if (!email) {
     redirect(`/login?mode=reset&message=${encodeURIComponent("メールアドレスを入力してください")}`);
@@ -661,17 +662,6 @@ function revalidateDeckPaths() {
   revalidatePath("/matches");
   revalidatePath("/analysis");
   revalidatePath("/matrix");
-}
-
-async function getSiteUrl() {
-  // Email links must not trust Host / X-Forwarded-* from the request.
-  const url = new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://sv-match-log-web.vercel.app");
-  const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
-  if ((url.protocol !== "https:" && !(url.protocol === "http:" && loopback))
-    || url.username || url.password || url.pathname !== "/" || url.search || url.hash) {
-    throw new Error("NEXT_PUBLIC_SITE_URL must be a trusted site origin");
-  }
-  return url.origin;
 }
 
 async function ensureCompatDecksForGuestImport(

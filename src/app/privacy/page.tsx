@@ -20,6 +20,7 @@ const policySections = [
         <p>本サービスでは、サービスの提供・運営に必要な範囲で、以下の情報を取得する場合があります。</p>
         <ul>
           <li>アカウント登録・ログインに必要なメールアドレス等のアカウント情報</li>
+          <li>Googleでログインする場合、Googleアカウントの識別子、メールアドレスとその確認状態、およびGoogleから提供される名前・プロフィール画像URLなどの基本プロフィール情報</li>
           <li>使用デッキ</li>
           <li>対戦相手のデッキ</li>
           <li>先攻・後攻</li>
@@ -39,6 +40,7 @@ const policySections = [
         <p>取得した情報は、以下の目的で利用します。</p>
         <ol>
           <li>本サービスの提供、運営および機能改善のため</li>
+          <li>Googleでログインする場合、Supabase Authを通じて本人を認証し、既存アカウントとの照合およびログイン状態の維持を行うため</li>
           <li>ユーザーの戦績の保存、集計および表示のため</li>
           <li>不具合調査、セキュリティ対策および不正利用防止のため</li>
           <li>本サービス全体の利用状況やゲーム環境の分析のため</li>
@@ -48,6 +50,7 @@ const policySections = [
           <li>お問い合わせへの対応のため</li>
           <li>その他、本サービスの提供に付随する目的のため</li>
         </ol>
+        <p>Googleでの本人確認後、本サービスはブラウザーのCookieを使ってログイン状態を維持します。ログインに失敗した場合などは、障害の調査や不正利用の監視のために認証処理の結果を記録します。</p>
       </>
     )
   },
@@ -254,7 +257,7 @@ export default function PrivacyPage() {
         </div>
 
         <p className="text-sm font-semibold text-muted">制定日：2026年9月2日</p>
-        <p className="text-sm font-semibold text-muted">最終更新日：2026年11月10日</p>
+        <p className="text-sm font-semibold text-muted">最終更新日：2026年11月28日</p>
       </div>
     </main>
   );

@@ -76,6 +76,11 @@ const signupSources = new Map();
 const authScreenBase = '2002869e537f5d059a823f40641bfbf9a844d72e';
 const authScreenChanges = readPatch('auth-screen-modes.patch');
 const authScreenSources = new Map();
+const googleLoginChanges = readPatch('local-google-login.patch');
+const googleLoginSources = new Map();
+function readBeforeGoogleLogin(file, source) {
+  return readBeforePatch(file, source, '7a14e7e73a1374765bccd8a04af86a3cd15a60b2', googleLoginChanges, googleLoginSources);
+}
 function readBeforePatch(file, source, base, patch, sources) {
   const change = patch.get(file);
   if (!change) return source;
@@ -102,6 +107,7 @@ function reviewed(file) {
   return expected.get(file);
 }
 function assertReviewed(file, source = fs.readFileSync(file, 'utf8')) {
+  source = readBeforeGoogleLogin(file, source);
   source = readBeforePatch(file, source, authScreenBase, authScreenChanges, authScreenSources);
   source = readBeforePatch(file, source, signupBase, signupChanges, signupSources);
   if (file === landingPage) {
@@ -113,7 +119,7 @@ function assertReviewed(file, source = fs.readFileSync(file, 'utf8')) {
 function readBeforeTheme(file) {
   const source = normalize(fs.readFileSync(file, 'utf8'));
   if (!changes.has(file)) {
-    return environmentReview.readBeforeReview(file, readBeforePatch(file, source, authScreenBase, authScreenChanges, authScreenSources));
+    return environmentReview.readBeforeReview(file, readBeforePatch(file, readBeforeGoogleLogin(file, source), authScreenBase, authScreenChanges, authScreenSources));
   }
   assertReviewed(file, source);
   assert.ok(!added.has(file), 'new theme files have no historical source');
@@ -128,8 +134,13 @@ function historicalFiles(files, ref) {
   }
   for (const file of publicEncounterAdded) assertPublicEncounterSource(file);
   return environmentReview.historicalFiles(files, ref).filter(file => {
+    const googleChange = googleLoginChanges.get(file);
+    if (googleChange?.added) {
+      assert.equal(normalize(fs.readFileSync(file, 'utf8')), applyExact('', googleChange.section));
+      return false;
+    }
     if (added.has(file) || publicEncounterAdded.has(file)) return false;
-    if (ref && authScreenChanges.has(file) && !changes.has(file) && existsAt(ref, file)) {
+    if (ref && (authScreenChanges.has(file) || googleLoginChanges.has(file)) && !changes.has(file) && existsAt(ref, file)) {
       return readBeforeTheme(file) !== gitSource(ref, file);
     }
     if (!ref || !changes.has(file)) return true;

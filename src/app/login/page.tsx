@@ -2,7 +2,10 @@ import { ThemeSelect } from "@/components/ThemeProvider";
 import Link from "next/link";
 import Script from "next/script";
 import { PlayCircle } from "lucide-react";
+import { redirect } from "next/navigation";
 import { sendPasswordReset, signInWithPassword, signUpWithPassword } from "@/app/actions";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { authSiteOrigin, googleAuthEnabled, isGoogleAuthorizeUrl } from "@/lib/auth-config";
 import { BrandMark } from "@/components/BrandMark";
 import { FieldLabel, Input } from "@/components/Field";
 import { SubmitButton } from "@/components/SubmitButton";
@@ -29,6 +32,23 @@ const forms = {
 };
 
 const secondaryLink = "inline-flex min-h-11 w-full items-center justify-center rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-ink";
+
+async function signInWithGoogle() {
+  "use server";
+  if (!googleAuthEnabled()) redirect("/login");
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: {
+      redirectTo: `${authSiteOrigin()}/auth/confirm`,
+      queryParams: { prompt: "select_account" }
+    }
+  });
+  if (error || !data.url || !isGoogleAuthorizeUrl(data.url)) {
+    redirect(`/login?message=${encodeURIComponent("Googleログインを開始できませんでした")}`);
+  }
+  redirect(data.url);
+}
 
 export default async function LoginPage({
   searchParams
@@ -74,6 +94,14 @@ export default async function LoginPage({
             )}
             <SubmitButton type="submit" pendingLabel={form.pending}>{form.submit}</SubmitButton>
           </form>
+
+          {formMode !== "reset" && googleAuthEnabled() && (
+            <form action={signInWithGoogle} className="mt-3">
+              <button type="submit" className={secondaryLink}>
+                {formMode === "signup" ? "Googleで登録" : "Googleでログイン"}
+              </button>
+            </form>
+          )}
 
           {formMode === "login" && (
             <>
