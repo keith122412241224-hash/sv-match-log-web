@@ -81,6 +81,21 @@ export default async function LoginPage({
           {typeof message === "string" && message && (
             <p role="status" className="mt-4 break-words rounded-md bg-slate-100 px-3 py-2 text-sm text-ink">{message}</p>
           )}
+          {formMode !== "reset" && googleAuthEnabled() && (
+            <>
+              <form action={signInWithGoogle} className="mt-4 flex justify-center">
+                <button type="submit" className="google-signin">
+                  <span className="google-signin-logo" aria-hidden="true" />
+                  Googleで続ける
+                </button>
+              </form>
+              <div className="mt-4 flex items-center gap-3 text-xs text-muted">
+                <span className="flex-1 border-t border-slate-200" />
+                または
+                <span className="flex-1 border-t border-slate-200" />
+              </div>
+            </>
+          )}
           <form key={formMode} action={form.action} aria-labelledby="auth-heading" className="mt-4 grid gap-4">
             <FieldLabel>
               メールアドレス
@@ -94,14 +109,6 @@ export default async function LoginPage({
             )}
             <SubmitButton type="submit" pendingLabel={form.pending}>{form.submit}</SubmitButton>
           </form>
-
-          {formMode !== "reset" && googleAuthEnabled() && (
-            <form action={signInWithGoogle} className="mt-3">
-              <button type="submit" className={secondaryLink}>
-                {formMode === "signup" ? "Googleで登録" : "Googleでログイン"}
-              </button>
-            </form>
-          )}
 
           {formMode === "login" && (
             <>

@@ -21,6 +21,12 @@
 
 ## 公開前の確認
 
+### PR #8 の追加確認
+
+- 本番管理画面ではGoogleプロバイダーが無効、メール認証とメール確認が有効、組織の対象プロジェクトで `Allow new users to sign up` が無効だった。リポジトリのローカル設定、運用文書、Git履歴、既存Issue・PRからは本番の新規登録を止めた理由を特定できなかった。Google無効の先行版ではこの設定を維持する。新規登録を開く判断にはメール登録への影響も含める。
+- Google有効時のログイン・登録画面に、公式のGロゴ付き「Googleで続ける」、「または」、メールフォームの順で表示する。Google無効時とパスワード再設定画面はメールのみ。ボタン素材とGoogle Sansは自サイトから配信する。[Googleのブランドガイド](https://developers.google.com/identity/branding-guidelines)
+- 固定版のauth-jsとSSRに合成の認証応答を渡し、コード交換、分割Cookieの復号、別リクエストでの読込、セッション更新、ログアウトを試験した。標準のSDKは応答に含まれる `provider_token` と `provider_refresh_token` も保存する。このアプリではSupabaseのトークンエンドポイントの成功応答から両項目をSDKに渡す前に除く。Supabase自身のアクセストークン・更新トークンは維持する。以前の検証版が発行済みのCookieはログアウトで消去する。今回の修正では標準622件が合格し、Lint、型チェック、本番ビルド、有効・無効のブラウザー表示を確認した。
+
 1. VercelのProductionで `NEXT_PUBLIC_SITE_URL` を本番Site URL、`NEXT_PUBLIC_SUPABASE_URL` を本番SupabaseのHTTPSオリジンに設定する。本番Site URLには既存の既定値がある。Preview・Developmentに本番のGoogleクライアントを登録しない。
 2. メール作成時と認証完了時は、同じ設定済みサイトオリジンを使用する。ホームまたは `/auth/reset-password` に戻す。既存のメールURL・OTPハッシュ・PKCEコードに対応する。ブラウザー操作でメール確認と再設定後のオリジン、セッション、ログアウトを照合する。コード交換は一回限りで有効期間は5分。[Supabase PKCE](https://supabase.com/docs/guides/auth/sessions/pkce-flow)
 3. OAuthの秘密値はSupabaseのGoogleプロバイダーに保管する。PCでは専用端末の非表示欄から入力する。Git、Next.js、Vercelの変数にコピーしない。次の表に沿って、運用者が本番のログ保存・閲覧・転送の範囲を確認してから公開を承認する。

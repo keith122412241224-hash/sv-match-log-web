@@ -107,8 +107,52 @@ index 15e208f..e7e1889 100644
 +  response.headers.set("Referrer-Policy", "no-referrer");
 +  return response;
  }
+diff --git a/src/app/globals.css b/src/app/globals.css
+index 145b6c0..a1723e4 100644
+--- a/src/app/globals.css
++++ b/src/app/globals.css
+@@ -2,6 +2,39 @@
+ @tailwind components;
+ @tailwind utilities;
+ 
++@font-face {
++  font-family: "Google Sans";
++  src: url("/google-sans-medium.woff2") format("woff2");
++  font-weight: 500;
++  font-display: swap;
++}
++
++.google-signin {
++  display: inline-flex;
++  align-items: center;
++  gap: 10px;
++  min-height: 40px;
++  padding: 0 12px;
++  background: #fff;
++  border: 1px solid #747775;
++  border-radius: 4px;
++  color: #1f1f1f;
++  font: 500 14px/20px "Google Sans", system-ui, sans-serif;
++}
++
++.google-signin:focus-visible {
++  outline: 2px solid #1a73e8;
++  outline-offset: 2px;
++}
++
++.google-signin-logo {
++  width: 20px;
++  height: 20px;
++  flex: none;
++  /* Display the original G at the center of Google's light web button artwork. */
++  background: url("/google-signin-light.png") center / 40px 40px no-repeat;
++}
++
+ :root {
+   color-scheme: light;
+ }
 diff --git a/src/app/login/page.tsx b/src/app/login/page.tsx
-index 017fc1f..d0ad420 100644
+index 017fc1f..5ab1bb3 100644
 --- a/src/app/login/page.tsx
 +++ b/src/app/login/page.tsx
 @@ -2,7 +2,10 @@ import { ThemeSelect } from "@/components/ThemeProvider";
@@ -146,21 +190,28 @@ index 017fc1f..d0ad420 100644
  export default async function LoginPage({
    searchParams
  }: {
-@@ -75,6 +95,14 @@ export default async function LoginPage({
-             <SubmitButton type="submit" pendingLabel={form.pending}>{form.submit}</SubmitButton>
-           </form>
- 
+@@ -61,6 +81,21 @@ export default async function LoginPage({
+           {typeof message === "string" && message && (
+             <p role="status" className="mt-4 break-words rounded-md bg-slate-100 px-3 py-2 text-sm text-ink">{message}</p>
+           )}
 +          {formMode !== "reset" && googleAuthEnabled() && (
-+            <form action={signInWithGoogle} className="mt-3">
-+              <button type="submit" className={secondaryLink}>
-+                {formMode === "signup" ? "Googleで登録" : "Googleでログイン"}
-+              </button>
-+            </form>
++            <>
++              <form action={signInWithGoogle} className="mt-4 flex justify-center">
++                <button type="submit" className="google-signin">
++                  <span className="google-signin-logo" aria-hidden="true" />
++                  Googleで続ける
++                </button>
++              </form>
++              <div className="mt-4 flex items-center gap-3 text-xs text-muted">
++                <span className="flex-1 border-t border-slate-200" />
++                または
++                <span className="flex-1 border-t border-slate-200" />
++              </div>
++            </>
 +          )}
-+
-           {formMode === "login" && (
-             <>
-               <Link className="mt-2 inline-flex min-h-11 items-center text-sm font-semibold text-ink underline" href="/login?mode=reset">
+           <form key={formMode} action={form.action} aria-labelledby="auth-heading" className="mt-4 grid gap-4">
+             <FieldLabel>
+               メールアドレス
 diff --git a/src/app/privacy/page.tsx b/src/app/privacy/page.tsx
 index 36fb78d..e8b4a33 100644
 --- a/src/app/privacy/page.tsx
@@ -240,3 +291,67 @@ index 0000000..5ffbf0f
 +    return false;
 +  }
 +}
+diff --git a/src/lib/supabase/auth-fetch.ts b/src/lib/supabase/auth-fetch.ts
+new file mode 100644
+index 0000000..45b21b0
+--- /dev/null
++++ b/src/lib/supabase/auth-fetch.ts
+@@ -0,0 +1,20 @@
++// GoTrue stores the token response as the session. Remove upstream provider
++// credentials before auth-js can put them into the SSR cookie or emit SIGNED_IN.
++export const authFetch: typeof fetch = async (input, init) => {
++  const url = new URL(input instanceof Request ? input.url : input.toString());
++  const tokenEndpoint = new URL("/auth/v1/token", process.env.NEXT_PUBLIC_SUPABASE_URL);
++  if (url.origin !== tokenEndpoint.origin || url.pathname !== tokenEndpoint.pathname) {
++    return fetch(input, init);
++  }
++
++  const response = await fetch(input, { ...init, cache: "no-store" });
++  if (!response.ok) return response;
++
++  const session = await response.json();
++  delete session.provider_token;
++  delete session.provider_refresh_token;
++  const headers = new Headers(response.headers);
++  headers.delete("content-length");
++  headers.delete("content-encoding");
++  return Response.json(session, { status: response.status, headers });
++};
+diff --git a/src/lib/supabase/server.ts b/src/lib/supabase/server.ts
+index c0148f9..952efe9 100644
+--- a/src/lib/supabase/server.ts
++++ b/src/lib/supabase/server.ts
+@@ -1,5 +1,6 @@
+ import { createServerClient } from "@supabase/ssr";
+ import { cookies } from "next/headers";
++import { authFetch } from "./auth-fetch";
+ import type { CookieOptions } from "@supabase/ssr";
+ 
+ type CookieToSet = {
+@@ -15,6 +16,7 @@ export async function createSupabaseServerClient() {
+     process.env.NEXT_PUBLIC_SUPABASE_URL!,
+     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+     {
++      global: { fetch: authFetch },
+       cookies: {
+         getAll() {
+           return cookieStore.getAll();
+diff --git a/src/middleware.ts b/src/middleware.ts
+index d4fe9ca..68fecea 100644
+--- a/src/middleware.ts
++++ b/src/middleware.ts
+@@ -1,5 +1,6 @@
+ import { type NextRequest, NextResponse } from "next/server";
+ import { createServerClient } from "@supabase/ssr";
++import { authFetch } from "@/lib/supabase/auth-fetch";
+ import type { CookieOptions } from "@supabase/ssr";
+ 
+ type CookieToSet = {
+@@ -19,6 +20,7 @@ export async function middleware(request: NextRequest) {
+     process.env.NEXT_PUBLIC_SUPABASE_URL!,
+     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+     {
++      global: { fetch: authFetch },
+       cookies: {
+         getAll() {
+           return request.cookies.getAll();

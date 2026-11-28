@@ -2,6 +2,39 @@
 @tailwind components;
 @tailwind utilities;
 
+@font-face {
+  font-family: "Google Sans";
+  src: url("/google-sans-medium.woff2") format("woff2");
+  font-weight: 500;
+  font-display: swap;
+}
+
+.google-signin {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 0 12px;
+  background: #fff;
+  border: 1px solid #747775;
+  border-radius: 4px;
+  color: #1f1f1f;
+  font: 500 14px/20px "Google Sans", system-ui, sans-serif;
+}
+
+.google-signin:focus-visible {
+  outline: 2px solid #1a73e8;
+  outline-offset: 2px;
+}
+
+.google-signin-logo {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  /* Display the original G at the center of Google's light web button artwork. */
+  background: url("/google-signin-light.png") center / 40px 40px no-repeat;
+}
+
 :root {
   color-scheme: light;
 }

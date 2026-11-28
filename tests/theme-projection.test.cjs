@@ -12,9 +12,9 @@ test('theme scope exactly reviews every changed/added file; DB/RPC/auth/aggregat
     const source=theme.readBeforeTheme(file);
     assert.equal(source,theme.gitSource(theme.base,file),file);
   }
-  const authConfig = 'src/lib/auth-config.ts';
-  assert.deepEqual(theme.historicalFiles([authConfig]), []); // Verify the exact added source against its patch.
-  assert.deepEqual(git('ls-files','--cached','--others','--exclude-standard').filter(product).sort(),[...files,...theme.added,...environmentReview.added,...theme.publicEncounterAdded,authConfig].sort());
+  const googleSources = ['src/lib/auth-config.ts', 'src/lib/supabase/auth-fetch.ts'];
+  assert.deepEqual(theme.historicalFiles(googleSources), []); // Verify exact added sources against their patch.
+  assert.deepEqual(git('ls-files','--cached','--others','--exclude-standard').filter(product).sort(),[...files,...theme.added,...environmentReview.added,...theme.publicEncounterAdded,...googleSources].sort());
 });
 test('historical projection rejects arbitrary edits to every reviewed theme file',()=>{
   for(const file of theme.changes.keys()){

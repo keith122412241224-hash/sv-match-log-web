@@ -23,14 +23,23 @@ const page = require('../src/app/login/page').default;
 const { GET } = require('../src/app/auth/confirm/route');
 Module._load = originalLoad;
 
-function forms(node) {
-  if (!node || typeof node !== 'object') return [];
-  if (Array.isArray(node)) return node.flatMap(forms);
-  return [...(node.type === 'form' ? [node] : []), ...forms(node.props?.children)];
+function flatten(node) {
+  if (Array.isArray(node)) return node.flatMap(flatten);
+  if (node && typeof node === 'object') return [node, ...flatten(node.props.children)];
+  return [node];
 }
-async function googleForm() {
-  return forms(await page({ searchParams: Promise.resolve({}) }))
-    .find(form => form.props.children?.props?.children === 'Googleでログイン');
+async function googleForm(mode = 'login') {
+  const nodes = flatten(await page({ searchParams: Promise.resolve({ mode }) }));
+  const google = nodes.find(node => node?.type === 'form' && flatten(node).includes('Googleで続ける'));
+  const email = nodes.findIndex(node => node?.type === 'form' && node.props['aria-labelledby'] === 'auth-heading');
+  assert.ok(email >= 0);
+  if (google) {
+    assert.ok(flatten(google).some(node => node?.props?.className === 'google-signin-logo' && node.props['aria-hidden'] === 'true'));
+    assert.ok(nodes.indexOf(google) < nodes.indexOf('または') && nodes.indexOf('または') < email);
+  } else {
+    assert.ok(!nodes.includes('または'));
+  }
+  return google;
 }
 
 test('production pair, server-only flag and server action stay in agreement', async t => {
@@ -43,6 +52,8 @@ test('production pair, server-only flag and server action stay in agreement', as
   delete process.env.SUPABASE_GOOGLE_AUTH_ENABLED;
   assert.equal(await googleForm(), undefined);
   process.env.SUPABASE_GOOGLE_AUTH_ENABLED = 'true';
+  assert.ok(await googleForm('signup'));
+  assert.equal(await googleForm('reset'), undefined);
   const start = (await googleForm()).props.action;
   providerUrl = api + '/auth/v1/authorize?' + new URLSearchParams({ provider: 'google', redirect_to: site+'/auth/confirm' });
   await assert.rejects(start(), e => e.location === providerUrl);
