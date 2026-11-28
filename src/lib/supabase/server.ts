@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { authFetch } from "./auth-fetch";
 import type { CookieOptions } from "@supabase/ssr";
 
 type CookieToSet = {
@@ -15,6 +16,7 @@ export async function createSupabaseServerClient() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      global: { fetch: authFetch },
       cookies: {
         getAll() {
           return cookieStore.getAll();

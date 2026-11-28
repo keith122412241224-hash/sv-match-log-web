@@ -1,20 +1,28 @@
 import { type EmailOtpType } from "@supabase/supabase-js";
 import { type NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { authSiteOrigin } from "@/lib/auth-config";
 
 export async function GET(request: NextRequest) {
-  const { searchParams, origin } = new URL(request.url);
+  const requestUrl = new URL(request.url);
+  const { searchParams } = requestUrl;
+  const origin = authSiteOrigin();
   const code = searchParams.get("code");
   const tokenHash = searchParams.get("token_hash");
   const type = searchParams.get("type") as EmailOtpType | null;
-  const next = normalizeNextPath(searchParams.get("next"));
+  const next = searchParams.get("next") === "/auth/reset-password" ? "/auth/reset-password" : "/";
+  const failure = () => {
+    console.info("auth.confirm rejected");
+    return finish(`${origin}/login?message=${encodeURIComponent("ログインリンクを確認できませんでした")}`);
+  };
+  if (searchParams.has("error") || searchParams.has("error_code") || (code && tokenHash)) return failure();
   const supabase = await createSupabaseServerClient();
 
   if (code) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
 
     if (!error) {
-      return NextResponse.redirect(`${origin}${next}`);
+      return finish(`${origin}${next}`);
     }
   }
 
@@ -25,17 +33,16 @@ export async function GET(request: NextRequest) {
     });
 
     if (!error) {
-      return NextResponse.redirect(`${origin}${next}`);
+      return finish(`${origin}${next}`);
     }
   }
 
-  return NextResponse.redirect(`${origin}/login?message=${encodeURIComponent("ログインリンクを確認できませんでした")}`);
+  return failure();
 }
 
-function normalizeNextPath(next: string | null) {
-  if (!next || !next.startsWith("/") || next.startsWith("//")) {
-    return "/";
-  }
-
-  return next;
+function finish(location: string) {
+  const response = NextResponse.redirect(location);
+  response.headers.set("Cache-Control", "private, no-store");
+  response.headers.set("Referrer-Policy", "no-referrer");
+  return response;
 }
