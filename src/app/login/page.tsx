@@ -1,7 +1,7 @@
 import { ThemeSelect } from "@/components/ThemeProvider";
 import Link from "next/link";
 import Script from "next/script";
-import { PlayCircle } from "lucide-react";
+import { Mail, PlayCircle } from "lucide-react";
 import { redirect } from "next/navigation";
 import { sendPasswordReset, signInWithPassword, signUpWithPassword } from "@/app/actions";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -53,9 +53,9 @@ async function signInWithGoogle() {
 export default async function LoginPage({
   searchParams
 }: {
-  searchParams: Promise<{ mode?: string | string[]; message?: string | string[] }>;
+  searchParams: Promise<{ mode?: string | string[]; message?: string | string[]; notice?: string | string[] }>;
 }) {
-  const { mode, message } = await searchParams;
+  const { mode, message, notice } = await searchParams;
   const formMode = mode === "signup" || mode === "reset" ? mode : "login";
   const form = forms[formMode];
 
@@ -80,6 +80,16 @@ export default async function LoginPage({
           <h1 id="auth-heading" className="text-xl font-bold text-ink">{form.title}</h1>
           {typeof message === "string" && message && (
             <p role="status" className="mt-4 break-words rounded-md bg-slate-100 px-3 py-2 text-sm text-ink">{message}</p>
+          )}
+          {formMode === "login" && notice === "confirm-email" && !message && (
+            <div role="status" className="mt-4 space-y-2 rounded-md border border-slate-200 bg-sky-50 p-4">
+              <h2 className="flex items-center gap-2 font-bold leading-snug text-sky-900">
+                <Mail size={20} aria-hidden="true" className="shrink-0" />
+                確認メールをご確認ください
+              </h2>
+              <p className="text-sm leading-relaxed text-ink">メール内のリンクを開いて、アカウント登録を完了してください。</p>
+              <p className="text-sm leading-relaxed text-slate-600">メールが届かない場合は、迷惑メールフォルダもご確認ください。</p>
+            </div>
           )}
           {formMode !== "reset" && googleAuthEnabled() && (
             <>

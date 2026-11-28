@@ -3,12 +3,13 @@ const { test } = require('node:test'), assert = require('node:assert/strict'), M
 const originalLoad = Module._load;
 const calls = [];
 let authenticated = true;
+let signupError = null;
 Module._load = function(name, ...args) {
   if (name === 'next/headers') return { headers: async () => { throw Error('Email redirects must never read request headers'); } };
   if (name === 'next/navigation') return { redirect: path => { throw Error('redirect:' + path); } };
   if (name === 'next/cache') return { revalidatePath() {} };
   if (name === '@/lib/supabase/server') return { createSupabaseServerClient: async () => ({ auth: {
-    signUp: async payload => { calls.push(payload.options.emailRedirectTo); return { error: null }; },
+    signUp: async payload => { calls.push(payload.options.emailRedirectTo); return { error: signupError }; },
     resetPasswordForEmail: async (_, options) => { calls.push(options.redirectTo); return { error: null }; },
     exchangeCodeForSession: async () => ({ error: authenticated ? null : { message: 'invalid' } }),
     verifyOtp: async () => ({ error: authenticated ? null : { message: 'invalid' } })
@@ -42,6 +43,16 @@ test('signup and password-reset email links use only the configured trusted orig
       assert.deepEqual(calls, [], 'invalid configuration must not send mail');
     }
   } finally { if (old === undefined) delete process.env.NEXT_PUBLIC_SITE_URL; else process.env.NEXT_PUBLIC_SITE_URL = old; }
+});
+
+test('signup gives new and existing accounts the same notice and preserves unrelated errors', async t => {
+  t.after(() => { signupError = null; });
+  for (const code of [null, 'user_already_exists', 'email_exists']) {
+    signupError = code && { code, message: 'already registered' };
+    await assert.rejects(signUpWithPassword(form()), { message: 'redirect:/login?notice=confirm-email' });
+  }
+  signupError = { code: 'weak_password', message: 'weak password' };
+  await assert.rejects(signUpWithPassword(form()), { message: 'redirect:/login?mode=signup&message=weak%20password' });
 });
 
 test('confirmation routes keep redirects on the request origin and reject failed credentials', async () => {

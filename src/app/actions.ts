@@ -53,11 +53,11 @@ export async function signUpWithPassword(formData: FormData) {
     }
   });
 
-  if (error) {
+  if (error && error.code !== "user_already_exists" && error.code !== "email_exists") {
     redirect(`/login?mode=signup&message=${encodeURIComponent(error.message)}`);
   }
 
-  redirect(`/login?message=${encodeURIComponent("登録しました。確認メールが必要な設定の場合はメールを確認してください")}`);
+  redirect("/login?notice=confirm-email");
 }
 
 export async function sendPasswordReset(formData: FormData) {

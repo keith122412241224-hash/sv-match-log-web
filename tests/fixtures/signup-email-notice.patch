@@ -1,0 +1,34 @@
+diff --git a/src/app/actions.ts b/src/app/actions.ts
+index cd3ef8a..04312a6 100644
+--- a/src/app/actions.ts
++++ b/src/app/actions.ts
+@@ -56 +56 @@ export async function signUpWithPassword(formData: FormData) {
+-  if (error) {
++  if (error && error.code !== "user_already_exists" && error.code !== "email_exists") {
+@@ -60 +60 @@ export async function signUpWithPassword(formData: FormData) {
+-  redirect(`/login?message=${encodeURIComponent("登録しました。確認メールが必要な設定の場合はメールを確認してください")}`);
++  redirect("/login?notice=confirm-email");
+diff --git a/src/app/login/page.tsx b/src/app/login/page.tsx
+index 5ab1bb3..595fc1c 100644
+--- a/src/app/login/page.tsx
++++ b/src/app/login/page.tsx
+@@ -4 +4 @@ import Script from "next/script";
+-import { PlayCircle } from "lucide-react";
++import { Mail, PlayCircle } from "lucide-react";
+@@ -56 +56 @@ export default async function LoginPage({
+-  searchParams: Promise<{ mode?: string | string[]; message?: string | string[] }>;
++  searchParams: Promise<{ mode?: string | string[]; message?: string | string[]; notice?: string | string[] }>;
+@@ -58 +58 @@ export default async function LoginPage({
+-  const { mode, message } = await searchParams;
++  const { mode, message, notice } = await searchParams;
+@@ -83,0 +84,10 @@ export default async function LoginPage({
++          {formMode === "login" && notice === "confirm-email" && !message && (
++            <div role="status" className="mt-4 space-y-2 rounded-md border border-slate-200 bg-sky-50 p-4">
++              <h2 className="flex items-center gap-2 font-bold leading-snug text-sky-900">
++                <Mail size={20} aria-hidden="true" className="shrink-0" />
++                確認メールをご確認ください
++              </h2>
++              <p className="text-sm leading-relaxed text-ink">メール内のリンクを開いて、アカウント登録を完了してください。</p>
++              <p className="text-sm leading-relaxed text-slate-600">メールが届かない場合は、迷惑メールフォルダもご確認ください。</p>
++            </div>
++          )}
