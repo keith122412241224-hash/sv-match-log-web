@@ -5,6 +5,7 @@ import { ThemeSelect } from "@/components/ThemeProvider";
 import { appendGuestMatch, loadIdentifiedGuestMatches, mutateGuestMatch } from "@/lib/guest-records";
 import { MatchActions, MatchActionsProvider } from "@/components/matches/MatchActions";
 import Link from "next/link";
+import { FirstUseTerms, LegalLinks } from "@/components/LegalLinks";
 import { useEffect, useMemo, useState } from "react";
 import { DeckAnalysisCards } from "@/components/analysis/DeckAnalysisCards";
 import { EmptyState } from "@/components/EmptyState";
@@ -107,6 +108,7 @@ export function GuestApp({
           <ThemeSelect />
           <Link className="shrink-0 rounded-md bg-ink px-3 py-2 text-sm font-semibold text-white sm:px-4" href="/login">ログイン</Link>
         </div>
+        <div className="mx-auto max-w-7xl px-3 pb-2 sm:px-4"><FirstUseTerms /></div>
         <nav className="mx-auto grid max-w-7xl grid-cols-4 gap-1 px-2 pb-2 sm:flex sm:overflow-x-auto sm:px-4 sm:pb-3">
           {([
             ["home", "ホーム"],
@@ -191,6 +193,7 @@ export function GuestApp({
         {tab === "analysis" ? <DeckAnalysisCards summaries={deckSummaries} /> : null}
         {tab === "matrix" ? <MatchupMatrix rows={matrix} opponentDecks={guestDecks} title="ゲスト対面勝率表" environmentName="ゲスト入力" /> : null}
       </main>
+      <footer className="px-3 py-4"><LegalLinks /></footer>
     </div>
   );
 }

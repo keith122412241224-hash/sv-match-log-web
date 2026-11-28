@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { Suspense } from "react";
-import { Analytics } from "@vercel/analytics/next";
+import { SiteAnalytics } from "@/components/SiteAnalytics";
 import { GlobalPendingIndicator } from "@/components/GlobalPendingIndicator";
 import "./globals.css";
 import "./theme.css";
@@ -12,6 +12,7 @@ const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://sv-match-log-web.
 const GOOGLE_SITE_VERIFICATION = process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION;
 
 export const metadata: Metadata = {
+  referrer: "strict-origin",
   metadataBase: new URL(SITE_URL),
   title: {
     default: "SV Match Log Web | シャドバWB向け戦績管理ツール",
@@ -66,7 +67,7 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
           <GlobalPendingIndicator />
         </Suspense>
         <ThemeProvider>{children}</ThemeProvider>
-        <Analytics />
+        <SiteAnalytics />
       </body>
     </html>
   );

@@ -1,264 +1,66 @@
-import { ThemeSelect } from "@/components/ThemeProvider";
-import Link from "next/link";
 import type { Metadata } from "next";
-import { ShieldCheck } from "lucide-react";
-import { BrandMark } from "@/components/BrandMark";
+import { LegalDocument, SupportEmail } from "@/components/LegalDocument";
 
 export const metadata: Metadata = {
   title: "プライバシーポリシー",
-  description: "SV Match Log Web のプライバシーポリシーです。",
-  alternates: {
-    canonical: "/privacy"
-  }
+  description: "SV Match Logの認証、戦績の集計、アクセス解析および個人情報に関する手続きについて説明します。",
+  alternates: { canonical: "/privacy" }
 };
 
-const policySections = [
-  {
-    title: "1. 取得する情報",
-    body: (
-      <>
-        <p>本サービスでは、サービスの提供・運営に必要な範囲で、以下の情報を取得する場合があります。</p>
-        <ul>
-          <li>アカウント登録・ログインに必要なメールアドレス等のアカウント情報</li>
-          <li>Googleでログインする場合、Googleアカウントの識別子、メールアドレスとその確認状態、およびGoogleから提供される名前・プロフィール画像URLなどの基本プロフィール情報</li>
-          <li>使用デッキ</li>
-          <li>対戦相手のデッキ</li>
-          <li>先攻・後攻</li>
-          <li>勝敗</li>
-          <li>対戦日時、メモその他ユーザーが登録した戦績情報</li>
-          <li>デッキ候補の提案内容</li>
-          <li>本サービスの利用状況に関する情報</li>
-          <li>ゲストモード利用時にユーザーの端末内へ保存される戦績情報</li>
-        </ul>
-      </>
-    )
-  },
-  {
-    title: "2. 情報の利用目的",
-    body: (
-      <>
-        <p>取得した情報は、以下の目的で利用します。</p>
-        <ol>
-          <li>本サービスの提供、運営および機能改善のため</li>
-          <li>Googleでログインする場合、Supabase Authを通じて本人を認証し、既存アカウントとの照合およびログイン状態の維持を行うため</li>
-          <li>ユーザーの戦績の保存、集計および表示のため</li>
-          <li>不具合調査、セキュリティ対策および不正利用防止のため</li>
-          <li>本サービス全体の利用状況やゲーム環境の分析のため</li>
-          <li>
-            個人を特定できない形で戦績データを集計・統計化し、本サービス上での情報提供、YouTube、Xその他SNS、ブログ等での環境分析・情報発信に利用するため
-          </li>
-          <li>お問い合わせへの対応のため</li>
-          <li>その他、本サービスの提供に付随する目的のため</li>
-        </ol>
-        <p>Googleでの本人確認後、本サービスはブラウザーのCookieを使ってログイン状態を維持します。ログインに失敗した場合などは、障害の調査や不正利用の監視のために認証処理の結果を記録します。</p>
-      </>
-    )
-  },
-  {
-    title: "3. 戦績データの集計・公開について",
-    body: (
-      <>
-        <p>
-          本サービスに登録された戦績データは、ゲーム環境の分析等を目的として、複数ユーザーのデータと合わせて集計・統計化する場合があります。
-        </p>
-        <p>公開する情報の例は以下のとおりです。</p>
-        <ul>
-          <li>デッキ別の試合数</li>
-          <li>デッキ別の勝率</li>
-          <li>対戦相手別の使用状況</li>
-          <li>デッキ同士の対面勝率</li>
-          <li>Tier表</li>
-          <li>環境相関図</li>
-          <li>その他、ゲーム環境を分析するための統計情報</li>
-        </ul>
-        <p>これらを公開する場合、個々のユーザーを特定できる情報と結び付けた状態では公開しません。</p>
-        <p>集計した統計情報については、本サービス内のほか、YouTube、Xその他SNS、ブログ等で公開・利用する場合があります。</p>
-      </>
-    )
-  },
-  {
-    title: "4. 個人情報の第三者提供",
-    body: (
-      <>
-        <p>本サービスは、次の場合を除き、ユーザー本人の同意なく個人情報を第三者へ提供しません。</p>
-        <ul>
-          <li>法令に基づく場合</li>
-          <li>人の生命、身体または財産の保護のために必要な場合</li>
-          <li>本サービスの運営に必要な範囲で業務を委託する場合</li>
-          <li>その他、法令により認められている場合</li>
-        </ul>
-        <p>
-          なお、複数ユーザーのデータを集計し、特定の個人との対応関係が排除された統計情報については、個人情報とは区別して取り扱います。
-        </p>
-      </>
-    )
-  },
-  {
-    title: "5. 外部サービスの利用",
-    body: (
-      <>
-        <p>本サービスでは、サービス提供、認証、データ保存、ホスティング、アクセス解析等のために、以下の外部サービスを利用します。</p>
-        <ul>
-          <li>Supabase</li>
-          <li>Vercel（ホスティングおよびVercel Web Analyticsによるアクセス解析）</li>
-        </ul>
-        <p>これらの外部サービスにおける情報の取り扱いについては、各サービス提供者のプライバシーポリシー等が適用される場合があります。</p>
-      </>
-    )
-  },
-  {
-    title: "6. 情報の管理",
-    body: (
-      <>
-        <p>本サービスは、取得した情報について、不正アクセス、漏えい、改ざん、紛失等を防止するため、合理的な安全管理措置を講じるよう努めます。</p>
-        <p>また、本サービスの運営に不要となった情報については、必要に応じて適切な方法で削除します。</p>
-      </>
-    )
-  },
-  {
-    title: "7. ユーザーによる登録情報の削除等",
-    body: (
-      <>
-        <p>ユーザーは、本サービスが提供する機能またはお問い合わせを通じて、自身の登録情報の確認、修正または削除を依頼できる場合があります。</p>
-        <p>法令上対応が必要な場合には、本人確認を行ったうえで適切に対応します。</p>
-      </>
-    )
-  },
-  {
-    title: "8. Cookie等について",
-    body: (
-      <>
-        <p>本サービスでは、ログイン状態の維持にCookieを、ゲストモードの戦績保存や入力設定の保持にlocalStorage等を使用します。</p>
-        <p>ブラウザの設定によりCookieを無効にすることもできますが、その場合、本サービスの一部機能が正常に利用できなくなる場合があります。</p>
-        <p>アクセス解析および今後の広告配信に関する情報の取り扱いは、以下の各項目をご確認ください。</p>
-      </>
-    )
-  },
-  {
-    title: "9. アクセス解析について",
-    body: (
-      <>
-        <p>本サービスでは、利用状況の把握とサービス改善のため、Vercel Web Analyticsを利用してページビュー数、訪問者数、流入元等を集計しています。</p>
-        <p>
-          閲覧したページのURL、アクセス日時、参照元、ブラウザ・OS・端末の種類、国・地域等のアクセス情報がVercelへ送信され、統計情報として利用されます。
-          本サービスでは、アクセス解析のためのCookieによる追跡や、アカウント情報との紐付けは行っていません。
-          メールアドレスや登録した戦績の内容を、アクセス解析の追加情報として送信することはありません。
-        </p>
-        <p>
-          詳しくは、<a href="https://vercel.com/docs/analytics/privacy-policy">Vercel Web Analyticsのプライバシーに関する説明</a>および
-          <a href="https://vercel.com/legal/privacy-policy">Vercelのプライバシーポリシー</a>をご確認ください。
-        </p>
-      </>
-    )
-  },
-  {
-    title: "10. Google AdSenseによる広告配信について",
-    body: (
-      <>
-        <p>
-          本サービスは、Google AdSenseの利用に向けて審査を申請しています。現在は審査中で、広告配信は開始していません。
-          広告表示コードや自動広告スクリプトは設置していません。以下は、今後広告配信を開始する場合の情報の取り扱いについての説明です。
-        </p>
-        <p>
-          広告配信を開始した場合、Googleおよびそのパートナーなどの第三者広告配信事業者がCookie等を使用し、
-          本サービスや他のウェブサイトへの過去のアクセス情報に基づいて広告を配信することがあります。
-          広告Cookieにより、ユーザーの興味・関心に応じたパーソナライズド広告が表示される場合があります。
-        </p>
-        <p>
-          広告配信時には、閲覧ページのURLやIPアドレス等がGoogleなどの広告配信事業者へ送信される場合があります。
-          これらの情報は、広告の配信・効果測定、不正利用の防止、設定に応じた広告のパーソナライズ等に利用されます。
-        </p>
-        <p>
-          ユーザーは、<a href="https://adssettings.google.com/partnerads?hl=ja">Googleの広告設定</a>から、
-          Googleの広告サービスを利用するサイトでのパーソナライズド広告を無効にできます。
-          無効にしても広告そのものが表示されなくなるわけではなく、効果測定や不正利用防止等のためにCookie等が使われる場合があります。
-        </p>
-        <p>Googleによる情報の取り扱いやCookie等の利用については、以下の公式情報をご確認ください。</p>
-        <ul>
-          <li><a href="https://policies.google.com/privacy?hl=ja">Googleプライバシーポリシー</a></li>
-          <li><a href="https://policies.google.com/technologies/partner-sites?hl=ja">Googleのサービスを使用するサイトやアプリから収集した情報のGoogleによる使用</a></li>
-          <li><a href="https://policies.google.com/technologies/ads?hl=ja">Googleの広告に関するポリシー</a></li>
-        </ul>
-        <p>実際に広告配信を開始する際は、利用する広告サービスや設定に応じて本ポリシーを更新し、必要な通知・同意取得等に対応します。</p>
-      </>
-    )
-  },
-  {
-    title: "11. 本ポリシーの変更",
-    body: (
-      <>
-        <p>本サービスは、法令の変更、本サービスの機能変更その他必要に応じて、本プライバシーポリシーを変更することがあります。</p>
-        <p>重要な変更を行う場合は、本サービス上その他適切な方法でお知らせします。</p>
-      </>
-    )
-  },
-  {
-    title: "12. お問い合わせ",
-    body: (
-      <>
-        <p>本プライバシーポリシーまたは本サービスにおける情報の取り扱いに関するお問い合わせは、以下のXアカウントのDMまでお願いいたします。</p>
-        <dl>
-          <div>
-            <dt>運営者</dt>
-            <dd>ゆっきーずんだch</dd>
-          </div>
-          <div>
-            <dt>お問い合わせ先</dt>
-            <dd>
-              <a className="font-bold text-emerald-700 hover:text-emerald-800" href="https://x.com/yuki_swb" rel="noreferrer" target="_blank">
-                @yuki_swb
-              </a>
-              のDM
-            </dd>
-          </div>
-        </dl>
-      </>
-    )
-  }
+const sections = [
+  { title: "1. 取得する情報", body: <ul>
+    <li>アカウントのメールアドレス、確認状態、サービス内のユーザーID、認証方式、ログインに必要な情報。Googleログイン時の情報は第5項に記載します。</li>
+    <li>登録したデッキ、使用・対戦相手のデッキ、先攻・後攻、勝敗、対戦日時、ランク、環境、メモ、デッキ候補の提案など、利用者が入力した情報。</li>
+    <li>通信・障害調査に用いるアクセス日時、接続元IPアドレス、ブラウザー・端末、アクセス先、処理結果。ゲスト戦績と端末設定は第8項、アクセス解析は第9項に記載します。</li>
+    <li>問い合わせに用いたメールアドレスまたはXアカウント、送信内容、本人確認と対応の履歴。</li>
+  </ul> },
+  { title: "2. 情報の利用目的", body: <ul>
+    <li>メールアドレス・識別子・認証情報を、登録、本人認証、同一会員の照合、ログイン状態の維持、確認・再設定メールの送信に使います。</li>
+    <li>ユーザーIDと登録内容を結び付け、本人による戦績・デッキの保存、閲覧、編集や分析、提案の管理に使います。</li>
+    <li>戦績を集計してゲーム環境を分析し、第3項の評価・情報提供に利用します。</li>
+    <li>アクセス状況を画面の改善に、通信・認証の記録を障害調査と不正利用対策に、問い合わせ内容を本人確認と回答に使います。</li>
+  </ul> },
+  { title: "3. 戦績の集計・公開とAI総合環境評価", body: <>
+    <p>デッキ別の使用状況・勝率、対面別の試合数、期間別の傾向などを集計します。集計時にユーザーIDを使って投稿者の偏りを計算します。個人と結び付かない統計を、本サービス、YouTube、X、ブログなどで紹介する場合があります。</p>
+    <p>管理者はOpenAIのChatGPTで総合環境評価の案を作成します。渡すゲームデータは個人が特定できない集計に限り、公開の攻略・大会情報や過去の評価も参照します。メールアドレス、Googleプロフィール、会員ID、個別戦績・メモ、認証情報は分析の入力対象から除きます。少数の投稿から個人が分かる集計は使用しません。会員向けの公開前に管理者が内容を確認・承認します。</p>
+    <p>2026年11月28日、運営者は利用中のChatGPTでモデル改善への協力設定がオフであることを確認しました。会話や添付ファイルはこの設定とは別に保存される場合があります。この環境での具体的な保存期間、設定変更前の入力や学習への利用の有無は確認できていません。<a href="https://openai.com/policies/privacy-policy/">OpenAIのプライバシーポリシー</a></p>
+  </> },
+  { title: "4. 第三者提供・外部委託・国外での取り扱い", body: <>
+    <p>法令に基づく場合、人の生命・身体・財産の保護に必要で本人の同意を得ることが困難な場合など、法令が認める場合を除き、個人データを第三者へ提供する際はあらかじめ本人の同意を得ます。</p>
+    <p>認証、保存、配信、メール送信には第5項の外部サービスを使用します。運営者が個人データの取り扱いを委託する場合は、委託先の利用目的、アクセス権限や再委託の条件を確認し、必要な監督を行います。個人との対応関係を持たない統計の公開は、個人別の戦績の提供とは区別します。</p>
+    <p>主データベースのリージョンは日本（東京）です。Webアプリのサーバー処理には米国のリージョンを使い、配信・認証・サポート、Googleによるメール配送・問い合わせメールの保管等でも国外で情報が取り扱われる場合があります。これらのログ・バックアップ等のすべての保管国は特定できていません。外国にある委託先等への提供は、適用される法令に従い、必要な情報提供、同意取得または相当措置の確認等を行います。取扱国・措置に関する照会は第12項で受け付けます。</p>
+  </> },
+  { title: "5. 外部サービスとGoogleログイン", body: <>
+    <ul>
+      <li>Supabaseは認証とデータ保存に使用します。認証用メールアドレス・識別子、戦績・デッキ等を保存します。確認・再設定メールの配送にはGoogleのGmail（SMTP）を利用し、宛先と確認リンクを含むメール本文を取り扱います。正式窓口に届いたメールと返信もGmailで管理します。<a href="https://supabase.com/privacy">Supabaseのプライバシーポリシー</a></li>
+      <li>VercelはWebサイトの配信、サーバー処理、障害調査および第9項の解析に使用します。認証リクエストを処理する際はセッション等の必要な情報も扱います。<a href="https://vercel.com/legal/privacy-policy">Vercelのプライバシーポリシー</a></li>
+      <li>Googleで続ける場合、OpenID Connectのログイン用権限（openid、メール、基本プロフィール）を使用します。Googleの識別子、メールアドレス・確認状態、提供される名前・プロフィール画像URLなどをSupabase Authが受け取り、ユーザーIDに関連付けて保存します。GoogleのパスワードはGoogleに入力します。メールボックスやGoogleドライブを読む権限は要求しません。</li>
+    </ul>
+    <p>Googleから取得した情報の用途は本人認証とアカウント管理です。広告配信やAI環境評価には使いません。ログインに不要なGoogle API用トークンはアプリのセッションCookieへの保存前に除外します。Googleの認証情報の利用には<a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>が適用されます。<a href="https://policies.google.com/privacy?hl=ja">Googleのプライバシーポリシー</a></p>
+  </> },
+  { title: "6. 安全管理と保存期間", body: <>
+    <p>通信にはHTTPSを利用します。会員の戦績へのアクセスは認証とデータベースの行単位の権限制御で制限し、運営上の管理機能は管理者に限定します。認証に失敗した場合などは、処理結果や件数を調べて対応します。</p>
+    <p>認証用プロフィールと戦績は会員による利用・管理に必要な期間、問い合わせ記録は回答・事後対応に必要な期間取り扱います。削除の申請時には第7項に従います。ログ・バックアップはサービスごとの保持条件に従うため、通常のデータベースと消去時期が異なる場合があります。</p>
+    <p>基盤のアクセスログには、認証やメール再設定のURLに含まれる短時間有効なコード等が記録される場合があります。運営者は閲覧権限を制限し、調査には値を表示せずに確認できる件数や処理結果を用います。</p>
+  </> },
+  { title: "7. 退会・削除・開示等の請求", body: <>
+    <p>退会・アカウント削除はメールで受け付け、運営者が手作業で対応します。登録メールアドレスから第12項の窓口へ希望する手続きをお知らせください。登録先への返信等で本人を確認します。登録先を利用できない場合はご相談ください。保有個人データの開示、訂正・追加・削除、利用停止・消去、第三者提供の停止、提供記録の開示等について、法令に従い結果を回答します。</p>
+    <p>個別の戦績は会員自身でも編集・削除できます。退会時は本人の認証情報・戦績・登録デッキ等の削除対象を確認します。共有環境や他の方の戦績に影響する場合は先に対象を切り分け、対応できる範囲と結果をお知らせします。既に個人と結び付かない形で集計・公表した統計は残る場合があります。端末のゲストデータはブラウザーのサイトデータ削除などで消去できます。</p>
+    <p><a href="https://myaccount.google.com/connections">Google側で連携を解除</a>しても、SV Match Logの会員情報や戦績は削除されません。退会を希望する場合は別途ご連絡ください。</p>
+  </> },
+  { title: "8. Cookieと端末内の保存", body: <p>ログイン開始時の照合とログイン状態の維持にはCookieを使用します。無効にするとログインできない場合があります。ゲスト戦績、テーマ、入力・表示の設定等にはブラウザーのローカルストレージ等を使います。ゲスト戦績は端末内に保存し、会員が取り込み操作をした場合にアカウントへ保存します。</p> },
+  { title: "9. アクセス解析", body: <>
+    <p>Vercel Web Analyticsで主要ページの閲覧数、訪問者数、流入元、日時、ブラウザー・OS・端末、国・地域などを集計し、利用状況の把握と改善に使います。アクセス解析用のCookieや会員IDを使った追跡、入力した戦績・メールアドレスの送信は行いません。</p>
+    <p>解析対象は決められたページのパスに限り、URLのクエリ・フラグメントを除きます。ログイン・認証・再設定・管理画面は対象外です。認証や配信のための基盤ログは第6項のとおりです。<a href="https://vercel.com/docs/analytics/privacy-policy">Vercel Web Analyticsで扱う情報</a></p>
+  </> },
+  { title: "10. 広告について", body: <p>現在、Google AdSenseによる広告を配信しておらず、配信の予定もありません。将来広告を導入する場合は、配信に先立って提供先、Cookie等を通じて送信する情報、利用目的、選択方法を掲載し、対象地域と配信方式に応じた同意取得に対応します。<a href="https://policies.google.com/technologies/partner-sites?hl=ja">Googleパートナーサイトでの情報の取り扱い</a></p> },
+  { title: "11. 本ポリシーの変更", body: <p>変更内容と適用開始日は本サービス上でお知らせします。重要な変更は適用前に周知し、法令上同意が必要な場合や、Googleから取得した情報を従来説明した用途を超えて使う場合は、利用を始める前に説明し、必要な同意を得ます。</p> },
+  { id: "contact", title: "12. お問い合わせ・運営者", body: <>
+    <p>SV Match Logの運営者は「ゆっきーずんだch」です。サービスに関するお問い合わせ、個人情報の請求、運営者の氏名・住所等についてのお問い合わせは <SupportEmail /> で受け付けます。法令に基づく運営者情報の照会には遅滞なく回答します。補助窓口として<a href="https://x.com/yuki_swb">X（@yuki_swb）のDM</a>も利用できます。</p>
+    <p>問い合わせには、パスワード、認証コード、確認・再設定メールのリンク、Cookieなどの認証情報を記載しないでください。</p>
+  </> }
 ];
 
 export default function PrivacyPage() {
-  return (
-    <main className="min-h-screen bg-surface text-ink">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3">
-          <Link className="flex items-center gap-2 font-bold" href="/">
-            <BrandMark className="size-10" />
-            <span>SV Match Log Web</span>
-          </Link>
-          <ThemeSelect />
-          <Link className="rounded-md px-3 py-2 text-sm font-semibold text-muted hover:bg-slate-100 hover:text-ink" href="/">
-            トップへ
-          </Link>
-        </div>
-      </header>
-
-      <div className="mx-auto grid max-w-5xl gap-6 px-4 py-8 sm:py-10">
-        <section className="border-b border-slate-200 pb-6">
-          <div className="flex items-center gap-2 text-sm font-bold text-emerald-700">
-            <ShieldCheck size={18} aria-hidden="true" />
-            SV Match Log Web
-          </div>
-          <h1 className="mt-3 text-3xl font-black sm:text-4xl">プライバシーポリシー</h1>
-          <p className="mt-4 max-w-3xl text-sm leading-7 text-muted">
-            SV Match Log Web（以下「本サービス」といいます。）は、本サービスを利用するユーザーの情報を適切に取り扱うため、以下のとおりプライバシーポリシーを定めます。
-          </p>
-        </section>
-
-        <div className="grid gap-5">
-          {policySections.map((section) => (
-            <section className="rounded-md border border-slate-200 bg-white p-5 shadow-sm" key={section.title}>
-              <h2 className="text-lg font-bold text-ink">{section.title}</h2>
-              <div className="mt-3 grid gap-3 text-sm leading-7 text-muted [&_a]:text-emerald-700 [&_a]:underline [&_a]:underline-offset-2 [&_a:hover]:text-emerald-800 [&_dd]:mt-1 [&_dd]:font-semibold [&_dd]:text-ink [&_dt]:font-bold [&_dt]:text-ink [&_li]:my-1 [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5">
-                {section.body}
-              </div>
-            </section>
-          ))}
-        </div>
-
-        <p className="text-sm font-semibold text-muted">制定日：2026年9月2日</p>
-        <p className="text-sm font-semibold text-muted">最終更新日：2026年11月28日</p>
-      </div>
-    </main>
-  );
+  return <LegalDocument title="プライバシーポリシー" intro="SV Match Logで扱う情報、その用途と利用者ができる手続きを説明します。" sections={sections} dateLabel="本版の制定・公開日" />;
 }

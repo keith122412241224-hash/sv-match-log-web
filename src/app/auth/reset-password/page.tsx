@@ -1,3 +1,4 @@
+import { LegalLinks } from "@/components/LegalLinks";
 import { ThemeSelect } from "@/components/ThemeProvider";
 import { updatePassword } from "@/app/actions";
 import { FieldLabel, Input } from "@/components/Field";
@@ -26,6 +27,7 @@ export default async function ResetPasswordPage({
         {message ? (
           <p className="mt-4 rounded-md bg-slate-100 px-3 py-2 text-sm text-ink">{message}</p>
         ) : null}
+        <div className="mt-5 border-t border-slate-200 pt-4"><LegalLinks /></div>
       </section>
     </main>
   );

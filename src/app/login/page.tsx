@@ -1,3 +1,4 @@
+import { FirstUseTerms, LegalLinks } from "@/components/LegalLinks";
 import { ThemeSelect } from "@/components/ThemeProvider";
 import Link from "next/link";
 import Script from "next/script";
@@ -58,6 +59,7 @@ export default async function LoginPage({
   const { mode, message, notice } = await searchParams;
   const formMode = mode === "signup" || mode === "reset" ? mode : "login";
   const form = forms[formMode];
+  const showGoogle = formMode !== "reset" && googleAuthEnabled();
 
   return (
     <main className="grid min-h-screen place-items-center bg-surface px-4 py-10">
@@ -91,7 +93,8 @@ export default async function LoginPage({
               <p className="text-sm leading-relaxed text-slate-600">メールが届かない場合は、迷惑メールフォルダもご確認ください。</p>
             </div>
           )}
-          {formMode !== "reset" && googleAuthEnabled() && (
+          {(formMode === "signup" || showGoogle) && <div className="mt-4"><FirstUseTerms /></div>}
+          {showGoogle && (
             <>
               <form action={signInWithGoogle} className="mt-4 flex justify-center">
                 <button type="submit" className="google-signin">
@@ -148,9 +151,7 @@ export default async function LoginPage({
         </Link>
 
         <div className="mt-5 border-t border-slate-200 pt-4 text-center">
-          <Link className="text-xs font-semibold text-muted hover:text-ink" href="/privacy">
-            プライバシーポリシー
-          </Link>
+          <LegalLinks />
         </div>
       </section>
     </main>

@@ -13,14 +13,16 @@ test('theme scope exactly reviews every changed/added file; DB/RPC/auth/aggregat
     assert.equal(source,theme.gitSource(theme.base,file),file);
   }
   const googleSources = ['src/lib/auth-config.ts', 'src/lib/supabase/auth-fetch.ts'];
+  const legalSources = ['src/app/terms/page.tsx', 'src/components/LegalDocument.tsx', 'src/components/LegalLinks.tsx', 'src/components/SiteAnalytics.tsx'];
+  assert.deepEqual(theme.historicalFiles(legalSources), []); // Each addition must match its reviewed blob.
   assert.deepEqual(theme.historicalFiles(googleSources), []); // Verify exact added sources against their patch.
-  assert.deepEqual(git('ls-files','--cached','--others','--exclude-standard').filter(product).sort(),[...files,...theme.added,...environmentReview.added,...theme.publicEncounterAdded,...googleSources].sort());
+  assert.deepEqual(git('ls-files','--cached','--others','--exclude-standard').filter(product).sort(),[...files,...theme.added,...environmentReview.added,...theme.publicEncounterAdded,...googleSources,...legalSources].sort());
 });
 test('historical projection rejects arbitrary edits to every reviewed theme file',()=>{
   for(const file of theme.changes.keys()){
     const source=fs.readFileSync(file,'utf8');
-    assert.throws(()=>theme.assertReviewed(file,source+'\n/* unexpected edit */\n'),/unreviewed (?:theme|public encounter) change/);
-    assert.throws(()=>theme.assertReviewed(file,source.slice(1)),/unreviewed (?:theme|public encounter) change/);
+    assert.throws(()=>theme.assertReviewed(file,source+'\n/* unexpected edit */\n'),/unreviewed (?:theme|public encounter|legal or analytics) change/);
+    assert.throws(()=>theme.assertReviewed(file,source.slice(1)),/unreviewed (?:theme|public encounter|legal or analytics) change/);
   }
   for(const file of theme.publicEncounterAdded){
     const source=fs.readFileSync(file,'utf8');
