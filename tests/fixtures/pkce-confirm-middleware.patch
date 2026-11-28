@@ -1,0 +1,8 @@
+diff --git a/src/middleware.ts b/src/middleware.ts
+index 68fecea..99407e1 100644
+--- a/src/middleware.ts
++++ b/src/middleware.ts
+@@ -14,0 +15,3 @@ export async function middleware(request: NextRequest) {
++  // The callback needs its PKCE verifier even if the previous session was revoked.
++  if (request.nextUrl.pathname === "/auth/confirm") return response;
++
