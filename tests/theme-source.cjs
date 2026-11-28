@@ -82,7 +82,34 @@ const signupNoticeChanges = readPatch('signup-email-notice.patch');
 const signupNoticeSources = new Map();
 const pkceConfirmChanges = readPatch('pkce-confirm-middleware.patch');
 const pkceConfirmSources = new Map();
+// Pin the reviewed Git blob IDs so historical guards can compare pre-policy source.
+const legalBase = '92e7e6e375bc866c2883b48aeaee44670ee6d2d6';
+const legalBlobs = {
+  'src/components/guest/GuestApp.tsx': '64890000dd6de32ae3a5156ae04bfd8d571e59c9',
+  'src/app/guide/page.tsx': 'dcbffafc4b0c06b9f9a62355ed70cbe33d722ff5',
+  'src/app/auth/reset-password/page.tsx': 'b2b47e1d01cdaafd7014f2fc5ed00ba32f9ce660',
+  'src/app/layout.tsx': 'c4a6166fc0903c92223a95c39b526609a9e1ccb3',
+  'src/app/login/page.tsx': 'b66bc57673267876e91091f5a12d364bf89f0711',
+  'src/app/page.tsx': '221d36316c9249db8d2fed0e232fc90b758c7103',
+  'src/app/privacy/page.tsx': '4195fc703dd1e27a8dc13188e62b4807b56cc4d7',
+  'src/app/sitemap.ts': 'e35de64c1e26e9031ffd3e0588e512147122d4e4',
+  'src/components/AppShell.tsx': 'c40ae06bd430307201035119d68047f2670a4fa0',
+  'src/app/terms/page.tsx': 'caffb709cd700d598d567644521b11624827dff8',
+  'src/components/LegalDocument.tsx': '83c470ef344f87808b9def1d0f9075fa013fb3b5',
+  'src/components/LegalLinks.tsx': '1ff025527c33231de066cf6456fbd16461ca7791',
+  'src/components/SiteAnalytics.tsx': '90e3c4f791cf8c602f1f9113a03299be83b96919'
+};
+const legalSources = new Map();
+function beforeLegal(file, source) {
+  if (!Object.hasOwn(legalBlobs, file)) return source;
+  const bytes = Buffer.from(normalize(source));
+  const id = require('node:crypto').createHash('sha1').update('blob ' + bytes.length + '\0').update(bytes).digest('hex');
+  assert.equal(id, legalBlobs[file], 'unreviewed legal or analytics change: ' + file);
+  if (!legalSources.has(file)) legalSources.set(file, existsAt(legalBase, file) ? gitSource(legalBase, file) : '');
+  return legalSources.get(file);
+}
 function readBeforeGoogleLogin(file, source) {
+  source = beforeLegal(file, source);
   source = readBeforePatch(file, source, '1b93054c4c0c09b63c3393fdb6df024ef3fa8f98', pkceConfirmChanges, pkceConfirmSources);
   source = readBeforePatch(file, source, '00a91b06fc7561a6e4b74975a94a031b1a6d2ed2', signupNoticeChanges, signupNoticeSources);
   return readBeforePatch(file, source, '7a14e7e73a1374765bccd8a04af86a3cd15a60b2', googleLoginChanges, googleLoginSources);
@@ -140,13 +167,17 @@ function historicalFiles(files, ref) {
   }
   for (const file of publicEncounterAdded) assertPublicEncounterSource(file);
   return environmentReview.historicalFiles(files, ref).filter(file => {
+    if (Object.hasOwn(legalBlobs, file) && !existsAt(legalBase, file)) {
+      beforeLegal(file, fs.readFileSync(file, 'utf8'));
+      return false;
+    }
     const googleChange = googleLoginChanges.get(file);
     if (googleChange?.added) {
       assert.equal(normalize(fs.readFileSync(file, 'utf8')), applyExact('', googleChange.section));
       return false;
     }
     if (added.has(file) || publicEncounterAdded.has(file)) return false;
-    if (ref && (authScreenChanges.has(file) || googleLoginChanges.has(file)) && !changes.has(file) && existsAt(ref, file)) {
+    if (ref && (authScreenChanges.has(file) || googleLoginChanges.has(file) || Object.hasOwn(legalBlobs, file)) && !changes.has(file) && existsAt(ref, file)) {
       return readBeforeTheme(file) !== gitSource(ref, file);
     }
     if (!ref || !changes.has(file)) return true;

@@ -1,3 +1,4 @@
+import { FirstUseTerms, LegalLinks } from "@/components/LegalLinks";
 import { ThemeSelect } from "@/components/ThemeProvider";
 import { RankBadge } from "@/components/RankBadge";
 import { MatchActions, MatchActionsProvider } from "@/components/matches/MatchActions";
@@ -213,7 +214,8 @@ async function LandingPage() {
           <p className="mt-5 max-w-2xl text-base leading-8 text-muted">
             SV Match Log Webは、シャドバWBの対戦結果を記録・分析できる無料の戦績管理ツールです。自分の勝率やデッキ相性だけでなく、利用者全体の対戦データから、デッキの遭遇率・勝率・環境の変化を確認できます。
           </p>
-          <div className="mt-6 flex flex-wrap gap-3">
+          <div className="mt-5"><FirstUseTerms /></div>
+          <div className="mt-3 flex flex-wrap gap-3">
             <Link className="inline-flex min-h-11 items-center gap-2 rounded-md bg-ink px-5 text-sm font-bold text-white" href="/login?mode=signup">
               無料で新規登録
             </Link>
@@ -266,9 +268,7 @@ async function LandingPage() {
       </section>
       <footer className="border-t border-slate-200 bg-white">
         <div className="mx-auto flex max-w-6xl justify-end px-4 py-4">
-          <Link className="text-xs font-semibold text-muted hover:text-ink" href="/privacy">
-            プライバシーポリシー
-          </Link>
+          <LegalLinks />
         </div>
       </footer>
     </main>

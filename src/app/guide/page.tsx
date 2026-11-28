@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import Link from "next/link";
+import { FirstUseTerms, LegalLinks } from "@/components/LegalLinks";
 import { ArrowRight, BarChart3, FileText, Grid3X3, ListPlus, LogIn, PlayCircle, Swords, TrendingUp, Trophy } from "lucide-react";
 import { signOut } from "@/app/actions";
 import { BrandMark } from "@/components/BrandMark";
@@ -187,6 +188,7 @@ export default async function GuidePage() {
             <p className="mt-5 max-w-2xl text-base leading-8 text-muted">
               戦績の記録から自分の勝率・対面分析、利用者全体のデータによる環境分析まで、基本的な使い方を紹介します。まずはゲストモードで試すこともできます。
             </p>
+            {!signedIn && <div className="mt-4"><FirstUseTerms /></div>}
             {signedIn ? <SignedInHeroActions /> : <SignedOutHeroActions />}
           </div>
 
@@ -266,6 +268,7 @@ export default async function GuidePage() {
           </div>
         </section>
       </div>
+      <footer className="px-4 py-4"><LegalLinks /></footer>
     </main>
   );
 }
